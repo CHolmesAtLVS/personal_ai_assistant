@@ -1,0 +1,122 @@
+name: Terraform Deploy
+
+# Triggers:
+# - Pull requests touching Terraform or bootstrap files: runs fmt, validate, plan, uploads plan artifact.
+# - Push to main with the same paths: runs the full pipeline including apply.
+# - Manual dispatch: allows on-demand runs from the Actions UI.
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - "scripts/bootstrap-tfstate.sh"
+      - ".github/workflows/terraform-deploy.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - "scripts/bootstrap-tfstate.sh"
+      - ".github/workflows/terraform-deploy.yml"
+  workflow_dispatch:
+
+# Minimal permissions: only read repo contents. Secrets are passed explicitly via env.
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    # Selects the GitHub environment based on target branch:
+    # - 'prod' on main: can be protected with required reviewers in repo Settings → Environments.
+    # - 'dev' on all other branches: runs without a gate for fast feedback on PRs.
+    # Both environments share the same repository-level secrets today.
+    # When a dev/prod split is needed, move secrets into each environment instead.
+    environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+    env:
+      # Service Principal credentials for Azure CLI and Terraform authentication.
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      # Remote state backend coordinates. Passed as -backend-config args to terraform init.
+      TFSTATE_RG: ${{ secrets.TFSTATE_RG }}
+      TFSTATE_LOCATION: ${{ secrets.TFSTATE_LOCATION }}
+      TFSTATE_STORAGE_ACCOUNT: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
+      TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
+      TFSTATE_KEY: ${{ secrets.TFSTATE_KEY }}
+      # TF_VAR_* variables are automatically picked up by Terraform as input variable values.
+      TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
+      # Non-sensitive Terraform input variables sourced from GitHub repository variables.
+      TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
+      TF_VAR_environment: ${{ vars.TF_VAR_ENVIRONMENT }}
+      TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
+      TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
+      TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Authenticates the runner as the CI Service Principal and targets the correct subscription.
+      # Credentials come from GitHub Secrets only — nothing is hardcoded.
+      - name: Azure Login (Service Principal)
+        shell: bash
+        run: |
+          set -euo pipefail
+          az login --service-principal \
+            --username "$AZURE_CLIENT_ID" \
+            --password "$AZURE_CLIENT_SECRET" \
+            --tenant "$AZURE_TENANT_ID" \
+            --output none
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
+      # Idempotent Azure CLI script that creates the state resource group, storage account,
+      # and blob container if they do not already exist. Safe to re-run; prints
+      # BOOTSTRAP-STATE: prefixed status lines and exits non-zero on missing inputs.
+      - name: Bootstrap Terraform Backend
+        shell: bash
+        run: |
+          chmod +x scripts/bootstrap-tfstate.sh
+          ./scripts/bootstrap-tfstate.sh
+
+      # Fails the workflow if any .tf file is not canonically formatted.
+      - name: Terraform Fmt
+        run: terraform -chdir=terraform fmt -check -recursive
+
+      # Initialises the azurerm backend using secrets injected at runtime.
+      # No backend values are committed to the repository.
+      - name: Terraform Init
+        run: |
+          terraform -chdir=terraform init \
+            -backend-config="resource_group_name=${TFSTATE_RG}" \
+            -backend-config="storage_account_name=${TFSTATE_STORAGE_ACCOUNT}" \
+            -backend-config="container_name=${TFSTATE_CONTAINER}" \
+            -backend-config="key=${TFSTATE_KEY}"
+
+      # Validates configuration syntax and provider schema compliance.
+      - name: Terraform Validate
+        run: terraform -chdir=terraform validate
+
+      # Produces a binary plan file used by the apply step.
+      # Running plan before apply ensures the apply uses the exact diff already reviewed.
+      - name: Terraform Plan
+        run: terraform -chdir=terraform plan -out=tfplan
+
+      # On pull requests: upload the plan as an artifact so reviewers can inspect the diff
+      # before approving the merge.
+      - name: Upload Plan Artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: terraform/tfplan
+
+      # Apply runs only on direct pushes to main (not on PR builds).
+      # On main, the job runs under the 'prod' environment; add required reviewers there
+      # to introduce a human approval gate before infrastructure changes are applied.
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: terraform -chdir=terraform apply -auto-approve tfplan

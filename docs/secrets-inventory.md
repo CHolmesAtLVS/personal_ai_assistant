@@ -1,0 +1,25 @@
+# Secrets Inventory
+
+This repository uses GitHub Secrets for all sensitive values and personal deployment details.
+No secret values, deployment identifiers, or personal details are committed to source control.
+
+## Required Repository or Environment Secrets
+
+| Secret Name | Purpose | Rotation Cadence | Owner |
+| --- | --- | --- | --- |
+| `AZURE_TENANT_ID` | Service Principal tenant scope for CI login | 180 days or on incident | Platform Engineering |
+| `AZURE_SUBSCRIPTION_ID` | Target subscription for CI operations | On environment change | Platform Engineering |
+| `AZURE_CLIENT_ID` | Service Principal application ID for CI login | On principal replacement | Platform Engineering |
+| `AZURE_CLIENT_SECRET` | Service Principal credential for CI login | 90 days or less | Platform Engineering |
+| `AZURE_SP_NAME` | Display name of the CI Service Principal (informational) | On principal rename | Platform Engineering |
+| `TFSTATE_RG` | Terraform state resource group name | On backend redesign | Platform Engineering |
+| `TFSTATE_LOCATION` | Azure region for state backend resources | Rarely; on migration | Platform Engineering |
+| `TFSTATE_STORAGE_ACCOUNT` | Storage account name for Terraform state | On backend redesign | Platform Engineering |
+| `TFSTATE_CONTAINER` | Blob container name for Terraform state | On backend redesign | Platform Engineering |
+| `TFSTATE_KEY` | Terraform state key path/name | On state partition redesign | Platform Engineering |
+
+## Policy Notes
+
+- Personal details are secrets and must remain in GitHub Secrets only.
+- Azure deployment identifiers are treated as sensitive operational metadata and must not be committed.
+- CI logs must be reviewed to ensure no secret values are echoed.

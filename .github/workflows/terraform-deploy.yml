@@ -20,6 +20,14 @@ on:
       - ".github/workflows/terraform-deploy.yml"
   workflow_dispatch:
 
+# Cancel any in-progress run for the same branch when a new run starts.
+# Uses head_ref (PR source branch) when available, falling back to ref_name (push branch/tag).
+# This prevents duplicate runs when a push and a PR open event fire simultaneously for the
+# same commit, and collapses rapid successive commits into a single run.
+concurrency:
+  group: terraform-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 # Minimal permissions: only read repo contents. Secrets are passed explicitly via env.
 permissions:
   contents: read

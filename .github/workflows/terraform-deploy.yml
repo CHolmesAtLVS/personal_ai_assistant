@@ -87,7 +87,12 @@ jobs:
         run: terraform -chdir=terraform validate
 
       - name: Terraform Plan
-        run: terraform -chdir=terraform plan -out=tfplan
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            terraform -chdir=terraform plan -lock=false -out=tfplan
+          else
+            terraform -chdir=terraform plan -out=tfplan
+          fi
 
       - name: Upload Plan Artifact
         if: github.event_name == 'pull_request'

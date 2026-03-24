@@ -44,7 +44,7 @@ jobs:
       TFSTATE_KEY: ${{ secrets.TFSTATE_KEY }}
       TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
       TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
-      TF_VAR_environment: ${{ vars.TF_VAR_ENVIRONMENT }}
+      TF_VAR_environment: dev
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
@@ -126,7 +126,7 @@ jobs:
       TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
       # Non-sensitive Terraform input variables sourced from GitHub repository variables.
       TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
-      TF_VAR_environment: ${{ vars.TF_VAR_ENVIRONMENT }}
+      TF_VAR_environment: prod
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}

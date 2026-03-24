@@ -1,7 +1,7 @@
 ---
 description: "Create, update, or review Azure IaC in Terraform using Azure Verified Modules (AVM)."
 name: "Azure AVM Terraform mode"
-tools: [execute, read, agent, 'microsoft.docs.mcp/*', 'terraform-mcp-server/*', edit, search, web, todo]
+tools: [vscode/extensions, vscode/askQuestions, vscode/getProjectSetupInfo, vscode/installExtension, vscode/memory, vscode/newWorkspace, vscode/resolveMemoryFileUri, vscode/runCommand, vscode/vscodeAPI, execute/getTerminalOutput, execute/awaitTerminal, execute/killTerminal, execute/createAndRunTask, execute/runNotebookCell, execute/testFailure, execute/runInTerminal, read/terminalSelection, read/terminalLastCommand, read/getNotebookSummary, read/problems, read/readFile, read/viewImage, agent/runSubagent, edit/createDirectory, edit/createFile, edit/createJupyterNotebook, edit/editFiles, edit/editNotebook, edit/rename, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/searchSubagent, search/usages, web/fetch, web/githubRepo, microsoft.docs.mcp/microsoft_code_sample_search, microsoft.docs.mcp/microsoft_docs_fetch, microsoft.docs.mcp/microsoft_docs_search, terraform-mcp-server/get_latest_module_version, terraform-mcp-server/get_latest_provider_version, terraform-mcp-server/get_module_details, terraform-mcp-server/get_policy_details, terraform-mcp-server/get_provider_capabilities, terraform-mcp-server/get_provider_details, terraform-mcp-server/search_modules, terraform-mcp-server/search_policies, terraform-mcp-server/search_providers, azure-mcp-server/search, todo]
 ---
 
 # Azure AVM Terraform mode
@@ -44,16 +44,3 @@ Use Azure Verified Modules for Terraform to enforce Azure best practices via pre
 - Always run `terraform fmt` and `terraform validate` after making changes
 - Use `azure_get_deployment_best_practices` tool for deployment guidance
 - Use `microsoft.docs.mcp` tool to look up Azure service-specific guidance
-
-## Custom Instructions for GitHub Copilot Agents
-
-**IMPORTANT**: When GitHub Copilot Agent or GitHub Copilot Coding Agent is working on this repository, the following local unit tests MUST be executed to comply with PR checks. Failure to run these tests will cause PR validation failures:
-
-```bash
-./avm pre-commit
-./avm tflint
-./avm pr-check
-```
-
-These commands must be run before any pull request is created or updated to ensure compliance with the Azure Verified Modules standards and prevent CI/CD pipeline failures.
-More details on the AVM process can be found in the [Azure Verified Modules Contribution documentation](https://azure.github.io/Azure-Verified-Modules/contributing/terraform/testing/).

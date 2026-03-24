@@ -3,7 +3,9 @@
 This repository uses GitHub Secrets for all sensitive values and personal deployment details.
 No secret values, deployment identifiers, or personal details are committed to source control.
 
-## Required Repository or Environment Secrets
+## Required GitHub Environment Secrets
+
+Create these secrets in both `dev` and `prod` GitHub Environments unless intentionally different per environment.
 
 | Secret Name | Purpose | Rotation Cadence | Owner |
 | --- | --- | --- | --- |
@@ -17,6 +19,18 @@ No secret values, deployment identifiers, or personal details are committed to s
 | `TFSTATE_STORAGE_ACCOUNT` | Storage account name for Terraform state | On backend redesign | Platform Engineering |
 | `TFSTATE_CONTAINER` | Blob container name for Terraform state | On backend redesign | Platform Engineering |
 | `TFSTATE_KEY` | Terraform state key path/name | On state partition redesign | Platform Engineering |
+
+## Required GitHub Environment Variables
+
+Configure these as environment variables (`vars`) in both `dev` and `prod` GitHub Environments.
+
+| Variable Name | Purpose | Rotation Cadence | Owner |
+| --- | --- | --- | --- |
+| `TF_VAR_PROJECT` | Terraform `project` input | On naming convention change | Platform Engineering |
+| `TF_VAR_ENVIRONMENT` | Terraform `environment` input (`dev` or `prod`) | Rarely | Platform Engineering |
+| `TF_VAR_LOCATION` | Terraform `location` input | On environment change | Platform Engineering |
+| `TF_VAR_OWNER` | Terraform `owner` tag input | On ownership change | Platform Engineering |
+| `TF_VAR_COST_CENTER` | Terraform `cost_center` tag input | On finance change | Platform Engineering |
 
 ## Policy Notes
 

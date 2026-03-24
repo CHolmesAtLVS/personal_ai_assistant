@@ -53,9 +53,10 @@ Before requesting review:
 ## Terraform CI/CD Baseline
 
 - Terraform CI uses Service Principal authentication via GitHub environment secrets.
+- Terraform deploy workflow is split into `terraform-dev` and `terraform-prod` jobs mapped to `dev` and `prod` GitHub Environments.
 - Remote state resources are bootstrapped through Azure CLI before `terraform init`.
 - Pull requests must run `terraform fmt`, `terraform validate`, and `terraform plan`.
-- Apply is limited to `main` and must remain protected by environment approvals.
+- Apply is limited to the `terraform-prod` job on `main` and must remain protected by environment approvals.
 
 ## Pull Request Checklist Addendum
 

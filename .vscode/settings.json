@@ -1,0 +1,7 @@
+{
+    "chat.mcp.serverSampling": {
+        "personal_ai_assistant/.vscode/mcp.json: Azure MCP Server": {
+            "allowedDuringChat": true
+        }
+    }
+}

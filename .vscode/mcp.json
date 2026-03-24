@@ -1,0 +1,31 @@
+{
+	"servers": {
+		"microsoft.docs.mcp": {
+			"url": "https://learn.microsoft.com/api/mcp",
+			"type": "http"
+		},
+		"terraform-mcp-server": {
+			"type": "stdio",
+			"sandboxEnabled": false,
+			"command": "docker",
+			"args": [
+				"run",
+				"-i",
+				"--rm",
+				"hashicorp/terraform-mcp-server"
+			],
+			"dev": {
+				"enabled": false
+			}
+		},
+		"Azure MCP Server": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@azure/mcp@latest",
+				"server",
+				"start"
+			]
+		}
+	}
+}

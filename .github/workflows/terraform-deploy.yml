@@ -99,9 +99,9 @@ jobs:
       - name: Terraform Plan
         run: |
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            terraform -chdir=terraform plan -lock=false -out=tfplan
+            terraform -chdir=terraform plan -input=false -lock=false -out=tfplan
           else
-            terraform -chdir=terraform plan -out=tfplan
+            terraform -chdir=terraform plan -input=false -out=tfplan
           fi
 
       - name: Upload Plan Artifact
@@ -113,7 +113,7 @@ jobs:
 
       - name: Terraform Apply
         if: github.event_name == 'push' && github.ref != 'refs/heads/main'
-        run: terraform -chdir=terraform apply -auto-approve tfplan
+        run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
   terraform-prod:
     name: Terraform Prod
@@ -194,7 +194,7 @@ jobs:
       # Produces a binary plan file used by the apply step.
       # Running plan before apply ensures the apply uses the exact diff already reviewed.
       - name: Terraform Plan
-        run: terraform -chdir=terraform plan -out=tfplan
+        run: terraform -chdir=terraform plan -input=false -out=tfplan
 
       # On pull requests: upload the plan as an artifact so reviewers can inspect the diff
       # before approving the merge.
@@ -210,4 +210,4 @@ jobs:
       # to introduce a human approval gate before infrastructure changes are applied.
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        run: terraform -chdir=terraform apply -auto-approve tfplan
+        run: terraform -chdir=terraform apply -input=false -auto-approve tfplan

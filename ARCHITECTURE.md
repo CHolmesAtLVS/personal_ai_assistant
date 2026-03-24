@@ -21,6 +21,13 @@ Core architecture goals:
 - Terraform configuration for Azure resources
 - GitHub Actions for CI/CD orchestration
 
+### Terraform Delivery Path
+
+- GitHub Actions authenticates to Azure with a Service Principal provided through GitHub environment secrets
+- Azure CLI bootstraps Terraform remote state infrastructure (Resource Group, Storage Account, Blob Container) before Terraform backend initialization
+- Terraform uses Azure Blob remote state for shared, auditable infrastructure state
+- Resource naming and required tags are centralized in Terraform locals for consistent policy enforcement
+
 ### Azure Runtime Platform
 
 - Azure Container Registry (ACR): stores built container images
@@ -50,6 +57,14 @@ Core architecture goals:
 7. OpenClaw authenticates to Azure services via Managed Identity where supported.
 8. OpenClaw calls Azure AI Foundry's configured LLM deployment endpoint.
 9. Operational telemetry and diagnostics flow to Azure monitoring.
+
+Terraform workflow details:
+
+1. CI logs in using Service Principal credentials from GitHub Secrets.
+2. CI runs an idempotent Azure CLI bootstrap script for backend state resources.
+3. CI runs `terraform fmt -check`, `terraform init`, `terraform validate`, `terraform plan`.
+4. CI uploads the plan artifact for pull requests.
+5. CI runs `terraform apply` only on `main` with protected environment controls.
 
 ## Trust Boundaries and Access Model
 

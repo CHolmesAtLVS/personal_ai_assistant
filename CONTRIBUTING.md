@@ -47,6 +47,19 @@ Before requesting review:
 - CI/CD workflow updates are syntactically valid
 - No secrets are present in committed files
 - Architecture/product docs remain accurate
+- Service Principal and backend bootstrap workflow changes preserve secret masking and avoid printing sensitive values
+- Personal details (including home public IP) are sourced only from GitHub Secrets and never committed
+
+## Terraform CI/CD Baseline
+
+- Terraform CI uses Service Principal authentication via GitHub environment secrets.
+- Remote state resources are bootstrapped through Azure CLI before `terraform init`.
+- Pull requests must run `terraform fmt`, `terraform validate`, and `terraform plan`.
+- Apply is limited to `main` and must remain protected by environment approvals.
+
+## Pull Request Checklist Addendum
+
+- Confirm no personal details, Azure identifiers, or secret values are printed in CI output.
 
 ## Documentation Discipline
 

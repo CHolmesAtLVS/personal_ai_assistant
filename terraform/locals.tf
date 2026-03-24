@@ -11,3 +11,18 @@ locals {
 
   common_tags = merge(local.required_tags, var.extra_tags)
 }
+
+locals {
+  # Resource name locals.
+  # Key Vault constraint: 3-24 chars, alphanumeric and hyphens only.
+  # ACR constraint: 5-50 chars, alphanumeric only (no hyphens).
+  law_name        = "${local.name_prefix}-law"
+  identity_name   = "${local.name_prefix}-id"
+  kv_name         = "${local.name_prefix}-kv"
+  acr_name        = "${replace(local.name_prefix, "-", "")}acr"
+  ais_name        = "${local.name_prefix}-ais"
+  ai_hub_name     = "${local.name_prefix}-hub"
+  ai_project_name = "${local.name_prefix}-proj"
+  cae_name        = "${local.name_prefix}-cae"
+  app_name        = "${local.name_prefix}-app"
+}

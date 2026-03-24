@@ -1,0 +1,4 @@
+resource_group_name  = "<prod-tfstate-resource-group-name>"
+storage_account_name = "<prod-tfstate-storage-account-name>"
+container_name       = "<prod-tfstate-container-name>"
+key                  = "<prod-tfstate-key>"

@@ -6,7 +6,7 @@ locals {
     environment = var.environment
     owner       = var.owner
     cost_center = var.cost_center
-    managed_by  = "terraform"
+    managed_by  = "CHolmesAtLVS\\personal_ai_assistant"
   }
 
   common_tags = merge(local.required_tags, var.extra_tags)

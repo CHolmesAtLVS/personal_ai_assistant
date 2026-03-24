@@ -2,7 +2,8 @@ name: Terraform Deploy
 
 # Triggers:
 # - Pull requests touching Terraform or bootstrap files: runs fmt, validate, plan, uploads plan artifact.
-# - Push to main with the same paths: runs the full pipeline including apply.
+# - Push to non-main branches with the same paths: dev job runs and auto-applies to dev.
+# - Push to main with the same paths: prod job runs and applies to prod (environment-protected).
 # - Manual dispatch: allows on-demand runs from the Actions UI.
 on:
   pull_request:
@@ -12,6 +13,8 @@ on:
       - ".github/workflows/terraform-deploy.yml"
   push:
     branches:
+      - "**"
+      - "!main"
       - main
     paths:
       - "terraform/**"
@@ -92,6 +95,10 @@ jobs:
         with:
           name: terraform-plan-dev
           path: terraform/tfplan
+
+      - name: Terraform Apply
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        run: terraform -chdir=terraform apply -auto-approve tfplan
 
   terraform-prod:
     name: Terraform Prod

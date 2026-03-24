@@ -37,3 +37,6 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 - Personal details are secrets and must remain in GitHub Secrets only.
 - Azure deployment identifiers are treated as sensitive operational metadata and must not be committed.
 - CI logs must be reviewed to ensure no secret values are echoed.
+- Pull requests are plan-only for both environments; apply must not run on PR events.
+- Non-main push events use `dev` environment secrets/vars for auto-apply.
+- `main` push events use `prod` environment secrets/vars and remain subject to prod environment protections.

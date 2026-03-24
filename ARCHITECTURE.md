@@ -64,8 +64,9 @@ Terraform workflow details:
 1. CI selects the explicit environment job (`dev` for non-main refs, `prod` for `main`) and loads that environment's secrets and variables.
 2. CI runs an idempotent Azure CLI bootstrap script for backend state resources.
 3. CI runs `terraform fmt -check`, `terraform init`, `terraform validate`, `terraform plan`.
-4. CI uploads the environment-specific plan artifact for pull requests.
-5. CI runs `terraform apply` only in the `prod` job on `main` with protected environment controls.
+4. CI uploads the environment-specific plan artifact for pull requests (plan-only).
+5. CI auto-applies in the `dev` job on non-main push events.
+6. CI applies in the `prod` job only on push to `main` with protected environment controls.
 
 ## Trust Boundaries and Access Model
 

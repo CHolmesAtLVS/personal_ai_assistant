@@ -54,10 +54,10 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION }}
-      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY }}
-      TF_VAR_container_image_tag: ${{ vars.TF_VAR_CONTAINER_IMAGE_TAG }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
+      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
+      TF_VAR_container_image_tag: ${{ vars.TF_VAR_CONTAINER_IMAGE_TAG || 'latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -140,10 +140,10 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION }}
-      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY }}
-      TF_VAR_container_image_tag: ${{ vars.TF_VAR_CONTAINER_IMAGE_TAG }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
+      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
+      TF_VAR_container_image_tag: ${{ vars.TF_VAR_CONTAINER_IMAGE_TAG || 'latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

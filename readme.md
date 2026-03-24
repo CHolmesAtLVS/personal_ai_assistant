@@ -15,7 +15,6 @@ This architecture deploys **OpenClaw** from a **public GitHub repository** into 
 - **Access control:** Ingress restricted to the user’s home public IP
 - **Authentication to Azure services:** Managed Identity preferred where supported
 
-
 ## Architecture Diagram
 
 ```mermaid

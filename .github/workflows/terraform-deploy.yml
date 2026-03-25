@@ -1,24 +1,15 @@
 name: Terraform Deploy
 
 # Triggers:
-# - Pull requests touching Terraform or bootstrap files: runs fmt, validate, plan, uploads plan artifact.
-# - Push to non-main branches with the same paths: dev job runs and auto-applies to dev.
-# - Push to main with the same paths: prod job runs and applies to prod (environment-protected).
-# - Manual dispatch: allows on-demand runs from the Actions UI.
+# - pull_request (opened/synchronize/reopened): plan + apply to dev environment.
+# - pull_request (closed + merged to main): plan + apply to prod environment.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
     paths:
       - "terraform/**"
       - "scripts/bootstrap-tfstate.sh"
       - ".github/workflows/terraform-deploy.yml"
-  push:
-    branches:
-      - "**"
-    paths:
-      - "terraform/**"
-      - "scripts/bootstrap-tfstate.sh"
-      - ".github/workflows/terraform-deploy.yml"
-  workflow_dispatch:
 
 # Minimal permissions: only read repo contents. Secrets are passed explicitly via env.
 permissions:
@@ -27,7 +18,7 @@ permissions:
 jobs:
   terraform-dev:
     name: Terraform Dev
-    if: github.ref != 'refs/heads/main'
+    if: github.event.action != 'closed' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     environment: dev
     env:
@@ -46,6 +37,10 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
+      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
+      TF_VAR_container_image_tag: ${{ vars.TF_VAR_CONTAINER_IMAGE_TAG || 'latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -85,27 +80,20 @@ jobs:
         run: terraform -chdir=terraform validate
 
       - name: Terraform Plan
-        run: |
-          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            terraform -chdir=terraform plan -lock=false -out=tfplan
-          else
-            terraform -chdir=terraform plan -out=tfplan
-          fi
+        run: terraform -chdir=terraform plan -input=false -out=tfplan
 
       - name: Upload Plan Artifact
-        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan-dev
           path: terraform/tfplan
 
       - name: Terraform Apply
-        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
-        run: terraform -chdir=terraform apply -auto-approve tfplan
+        run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
   terraform-prod:
     name: Terraform Prod
-    if: github.ref == 'refs/heads/main'
+    if: github.event.pull_request.merged == true && github.base_ref == 'main'
     runs-on: ubuntu-latest
     environment: prod
     env:
@@ -128,6 +116,10 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
+      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
+      TF_VAR_container_image_tag: ${{ vars.TF_VAR_CONTAINER_IMAGE_TAG || 'latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,23 +167,15 @@ jobs:
       - name: Terraform Validate
         run: terraform -chdir=terraform validate
 
-      # Produces a binary plan file used by the apply step.
-      # Running plan before apply ensures the apply uses the exact diff already reviewed.
       - name: Terraform Plan
-        run: terraform -chdir=terraform plan -out=tfplan
+        run: terraform -chdir=terraform plan -input=false -out=tfplan
 
-      # On pull requests: upload the plan as an artifact so reviewers can inspect the diff
-      # before approving the merge.
+      # Upload the plan as an artifact for audit trail.
       - name: Upload Plan Artifact
-        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan-prod
           path: terraform/tfplan
 
-      # Apply runs only on direct pushes to main (not on PR builds).
-      # On main, the job runs under the 'prod' environment; add required reviewers there
-      # to introduce a human approval gate before infrastructure changes are applied.
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        run: terraform -chdir=terraform apply -auto-approve tfplan
+        run: terraform -chdir=terraform apply -input=false -auto-approve tfplan

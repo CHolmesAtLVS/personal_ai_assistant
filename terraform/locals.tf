@@ -5,7 +5,6 @@ locals {
     project     = var.project
     environment = var.environment
     owner       = var.owner
-    cost_center = var.cost_center
     managed_by  = "CHolmesAtLVS\\personal_ai_assistant"
   }
 

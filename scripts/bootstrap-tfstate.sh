@@ -44,6 +44,13 @@ else
   echo "BOOTSTRAP-STATE:SA_CREATED ${TFSTATE_STORAGE_ACCOUNT}"
 fi
 
+az storage account blob-service-properties update \
+  --account-name "${TFSTATE_STORAGE_ACCOUNT}" \
+  --resource-group "${TFSTATE_RG}" \
+  --enable-versioning true \
+  --output none
+echo "BOOTSTRAP-STATE:VERSIONING_ENABLED ${TFSTATE_STORAGE_ACCOUNT}"
+
 if az storage container show \
   --name "${TFSTATE_CONTAINER}" \
   --account-name "${TFSTATE_STORAGE_ACCOUNT}" \

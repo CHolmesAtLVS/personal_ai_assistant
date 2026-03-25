@@ -1,9 +1,11 @@
 name: Terraform Deploy
 
 # Triggers:
-# - Pull requests touching Terraform or bootstrap files: runs fmt, validate, plan, uploads plan artifact.
+# - pull_request (opened/synchronize/reopened): plan + apply to dev environment.
+# - pull_request (closed + merged to main): plan + apply to prod environment.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
     paths:
       - "terraform/**"
       - "scripts/bootstrap-tfstate.sh"
@@ -21,7 +23,7 @@ permissions:
 jobs:
   terraform-dev:
     name: Terraform Dev
-    if: github.base_ref != 'main'
+    if: github.event.action != 'closed' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     environment: dev
     env:
@@ -83,7 +85,7 @@ jobs:
         run: terraform -chdir=terraform validate
 
       - name: Terraform Plan
-        run: terraform -chdir=terraform plan -input=false -lock=false -out=tfplan
+        run: terraform -chdir=terraform plan -input=false -out=tfplan
 
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
@@ -91,9 +93,12 @@ jobs:
           name: terraform-plan-dev
           path: terraform/tfplan
 
+      - name: Terraform Apply
+        run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
+
   terraform-prod:
     name: Terraform Prod
-    if: github.base_ref == 'main'
+    if: github.event.pull_request.merged == true && github.base_ref == 'main'
     runs-on: ubuntu-latest
     environment: prod
     env:
@@ -168,11 +173,14 @@ jobs:
         run: terraform -chdir=terraform validate
 
       - name: Terraform Plan
-        run: terraform -chdir=terraform plan -input=false -lock=false -out=tfplan
+        run: terraform -chdir=terraform plan -input=false -out=tfplan
 
-      # Upload the plan as an artifact so reviewers can inspect the diff before approving the merge.
+      # Upload the plan as an artifact for audit trail.
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan-prod
           path: terraform/tfplan
+
+      - name: Terraform Apply
+        run: terraform -chdir=terraform apply -input=false -auto-approve tfplan

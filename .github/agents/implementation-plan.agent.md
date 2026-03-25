@@ -1,7 +1,7 @@
 ---
 description: "Generate an implementation plan for new features or refactoring existing code."
 name: "Implementation Plan Generation Mode"
-tools: [vscode/extensions, vscode/getProjectSetupInfo, vscode/installExtension, vscode/newWorkspace, vscode/runCommand, vscode/vscodeAPI, execute/getTerminalOutput, execute/createAndRunTask, execute/runInTerminal, execute/runNotebookCell, execute/testFailure, read, edit/editFiles, search, web, todo]
+tools: [vscode/extensions, vscode/getProjectSetupInfo, vscode/installExtension, vscode/newWorkspace, vscode/runCommand, vscode/vscodeAPI, execute/getTerminalOutput, execute/awaitTerminal, execute/killTerminal, execute/createAndRunTask, execute/runNotebookCell, execute/testFailure, execute/runInTerminal, read/terminalSelection, read/terminalLastCommand, read/getNotebookSummary, read/problems, read/readFile, read/viewImage, edit/createDirectory, edit/createFile, edit/createJupyterNotebook, edit/editFiles, edit/editNotebook, edit/rename, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/searchSubagent, search/usages, web/fetch, web/githubRepo, azure-mcp-server/search, todo]
 ---
 
 # Implementation Plan Generation Mode
@@ -20,7 +20,7 @@ This mode is designed for AI-to-AI communication and automated processing. All p
 - Use deterministic language with zero ambiguity
 - Structure all content for automated parsing and execution
 - Ensure complete self-containment with no external dependencies for understanding
-- DO NOT make any code edits - only generate structured plans
+- DO NOT make any code edits - only generate structured plans in markdown.  Markdown creation and edits should not be considered code.
 
 ## Plan Structure Requirements
 

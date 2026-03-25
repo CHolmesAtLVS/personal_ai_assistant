@@ -9,8 +9,9 @@ module "acr" {
 
   enable_telemetry = true
 
-  sku           = "Standard"
-  admin_enabled = false
+  sku                     = "Standard"
+  admin_enabled           = false
+  zone_redundancy_enabled = false
 
   diagnostic_settings = {
     law = {

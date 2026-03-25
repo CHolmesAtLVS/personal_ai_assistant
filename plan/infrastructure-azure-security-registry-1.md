@@ -2,15 +2,15 @@
 goal: Implement Azure security and container registry resources for OpenClaw
 version: 1.0
 date_created: 2026-03-24
-last_updated: 2026-03-24
+last_updated: 2026-03-25
 owner: Platform Engineering
-status: 'Planned'
+status: 'Complete'
 tags: [infrastructure, terraform, azure, keyvault, acr, security]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Complete](https://img.shields.io/badge/status-Complete-green)
 
 This child plan provisions security boundary resources used by runtime and AI workloads: Key Vault with RBAC authorization and Azure Container Registry with admin access disabled.
 
@@ -32,8 +32,8 @@ This child plan provisions security boundary resources used by runtime and AI wo
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-001 | Create `terraform/keyvault.tf` with AVM `Azure/avm-res-keyvault-vault/azurerm` (`~> 0.9`) and `enable_rbac_authorization = true`. |  |  |
-| TASK-002 | Add `data "azurerm_client_config" "current" {}` once if not already present. |  |  |
+| TASK-001 | Create `terraform/keyvault.tf` with AVM `Azure/avm-res-keyvault-vault/azurerm` (`~> 0.9`) and `enable_rbac_authorization = true`. | ✅ | 2026-03-25 |
+| TASK-002 | Add `data "azurerm_client_config" "current" {}` once if not already present. | ✅ | 2026-03-25 |
 
 ### Implementation Phase 2
 
@@ -41,7 +41,7 @@ This child plan provisions security boundary resources used by runtime and AI wo
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-003 | Create `terraform/acr.tf` with AVM `Azure/avm-res-containerregistry-registry/azurerm` (`~> 0.4`) using standard SKU and disabled admin access. |  |  |
+| TASK-003 | Create `terraform/acr.tf` with AVM `Azure/avm-res-containerregistry-registry/azurerm` (`~> 0.4`) using standard SKU and disabled admin access. | ✅ | 2026-03-25 |
 
 ## 3. Alternatives
 

@@ -30,7 +30,7 @@ jobs:
       TFSTATE_LOCATION: ${{ secrets.TFSTATE_LOCATION }}
       TFSTATE_STORAGE_ACCOUNT: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
       TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
-      TFSTATE_KEY: ${{ secrets.TFSTATE_KEY }}
+      TFSTATE_KEY: terraform-dev.tfstate
       TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
       TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
       TF_VAR_environment: dev
@@ -107,7 +107,7 @@ jobs:
       TFSTATE_LOCATION: ${{ secrets.TFSTATE_LOCATION }}
       TFSTATE_STORAGE_ACCOUNT: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
       TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
-      TFSTATE_KEY: ${{ secrets.TFSTATE_KEY }}
+      TFSTATE_KEY: terraform-prod.tfstate
       # TF_VAR_* variables are automatically picked up by Terraform as input variable values.
       TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
       # Non-sensitive Terraform input variables sourced from GitHub repository variables.

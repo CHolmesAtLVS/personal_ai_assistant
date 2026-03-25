@@ -11,11 +11,6 @@ on:
       - "scripts/bootstrap-tfstate.sh"
       - ".github/workflows/terraform-deploy.yml"
 
-# Cancel any in-progress run for the same PR branch when a new commit is pushed.
-concurrency:
-  group: terraform-${{ github.head_ref }}
-  cancel-in-progress: true
-
 # Minimal permissions: only read repo contents. Secrets are passed explicitly via env.
 permissions:
   contents: read

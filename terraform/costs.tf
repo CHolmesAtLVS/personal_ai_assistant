@@ -15,7 +15,7 @@ resource "azurerm_monitor_action_group" "cost_alerts" {
 
 resource "azurerm_consumption_budget_resource_group" "openclaw" {
   name              = local.budget_name
-  resource_group_id = module.resource_group.id
+  resource_group_id = module.resource_group.resource_id
   amount            = var.monthly_budget_amount
   time_grain        = "Monthly"
 

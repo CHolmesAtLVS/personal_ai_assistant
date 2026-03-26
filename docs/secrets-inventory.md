@@ -32,7 +32,7 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_LOCATION` | Terraform `location` input | On environment change | Platform Engineering |
 | `TF_VAR_OWNER` | Terraform `owner` tag input | On ownership change | Platform Engineering |
 | `TF_VAR_COST_CENTER` | Terraform `cost_center` tag input | On finance change | Platform Engineering |
-| `MONTHLY_BUDGET_AMOUNT` | Monthly USD budget cap for the resource group (number) | On budget review | Platform Engineering |
+| `TF_VAR_MONTHLY_BUDGET_AMOUNT` | Monthly USD budget cap for the resource group (number) | On budget review | Platform Engineering |
 
 ## Policy Notes
 

@@ -13,7 +13,7 @@ tags: [infrastructure, terraform, azure, cost-management, budgets, alerting]
 
 ![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
 
-This plan provisions Azure Cost Management resources for the OpenClaw deployment. It introduces a per-environment monthly budget scoped to the OpenClaw resource group, an Azure Monitor Action Group for email notification delivery, and three budget alert thresholds (50%, 80%, 100%). All resources are managed declaratively via Terraform using direct `azurerm_*` resources, as no Azure Verified Module (AVM) exists for consumption budgets at this time.
+This plan provisions Azure Cost Management resources for the OpenClaw deployment. It introduces a per-environment monthly budget scoped to the OpenClaw resource group, an Azure Monitor Action Group for email notification delivery, and four budget alert thresholds (50%, 80%, 100%, and 110% Forecasted overage). All resources are managed declaratively via Terraform using direct `azurerm_*` resources, as no Azure Verified Module (AVM) exists for consumption budgets at this time.
 
 ## 1. Requirements & Constraints
 
@@ -25,7 +25,7 @@ This plan provisions Azure Cost Management resources for the OpenClaw deployment
 - **REQ-006**: Add `budget_name` and `action_group_name` locals to `terraform/locals.tf`.
 - **SEC-001**: Mark `budget_alert_email` as `sensitive = true`. Terraform's `sensitive` flag suppresses the value in `terraform plan` output, `terraform output`, and provider logs. The email address must never appear in any committed file — including source code, `.tfvars` files, `.tfvars.example` files, `backend.*.hcl` files, documentation, workflow files, or comments. No default value is permitted.
 - **SEC-002**: Do not embed subscription IDs, resource group names, or tenant identifiers in plan or Terraform comments.
-- **SEC-003**: Do not create any `.tfvars` or example file that contains or implies the `budget_alert_email` value. The sole authoritative store for this value is the GitHub Environment Secret `BUDGET_ALERT_EMAIL`. Injection into Terraform occurs exclusively via the `-var` flag in the GitHub Actions workflow, never via a file passed with `-var-file`.
+- **SEC-003**: Do not create any `.tfvars` or example file that contains or implies the `budget_alert_email` value. The sole authoritative store for this value is the GitHub Environment Secret `BUDGET_ALERT_EMAIL`. This secret is injected into Terraform via the `TF_VAR_budget_alert_email` environment variable configured in the GitHub Actions workflow; `-var-file` and `.tfvars`-based injection are not permitted.
 - **CON-001**: Budget scope is the per-environment OpenClaw resource group (`${local.name_prefix}-rg`); subscription-wide budgets are out of scope.
 - **CON-002**: No AVM module for `azurerm_consumption_budget_resource_group` exists; use the raw `azurerm` resource directly per ARCHITECTURE.md guidance.
 - **CON-003**: The `cost_center` tag variable already exists in `terraform/variables.tf` and is applied via `local.common_tags`; no changes to tagging are required.
@@ -52,8 +52,8 @@ This plan provisions Azure Cost Management resources for the OpenClaw deployment
 | Task     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Completed | Date |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- | ---- |
 | TASK-004 | Create `terraform/costs.tf`. Add `azurerm_monitor_action_group` named `cost_alerts` with: `name = local.action_group_name`, `resource_group_name = module.resource_group.name`, `short_name = "cost-alerts"`, one `email_receiver` block using `name = "budget-notify"` and `email_address = var.budget_alert_email`, and `tags = local.common_tags`. Depends on `module.resource_group`.                                                                                                                                                        |           |      |
-| TASK-005 | In `terraform/costs.tf`, add `azurerm_consumption_budget_resource_group` named `openclaw` with: `name = local.budget_name`, `resource_group_id = module.resource_group.id`, `amount = var.monthly_budget_amount`, `time_grain = "Monthly"`, `time_period` block with `start_date` set to the first day of the current deployment month (use Terraform expression `formatdate("YYYY-MM-01'T'00:00:00Z", timestamp())` for initial creation; note this will drift on re-apply — see RISK-001). Depends on `module.resource_group`.                 |           |      |
-| TASK-006 | In the `azurerm_consumption_budget_resource_group` resource, add four `notification` blocks: (1) `operator = "GreaterThan"`, `threshold = 50`, `threshold_type = "Actual"`, `contact_groups = [azurerm_monitor_action_group.cost_alerts.id]`; (2) same with `threshold = 80`; (3) same with `threshold = 100`; (4) `operator = "GreaterThan"`, `threshold = 110`, `threshold_type = "Forecasted"`, `contact_groups = [azurerm_monitor_action_group.cost_alerts.id]`. Set unique `notification_key` values: `"actual-50"`, `"actual-80"`, `"actual-100"`, `"forecast-110"`. |           |      |
+| TASK-005 | In `terraform/costs.tf`, add `azurerm_consumption_budget_resource_group` named `openclaw` with: `name = local.budget_name`, `resource_group_id = module.resource_group.resource_id`, `amount = var.monthly_budget_amount`, `time_grain = "Monthly"`, a `time_period` block with `start_date` set to a fixed first-day-of-month UTC timestamp (e.g. `"2026-04-01T00:00:00Z"`), and a `lifecycle` block with `ignore_changes = [time_period]` to prevent drift on re-apply (see RISK-001). Depends on `module.resource_group`.                              |           |      |
+| TASK-006 | In the `azurerm_consumption_budget_resource_group` resource, add four `notification` blocks: (1) `operator = "GreaterThan"`, `threshold = 50`, `threshold_type = "Actual"`, `contact_groups = [azurerm_monitor_action_group.cost_alerts.id]`; (2) same with `threshold = 80`; (3) same with `threshold = 100`; (4) `operator = "GreaterThan"`, `threshold = 110`, `threshold_type = "Forecasted"`, `contact_groups = [azurerm_monitor_action_group.cost_alerts.id]`. |           |      |
 
 ### Implementation Phase 3
 
@@ -62,7 +62,7 @@ This plan provisions Azure Cost Management resources for the OpenClaw deployment
 | Task     | Description                                                                                                                                                                                  | Completed | Date |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---- |
 | TASK-007 | Add `budget_alert_email` as a GitHub Secret named `BUDGET_ALERT_EMAIL` to both the `dev` and `prod` GitHub Environments via the GitHub UI or `gh secret set`. The secret must never be echoed, printed, or interpolated into a log line in the workflow. Confirm GitHub automatically masks the value in all workflow run logs. Do not store the value in any repository file, including `.env`, `.tfvars`, or documentation. |           |      |
-| TASK-008 | Add `-var budget_alert_email=${{ secrets.BUDGET_ALERT_EMAIL }}` and `-var monthly_budget_amount=${{ vars.MONTHLY_BUDGET_AMOUNT }}` injection to the `terraform plan` and `terraform apply` steps in the GitHub Actions workflow for both `dev` and `prod` jobs. Add `MONTHLY_BUDGET_AMOUNT` as a GitHub Environment variable (non-secret) per environment. |           |      |
+| TASK-008 | Add `TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}` and `TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT \|\| '25' }}` to the `env` block of both `dev` and `prod` jobs in the GitHub Actions workflow. Add `TF_VAR_MONTHLY_BUDGET_AMOUNT` as a GitHub Environment variable (non-secret) per environment. |           |      |
 | TASK-009 | Run `terraform fmt` on `terraform/costs.tf`, `terraform/variables.tf`, and `terraform/locals.tf`. Run `terraform validate`. Confirm no errors.                                              |           |      |
 | TASK-010 | Run `terraform plan` (dev environment). Confirm the plan shows exactly: one `azurerm_monitor_action_group` (create) and one `azurerm_consumption_budget_resource_group` (create). No other resource changes. |           |      |
 
@@ -75,7 +75,7 @@ This plan provisions Azure Cost Management resources for the OpenClaw deployment
 
 ## 4. Dependencies
 
-- **DEP-001**: [plan/infrastructure-azure-foundation-1.md](infrastructure-azure-foundation-1.md) complete — `module.resource_group` must exist and export `.name` and `.id`.
+- **DEP-001**: [plan/infrastructure-azure-foundation-1.md](infrastructure-azure-foundation-1.md) complete — `module.resource_group` must exist and export `.name` and `.resource_id`.
 - **DEP-002**: `local.name_prefix` and `local.common_tags` must be defined in `terraform/locals.tf`.
 - **DEP-003**: GitHub Actions Terraform workflow must support per-environment variable and secret injection (established in [plan/infrastructure-terraform-workflow-auth-1.md](infrastructure-terraform-workflow-auth-1.md)).
 
@@ -84,7 +84,7 @@ This plan provisions Azure Cost Management resources for the OpenClaw deployment
 - **FILE-001**: `terraform/costs.tf` — new file; contains `azurerm_monitor_action_group` and `azurerm_consumption_budget_resource_group`.
 - **FILE-002**: `terraform/variables.tf` — append `monthly_budget_amount` and `budget_alert_email` variable blocks.
 - **FILE-003**: `terraform/locals.tf` — append `budget_name` and `action_group_name` to resource name locals block.
-- **FILE-004**: `.github/workflows/terraform.yml` (or equivalent) — add secret/variable injection for `budget_alert_email` and `monthly_budget_amount`.
+- **FILE-004**: `.github/workflows/terraform-deploy.yml` — add secret/variable injection for `budget_alert_email` and `monthly_budget_amount`.
 
 ## 6. Testing
 

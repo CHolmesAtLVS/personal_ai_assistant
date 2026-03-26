@@ -66,7 +66,7 @@ This parent plan decomposes Azure resource deployment into independently executa
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
 | TASK-011 | Complete [plan/infrastructure-azure-security-registry-1.md](infrastructure-azure-security-registry-1.md) — Key Vault (RBAC mode) and ACR (admin disabled). | ✅ | 2026-03-25 |
-| TASK-012 | Complete [plan/infrastructure-azure-ai-platform-1.md](infrastructure-azure-ai-platform-1.md) — AI Services account, model deployment, AI Hub, and AI Project. |  |  |
+| TASK-012 | Complete [plan/infrastructure-azure-ai-platform-1.md](infrastructure-azure-ai-platform-1.md) — AI Services account, model deployment, AI Hub, and AI Project. | ✅ | 2026-03-25 |
 
 ### Implementation Phase 5
 

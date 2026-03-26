@@ -19,7 +19,6 @@ locals {
   identity_name   = "${local.name_prefix}-id"
   kv_name         = "${local.name_prefix}-kv"
   acr_name        = "${replace(local.name_prefix, "-", "")}acr"
-  ais_name        = "${local.name_prefix}-ais"
   ai_hub_name     = "${local.name_prefix}-hub"
   ai_project_name = "${local.name_prefix}-proj"
   cae_name        = "${local.name_prefix}-cae"

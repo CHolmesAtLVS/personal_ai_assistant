@@ -1,7 +1,7 @@
 ---
 description: "Act as an Azure Terraform Infrastructure as Code coding specialist that creates and reviews Terraform for Azure resources."
 name: "Azure Terraform IaC Implementation Specialist"
-tools: [vscode, execute, read, agent, search, web, todo]
+tools: [vscode, execute, read, agent, edit, search, web, 'microsoft.docs.mcp/*', azure-mcp-server/search, 'terraform-mcp-server/*', todo]
 ---
 
 # Azure Terraform Infrastructure as Code Implementation Specialist

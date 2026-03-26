@@ -2,15 +2,15 @@
 goal: Implement Azure AI Services and Foundry workspace resources for OpenClaw
 version: 1.0
 date_created: 2026-03-24
-last_updated: 2026-03-24
+last_updated: 2026-03-25
 owner: Platform Engineering
-status: 'Planned'
+status: 'Done'
 tags: [infrastructure, terraform, azure, ai-foundry, ai-services, machine-learning]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Done](https://img.shields.io/badge/status-Done-brightgreen)
 
 This child plan provisions the AI platform stack required by OpenClaw: AI Services account, model deployment, AI Hub storage, AI Hub workspace, and AI Project workspace.
 
@@ -32,8 +32,8 @@ This child plan provisions the AI platform stack required by OpenClaw: AI Servic
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-001 | Create `terraform/ai.tf` with AVM `Azure/avm-res-cognitiveservices-account/azurerm` (`~> 0.8`) configured as `kind = "AIServices"` and `sku_name = "S0"`. |  |  |
-| TASK-002 | Add `azurerm_cognitive_deployment` resource using `var.ai_model_name`, `var.ai_model_version`, and `var.ai_model_capacity`. |  |  |
+| TASK-001 | Create `terraform/ai.tf` with AVM `Azure/avm-res-cognitiveservices-account/azurerm` (`~> 0.8`) configured as `kind = "AIServices"` and `sku_name = "S0"`. | ✅ | 2026-03-25 |
+| TASK-002 | Add `azurerm_cognitive_deployment` resource using `var.ai_model_name`, `var.ai_model_version`, and `var.ai_model_capacity`. | ✅ | 2026-03-25 |
 
 ### Implementation Phase 2
 
@@ -41,9 +41,9 @@ This child plan provisions the AI platform stack required by OpenClaw: AI Servic
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-003 | Add `azurerm_storage_account.ai_hub_storage` in `terraform/ai.tf` for Hub backing storage. |  |  |
-| TASK-004 | Add `azurerm_machine_learning_workspace.ai_hub` with `kind = "Hub"` and system-assigned identity. |  |  |
-| TASK-005 | Add `azurerm_machine_learning_workspace.ai_project` with `kind = "Project"` and `hub_id` reference. |  |  |
+| TASK-003 | Add `azurerm_storage_account.ai_hub_storage` in `terraform/ai.tf` for Hub backing storage. | ✅ | 2026-03-25 |
+| TASK-004 | Add `azurerm_machine_learning_workspace.ai_hub` with `kind = "Hub"` and system-assigned identity. | ✅ | 2026-03-25 |
+| TASK-005 | Add `azurerm_machine_learning_workspace.ai_project` with `kind = "Project"` and `hub_id` reference. | ✅ | 2026-03-25 |
 
 ## 3. Alternatives
 

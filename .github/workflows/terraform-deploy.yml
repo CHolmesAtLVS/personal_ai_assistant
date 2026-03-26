@@ -41,6 +41,8 @@ jobs:
       TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_container_image_tag: ${{ vars.TF_VAR_CONTAINER_IMAGE_TAG || 'latest' }}
+      TF_VAR_monthly_budget_amount: ${{ vars.MONTHLY_BUDGET_AMOUNT || '25' }}
+      TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,6 +124,8 @@ jobs:
       TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_container_image_tag: ${{ vars.TF_VAR_CONTAINER_IMAGE_TAG || 'latest' }}
+      TF_VAR_monthly_budget_amount: ${{ vars.MONTHLY_BUDGET_AMOUNT || '25' }}
+      TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

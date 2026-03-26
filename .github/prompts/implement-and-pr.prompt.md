@@ -39,7 +39,7 @@ Run any locally executable checks appropriate to the changes:
 
 | Change type | Validation |
 |---|---|
-| Terraform | `terraform fmt -check` and `terraform validate` in `terraform/` |
+| Terraform | In `terraform/`: run `terraform fmt -check`, then `terraform init` (or `terraform init -upgrade` if you changed provider or module versions), then `terraform validate` |
 | Shell scripts | `shellcheck <file>` |
 | General | Lint tools already configured in the repo |
 

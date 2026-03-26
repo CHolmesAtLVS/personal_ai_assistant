@@ -34,7 +34,7 @@ This child plan provisions foundation elements required by downstream deployment
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
 | TASK-001 | Append `ai_model_name`, `ai_model_version`, `ai_model_capacity`, `container_image_tag` to `terraform/variables.tf` with explicit descriptions and defaults where required. | ✅ | 2026-03-24 |
-| TASK-002 | Append resource naming locals (`law_name`, `identity_name`, `kv_name`, `acr_name`, `ais_name`, `ai_hub_name`, `ai_project_name`, `cae_name`, `app_name`) to `terraform/locals.tf` including ACR and Key Vault naming constraints comments. | ✅ | 2026-03-24 |
+| TASK-002 | Append resource naming locals (`law_name`, `identity_name`, `kv_name`, `acr_name`, `ai_hub_name`, `ai_project_name`, `cae_name`, `app_name`) to `terraform/locals.tf` including ACR and Key Vault naming constraints comments. Note: `ais_name` was initially included and later removed in the AI platform migration when the standalone AI Services account was superseded by the AVM AI Foundry pattern module. | ✅ | 2026-03-24 |
 
 ### Implementation Phase 2
 

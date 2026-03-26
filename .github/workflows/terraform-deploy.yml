@@ -47,6 +47,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.12"
 
       - name: Azure Login (Service Principal)
         shell: bash
@@ -126,6 +128,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.12"
 
       # Authenticates the runner as the CI Service Principal and targets the correct subscription.
       # Credentials come from GitHub Secrets only — nothing is hardcoded.

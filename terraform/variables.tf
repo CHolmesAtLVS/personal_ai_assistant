@@ -80,6 +80,12 @@ variable "container_image" {
   default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 }
 
+variable "container_image_acr_server" {
+  description = "ACR login server to configure as a registry credential on the Container App. Set when container_image is sourced from ACR. Leave null when using a public image."
+  type        = string
+  default     = null
+}
+
 variable "monthly_budget_amount" {
   description = "Monthly USD budget cap for the OpenClaw resource group."
   type        = number

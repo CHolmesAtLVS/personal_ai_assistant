@@ -40,14 +40,15 @@ module "container_app" {
     user_assigned_resource_ids = toset([module.identity.resource_id])
   }
 
-  registries = [
+  registries = var.container_image_acr_server != null ? [
     {
-      server   = module.acr.resource.login_server
+      server   = var.container_image_acr_server
       identity = module.identity.resource_id
     }
-  ]
+  ] : null
 
   template = {
+    min_replicas = 0
     containers = [
       {
         name   = "openclaw"

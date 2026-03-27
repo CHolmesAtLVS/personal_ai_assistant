@@ -51,7 +51,7 @@ module "container_app" {
     containers = [
       {
         name   = "openclaw"
-        image  = "${module.acr.resource.login_server}/openclaw:${var.container_image_tag}"
+        image  = var.container_image
         cpu    = 0.5
         memory = "1Gi"
         env = [

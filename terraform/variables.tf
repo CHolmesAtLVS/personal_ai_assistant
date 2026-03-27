@@ -69,9 +69,21 @@ variable "ai_model_capacity" {
 }
 
 variable "container_image_tag" {
-  description = "Tag of the container image to deploy."
+  description = "Tag of the container image to deploy. Used by the container build pipeline to trigger a specific ACR revision."
   type        = string
   default     = "latest"
+}
+
+variable "container_image" {
+  description = "Full container image reference to deploy. Defaults to a public placeholder until the first ACR image is built and pushed."
+  type        = string
+  default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+}
+
+variable "container_image_acr_server" {
+  description = "ACR login server to configure as a registry credential on the Container App. Set when container_image is sourced from ACR. Leave null when using a public image."
+  type        = string
+  default     = null
 }
 
 variable "monthly_budget_amount" {

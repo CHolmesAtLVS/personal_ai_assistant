@@ -17,6 +17,8 @@ module "container_apps_environment" {
 
   enable_telemetry = true
 
+  zone_redundancy_enabled = false
+
   log_analytics_workspace = {
     resource_id = module.logging.resource_id
   }

@@ -17,7 +17,9 @@ module "container_apps_environment" {
 
   enable_telemetry = true
 
-  log_analytics_workspace_id = module.logging.resource_id
+  log_analytics_workspace = {
+    resource_id = module.logging.resource_id
+  }
 }
 
 module "container_app" {
@@ -36,7 +38,7 @@ module "container_app" {
     user_assigned_resource_ids = toset([module.identity.resource_id])
   }
 
-  registry = [
+  registries = [
     {
       server   = module.acr.resource.login_server
       identity = module.identity.resource_id
@@ -44,7 +46,7 @@ module "container_app" {
   ]
 
   template = {
-    container = [
+    containers = [
       {
         name   = "openclaw"
         image  = "${module.acr.resource.login_server}/openclaw:${var.container_image_tag}"

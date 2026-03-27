@@ -1,6 +1,6 @@
 output "container_app_fqdn" {
   description = "FQDN of the deployed OpenClaw Container App."
-  value       = module.container_app.resource.ingress[0].fqdn
+  value       = module.container_app.fqdn_url
 }
 
 output "ai_services_endpoint" {

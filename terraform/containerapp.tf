@@ -1,6 +1,6 @@
 data "azapi_resource" "ai_foundry" {
   resource_id            = module.ai_foundry.resource_id
-  type                   = "Microsoft.CognitiveServices/accounts@2025-10-01-preview"
+  type                   = "Microsoft.CognitiveServices/accounts@2023-05-01"
   response_export_values = ["properties.endpoint"]
 
   depends_on = [module.ai_foundry]
@@ -34,6 +34,12 @@ module "container_app" {
   revision_mode                         = "Single"
   tags                                  = local.common_tags
 
+  depends_on = [
+    azurerm_role_assignment.mi_acr_pull,
+    azurerm_role_assignment.mi_kv_secrets_user,
+    azurerm_role_assignment.mi_ai_openai_user,
+  ]
+
   enable_telemetry = true
 
   managed_identities = {
@@ -58,7 +64,7 @@ module "container_app" {
         env = [
           {
             name  = "AZURE_OPENAI_ENDPOINT"
-            value = data.azapi_resource.ai_foundry.output.properties.endpoint
+            value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
           },
           {
             name  = "OPENCLAW_GATEWAY_BIND"

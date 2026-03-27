@@ -73,3 +73,20 @@ variable "container_image_tag" {
   type        = string
   default     = "latest"
 }
+
+variable "monthly_budget_amount" {
+  description = "Monthly USD budget cap for the OpenClaw resource group."
+  type        = number
+  default     = 25
+
+  validation {
+    condition     = var.monthly_budget_amount > 0
+    error_message = "monthly_budget_amount must be greater than zero."
+  }
+}
+
+variable "budget_alert_email" {
+  description = "Email address for budget alert notifications. Must be injected via GitHub Secret; do not set a default or supply via a committed .tfvars file."
+  type        = string
+  sensitive   = true
+}

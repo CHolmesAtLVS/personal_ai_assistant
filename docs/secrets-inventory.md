@@ -19,6 +19,7 @@ Create these secrets in both `dev` and `prod` GitHub Environments unless intenti
 | `TFSTATE_STORAGE_ACCOUNT` | Storage account name for Terraform state | On backend redesign | Platform Engineering |
 | `TFSTATE_CONTAINER` | Blob container name for Terraform state | On backend redesign | Platform Engineering |
 | `TFSTATE_KEY` | Terraform state key path/name | On state partition redesign | Platform Engineering |
+| `BUDGET_ALERT_EMAIL` | Email address for budget overage notifications | On contact change | Platform Engineering |
 
 ## Required GitHub Environment Variables
 
@@ -31,6 +32,7 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_LOCATION` | Terraform `location` input | On environment change | Platform Engineering |
 | `TF_VAR_OWNER` | Terraform `owner` tag input | On ownership change | Platform Engineering |
 | `TF_VAR_COST_CENTER` | Terraform `cost_center` tag input | On finance change | Platform Engineering |
+| `TF_VAR_MONTHLY_BUDGET_AMOUNT` | Monthly USD budget cap for the resource group (number) | On budget review | Platform Engineering |
 
 ## Policy Notes
 

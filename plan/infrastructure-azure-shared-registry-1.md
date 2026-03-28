@@ -5,13 +5,13 @@ version: 1.0
 date_created: 2026-03-28
 last_updated: 2026-03-28
 owner: Platform Engineering
-status: 'In Progress'
+status: 'Complete'
 tags: [infrastructure, terraform, azure, acr, resource-group, shared, prod]
 ---
 
 # Introduction
 
-![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow)
+![Status: Complete](https://img.shields.io/badge/status-Complete-brightgreen)
 
 The current topology deploys one Azure Container Registry (ACR) per environment inside the environment-scoped resource group. This plan introduces a third resource group — `${project}-shared-rg` — that is provisioned only on the `prod` deployment path and hosts a single ACR shared across the project. Dev deployments continue to use a public placeholder image and never provision ACR or the shared resource group.
 
@@ -90,9 +90,9 @@ The current topology deploys one Azure Container Registry (ACR) per environment 
 | -------- | ----------- | --------- | ---- |
 | TASK-012 | Run `terraform fmt` across `terraform/` and confirm no formatting diffs remain. | ✅ | 2026-03-28 |
 | TASK-013 | Run `terraform validate` against the module root and confirm zero errors. | ✅ | 2026-03-28 |
-| TASK-014 | Run `terraform plan` with dev variable values (`environment = "dev"`) and confirm: no `module.shared_resource_group`, no `module.acr`, no `azurerm_role_assignment.mi_acr_pull` in the planned changes. | | |
-| TASK-015 | Run `terraform plan` with prod variable values (`environment = "prod"`) and confirm: one `module.shared_resource_group[0]`, one `module.acr[0]`, one `azurerm_role_assignment.mi_acr_pull[0]`, one `acr_login_server` output in the planned changes, and no changes to the environment-scoped resource group. | | |
-| TASK-016 | Confirm `terraform plan` in prod shows the existing ACR as destroyed and replaced by the new ACR in the shared resource group. Accept the replacement as an expected one-time migration. Record any downstream state dependencies that require targeted apply ordering (e.g., apply shared resource group first, then ACR, then container app). | | |
+| TASK-014 | Run `terraform plan` with dev variable values (`environment = "dev"`) and confirm: no `module.shared_resource_group`, no `module.acr`, no `azurerm_role_assignment.mi_acr_pull` in the planned changes. | ✅ | 2026-03-28 |
+| TASK-015 | Run `terraform plan` with prod variable values (`environment = "prod"`) and confirm: one `module.shared_resource_group[0]`, one `module.acr[0]`, one `azurerm_role_assignment.mi_acr_pull[0]`, one `acr_login_server` output in the planned changes, and no changes to the environment-scoped resource group. | ✅ | 2026-03-28 |
+| TASK-016 | Confirm `terraform plan` in prod shows the existing ACR as destroyed and replaced by the new ACR in the shared resource group. Accept the replacement as an expected one-time migration. Record any downstream state dependencies that require targeted apply ordering (e.g., apply shared resource group first, then ACR, then container app). | ✅ | 2026-03-28 |
 
 ## 3. Alternatives
 

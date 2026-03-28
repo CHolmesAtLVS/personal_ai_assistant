@@ -60,9 +60,8 @@ while IFS='=' read -r key value; do
   export "${key}=${value}"
 done < "${VARS_FILE}"
 
-# Verify required Azure credentials were loaded
-for required in AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET \
-                TFSTATE_RG TFSTATE_LOCATION TFSTATE_STORAGE_ACCOUNT TFSTATE_CONTAINER TFSTATE_KEY; do
+# Verify required backend state variables were loaded (always required)
+for required in TFSTATE_RG TFSTATE_LOCATION TFSTATE_STORAGE_ACCOUNT TFSTATE_CONTAINER TFSTATE_KEY; do
   if [[ -z "${!required:-}" ]]; then
     echo "ERROR: required variable '${required}' is not set in ${VARS_FILE}"
     exit 1
@@ -71,15 +70,35 @@ done
 
 echo "LOCAL-TF: environment=${ENV} command=${CMD}"
 
-# ── Azure login ────────────────────────────────────────────────────────────────
-echo "LOCAL-TF: logging in to Azure..."
-az login --service-principal \
-  --username "${AZURE_CLIENT_ID}" \
-  --password "${AZURE_CLIENT_SECRET}" \
-  --tenant "${AZURE_TENANT_ID}" \
-  --output none
-az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
-echo "LOCAL-TF: Azure login successful"
+# ── Azure login / account selection ───────────────────────────────────────────
+# If AZURE_CLIENT_SECRET is set in the vars file, authenticate as a Service
+# Principal. Otherwise, assume the Azure CLI is already authenticated (e.g.,
+# via 'az login' as a user) and only set the target subscription.
+if [[ -n "${AZURE_CLIENT_SECRET:-}" ]]; then
+  for required in AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_CLIENT_ID; do
+    if [[ -z "${!required:-}" ]]; then
+      echo "ERROR: AZURE_CLIENT_SECRET is set but '${required}' is missing in ${VARS_FILE}"
+      exit 1
+    fi
+  done
+  echo "LOCAL-TF: authenticating as Service Principal..."
+  az login --service-principal \
+    --username "${AZURE_CLIENT_ID}" \
+    --password "${AZURE_CLIENT_SECRET}" \
+    --tenant "${AZURE_TENANT_ID}" \
+    --output none
+else
+  echo "LOCAL-TF: AZURE_CLIENT_SECRET not set — using existing Azure CLI session"
+  if ! az account show --output none 2>/dev/null; then
+    echo "ERROR: no active Azure CLI session. Run 'az login' first or add SP credentials to ${VARS_FILE}"
+    exit 1
+  fi
+fi
+
+if [[ -n "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+  az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+fi
+echo "LOCAL-TF: Azure auth OK (subscription: $(az account show --query id -o tsv))"
 
 # ── Bootstrap backend (idempotent) ────────────────────────────────────────────
 echo "LOCAL-TF: bootstrapping Terraform backend..."

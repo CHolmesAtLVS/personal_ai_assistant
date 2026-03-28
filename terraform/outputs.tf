@@ -1,3 +1,9 @@
+output "acr_login_server" {
+  description = "Login server of the shared ACR. Null in non-prod environments."
+  sensitive   = true
+  value       = var.environment == "prod" ? module.acr[0].resource.login_server : null
+}
+
 output "container_app_fqdn" {
   description = "FQDN of the deployed OpenClaw Container App."
   sensitive   = true

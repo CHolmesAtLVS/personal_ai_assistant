@@ -31,10 +31,15 @@ Core architecture goals:
 
 ### Azure Runtime Platform
 
-- Azure Container Registry (ACR): stores built container images
+- Azure Container Registry (ACR): stores built container images; lives in a dedicated shared resource group (`${project}-shared-rg`) provisioned only in the prod environment. Dev deployments use a public placeholder image and have no ACR dependency.
 - Azure Container Apps Environment: runtime environment for containerized workloads
 - OpenClaw Container App: running service endpoint
 - HTTPS ingress with source IP restriction to the user's home public IP
+
+### Resource Group Topology
+
+- **Environment resource group** (`${project}-${environment}-rg`): deployed in every environment; holds Key Vault, AI platform, Container Apps Environment, Container App, Managed Identity, and Log Analytics Workspace.
+- **Shared resource group** (`${project}-shared-rg`): deployed in prod only; holds the single Azure Container Registry shared across the project.
 
 ### Security and Configuration
 
@@ -51,7 +56,7 @@ Core architecture goals:
 
 1. A change is pushed to the public GitHub repository (app code, Docker config, or Terraform).
 2. GitHub Actions builds an Ubuntu-based OpenClaw container image.
-3. GitHub Actions pushes the image to ACR.
+3. GitHub Actions pushes the image to ACR (prod only; dev deployments use a public placeholder image).
 4. GitHub Actions applies Terraform to provision or update Azure resources in the private Azure environment.
 5. Azure Container Apps pulls the image from ACR and runs the OpenClaw container.
 6. A user connects over HTTPS from the approved home public IP.

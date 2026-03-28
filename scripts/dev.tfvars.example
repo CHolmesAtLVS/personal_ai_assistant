@@ -1,0 +1,31 @@
+# dev.tfvars.example — copy to scripts/dev.tfvars and fill in real values.
+# NEVER commit scripts/dev.tfvars — it is git-ignored.
+#
+# Azure Service Principal credentials
+AZURE_TENANT_ID     = "<tenant-id>"
+AZURE_SUBSCRIPTION_ID = "<subscription-id>"
+AZURE_CLIENT_ID     = "<client-id>"
+AZURE_CLIENT_SECRET = "<client-secret>"
+
+# Terraform remote state backend (matches backend.dev.hcl)
+TFSTATE_RG               = "<dev-tfstate-resource-group-name>"
+TFSTATE_LOCATION         = "<azure-region>"
+TFSTATE_STORAGE_ACCOUNT  = "<dev-tfstate-storage-account-name>"
+TFSTATE_CONTAINER        = "<dev-tfstate-container-name>"
+TFSTATE_KEY              = "terraform-dev.tfstate"
+
+# Terraform input variables — sensitive
+TF_VAR_public_ip          = "<your-home-ip>/32"
+TF_VAR_budget_alert_email = "<your-email>"
+
+# Terraform input variables — non-sensitive
+TF_VAR_project            = "<project-slug>"
+TF_VAR_environment        = "dev"
+TF_VAR_location           = "<azure-region>"
+TF_VAR_owner              = "<owner-name>"
+TF_VAR_cost_center        = "<cost-center>"
+# Optional overrides (comment out to use Terraform defaults)
+# TF_VAR_ai_model_name      = "gpt-4o"
+# TF_VAR_ai_model_version   = "2024-11-20"
+# TF_VAR_ai_model_capacity  = "10"
+# TF_VAR_monthly_budget_amount = "25"

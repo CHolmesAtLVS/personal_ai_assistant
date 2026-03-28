@@ -18,7 +18,7 @@ locals {
   law_name          = "${local.name_prefix}-law"
   identity_name     = "${local.name_prefix}-id"
   kv_name           = "${local.name_prefix}-kv"
-  acr_name          = "${replace(var.project, "-", "")}acr"
+  acr_name          = "${replace(var.project, "-", "")}sharedacr"
   shared_rg_name    = "${var.project}-shared-rg"
   ai_hub_name       = "${local.name_prefix}-hub"
   ai_project_name   = "${local.name_prefix}-proj"

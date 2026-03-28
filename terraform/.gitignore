@@ -4,3 +4,6 @@
 *.tfplan
 tfplan
 .terraform.lock.hcl
+# Local variable files — must never be committed.
+*.tfvars
+*.tfvars.local

@@ -1,0 +1,4 @@
+# Local Terraform secret variable files — never commit these.
+# Populate from the *.tfvars.example templates in scripts/.
+scripts/*.tfvars
+scripts/*.tfvars.local

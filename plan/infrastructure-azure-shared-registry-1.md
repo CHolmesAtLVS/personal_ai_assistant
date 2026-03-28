@@ -5,13 +5,13 @@ version: 1.0
 date_created: 2026-03-28
 last_updated: 2026-03-28
 owner: Platform Engineering
-status: 'Complete'
+status: 'In Progress'
 tags: [infrastructure, terraform, azure, acr, resource-group, shared, prod]
 ---
 
 # Introduction
 
-![Status: Complete](https://img.shields.io/badge/status-Complete-brightgreen)
+![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow)
 
 The current topology deploys one Azure Container Registry (ACR) per environment inside the environment-scoped resource group. This plan introduces a third resource group — `${project}-shared-rg` — that is provisioned only on the `prod` deployment path and hosts a single ACR shared across the project. Dev deployments continue to use a public placeholder image and never provision ACR or the shared resource group.
 
@@ -63,7 +63,7 @@ The current topology deploys one Azure Container Registry (ACR) per environment 
 | -------- | ----------- | --------- | ---- |
 | TASK-006 | Add `count = var.environment == "prod" ? 1 : 0` to `resource "azurerm_role_assignment" "mi_acr_pull"` in `terraform/roleassignments.tf`. | ✅ | 2026-03-28 |
 | TASK-007 | Update the `scope` attribute of `azurerm_role_assignment.mi_acr_pull` from `module.acr.resource_id` to `module.acr[0].resource_id`. | ✅ | 2026-03-28 |
-| TASK-008 | Update the `depends_on` list in `module "container_app"` (in `terraform/containerapp.tf`) to reference `azurerm_role_assignment.mi_acr_pull` only conditionally, or use `azurerm_role_assignment.mi_acr_pull[0]` guarded by the same condition. Replace the flat reference `azurerm_role_assignment.mi_acr_pull` in the `depends_on` list with `azurerm_role_assignment.mi_acr_pull` (the whole resource, not an index — Terraform resolves `count` collections in `depends_on` automatically). No change required for `depends_on` format; verify Terraform plan raises no unknown dependency errors in dev. | ✅ | 2026-03-28 |
+| TASK-008 | Confirm that the `depends_on` list in `module "container_app"` (in `terraform/containerapp.tf`) uses a flat reference to the counted role assignment resource: `depends_on = [azurerm_role_assignment.mi_acr_pull]`. Do not index the resource or wrap the reference in a conditional; Terraform automatically resolves `count`-based resources in `depends_on`. Run `terraform plan` in the dev environment and verify there are no unknown dependency errors related to this dependency. | ✅ | 2026-03-28 |
 
 ### Implementation Phase 4
 

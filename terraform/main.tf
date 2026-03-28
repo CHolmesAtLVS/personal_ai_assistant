@@ -9,3 +9,15 @@ module "resource_group" {
   location = var.location
   tags     = local.common_tags
 }
+
+# Shared resource group hosts resources that are environment-agnostic (e.g. ACR).
+# Provisioned only in prod; dev deployments use a public placeholder image.
+module "shared_resource_group" {
+  source  = "Azure/avm-res-resources-resourcegroup/azurerm"
+  version = "~> 0.2"
+  count   = var.environment == "prod" ? 1 : 0
+
+  name     = local.shared_rg_name
+  location = var.location
+  tags     = local.common_tags
+}

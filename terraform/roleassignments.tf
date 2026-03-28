@@ -1,5 +1,7 @@
+# AcrPull is only created when ACR exists (prod only).
 resource "azurerm_role_assignment" "mi_acr_pull" {
-  scope                = module.acr.resource_id
+  count                = var.environment == "prod" ? 1 : 0
+  scope                = module.acr[0].resource_id
   role_definition_name = "AcrPull"
   principal_id         = module.identity.principal_id
 }

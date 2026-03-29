@@ -11,11 +11,12 @@ This project deploys OpenClaw to Azure Container Apps using Terraform, GitHub Ac
 - Prefer Managed Identity to static credentials.
 - Preserve ingress restriction to approved home public IP unless intentionally changed.
 - Keep changes small, reviewable, and reversible.
+- Never use `latest` or any mutable image tag in Terraform defaults or `.tfvars` examples; always use a pinned version tag.
 
 ## What to Update for Typical Changes
 
 - Application behavior changes: update app code and related documentation.
-- Runtime/dependency changes: update Dockerfile and verify container build.
+- Image version bump: update the `TF_VAR_OPENCLAW_IMAGE_TAG` GitHub Environment variable to the new pinned tag; open a PR so CI plans and applies only the tag change.
 - Infrastructure changes: update Terraform and document impact.
 - Deployment changes: update GitHub Actions workflow and rollout notes.
 
@@ -43,12 +44,13 @@ Include the following in every PR:
 Before requesting review:
 
 - Terraform changes are formatted and validated
-- Container image builds successfully
 - CI/CD workflow updates are syntactically valid
 - No secrets are present in committed files
 - Architecture/product docs remain accurate
 - Service Principal and backend bootstrap workflow changes preserve secret masking and avoid printing sensitive values
 - Personal details (including home public IP) are sourced only from GitHub Secrets and never committed
+- Image tag changes use a pinned version; `latest` is not present anywhere in Terraform defaults or examples
+- Storage and gateway changes verified against `docs/openclaw-containerapp-operations.md` runbook
 
 ## Terraform CI/CD Baseline
 

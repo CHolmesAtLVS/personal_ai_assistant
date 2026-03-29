@@ -16,10 +16,11 @@ Core architecture goals:
 ### Source and Build
 
 - Public GitHub repository
-- OpenClaw application code
-- Dockerfile for Ubuntu-based image
+- OpenClaw runtime sourced from the pre-built public image at `ghcr.io/openclaw/openclaw`, pinned to an explicit version tag
 - Terraform configuration for Azure resources
-- GitHub Actions for CI/CD orchestration
+- GitHub Actions for CI/CD orchestration (Terraform-only; no container build step)
+
+Image versioning is controlled by the `openclaw_image_tag` Terraform variable. The `latest` tag is explicitly rejected by a Terraform variable validation rule.
 
 ### Terraform Delivery Path
 
@@ -32,10 +33,13 @@ Core architecture goals:
 
 ### Azure Runtime Platform
 
-- Azure Container Registry (ACR): stores built container images; lives in a dedicated shared resource group (`${project}-shared-rg`) provisioned only in the prod environment. Dev deployments use a public placeholder image and have no ACR dependency.
+- Azure Container Registry (ACR): stores built container images; lives in a dedicated shared resource group (`${project}-shared-rg`) provisioned only in the prod environment. Dev deployments use a public placeholder image and have no ACR dependency. ACR is reserved for custom-built image scenarios; standard deployment uses the pre-built GHCR image.
 - Azure Container Apps Environment: runtime environment for containerized workloads, linked to Log Analytics Workspace
-- OpenClaw Container App: running service endpoint; min replicas 0, 0.5 vCPU / 1 GiB per replica
+- OpenClaw Container App: running service endpoint; min replicas 0, 0.5 vCPU / 1 GiB per replica; pulls pre-built image from `ghcr.io/openclaw/openclaw` at the pinned tag
+- Azure Files share mounted at `/home/node/.openclaw`: persists all long-lived OpenClaw state (config, auth profiles, skills state, workspace files) across revisions and restarts
+- Gateway token auth: the OpenClaw gateway runs with `bind=lan` and token authentication; the token is stored in Key Vault under the canonical secret name `openclaw-gateway-token` and injected into the container at startup via Managed Identity secret reference
 - HTTPS ingress with source IP restriction to the user's home public IP; insecure connections blocked
+- Liveness probe at `/healthz:18789` and readiness probe at `/readyz:18789` for Container Apps health management
 - Log Analytics Workspace: centralized telemetry sink for Container Apps Environment, Key Vault diagnostics, and ACR diagnostics
 - Azure Monitor Action Group + Consumption Budget: cost alerts at 50 %, 80 %, 100 % actual, and 110 % forecasted thresholds against the environment resource group
 
@@ -74,10 +78,12 @@ Core architecture goals:
 | Resource Group | `avm-res-resources-resourcegroup` | |
 | Log Analytics Workspace | `avm-res-operationalinsights-workspace` | 30-day retention |
 | User-Assigned Managed Identity | `avm-res-managedidentity-userassignedidentity` | |
-| Key Vault (standard, RBAC mode) | `avm-res-keyvault-vault` | Diagnostics → LAW |
+| Key Vault (standard, RBAC mode) | `avm-res-keyvault-vault` | Diagnostics → LAW; holds `openclaw-gateway-token` |
 | AI Services / AI Foundry Hub + Project + model deployment | `avm-ptn-aiml-ai-foundry` | Uses existing Key Vault |
 | Container Apps Environment | `avm-res-app-managedenvironment` | Linked to LAW |
-| Container App (OpenClaw) | `avm-res-app-containerapp` | HTTPS, IP-restricted ingress |
+| Container App (OpenClaw) | `avm-res-app-containerapp` | HTTPS, IP-restricted ingress; KV secret ref for gateway token |
+| Azure Storage Account + Files share | `azurerm_storage_account` / `azurerm_storage_share` | Persists `/home/node/.openclaw` |
+| Container Apps Environment Storage binding | `azurerm_container_app_environment_storage` | Mounts Azure Files share into Container App |
 | Monitor Action Group | `azurerm_monitor_action_group` | Budget email alerts |
 | Consumption Budget | `azurerm_consumption_budget_resource_group` | Monthly cap on env RG |
 
@@ -95,14 +101,16 @@ Core architecture goals:
 | `container_app_fqdn` | FQDN of the deployed OpenClaw Container App | yes |
 | `ai_services_endpoint` | Endpoint URL of the AI Services account | yes |
 | `acr_login_server` | ACR login server (null in non-prod) | yes |
+| `openclaw_state_storage_account_name` | Storage account name hosting the OpenClaw state Azure Files share | no |
+| `openclaw_state_file_share_name` | Azure Files share name mounted to `/home/node/.openclaw` | no |
 
 ## End-to-End Deployment and Runtime Flow
 
 1. A change is pushed to the public GitHub repository (app code, Docker config, or Terraform).
-2. GitHub Actions builds an Ubuntu-based OpenClaw container image.
-3. GitHub Actions pushes the image to ACR (prod only; dev deployments use a public placeholder image).
-4. GitHub Actions applies Terraform to provision or update Azure resources in the private Azure environment.
-5. Azure Container Apps pulls the image from ACR and runs the OpenClaw container.
+2. GitHub Actions applies Terraform to provision or update Azure resources in the private Azure environment.
+3. Azure Container Apps pulls the pre-built OpenClaw image from `ghcr.io/openclaw/openclaw` at the pinned tag and runs the container.
+4. The Azure Files share hosting `/home/node/.openclaw` is mounted into the container, restoring all persistent state.
+5. The Container App reads the `openclaw-gateway-token` Key Vault secret via Managed Identity and starts the gateway with token authentication.
 6. A user connects over HTTPS from the approved home public IP.
 7. OpenClaw authenticates to Azure services via Managed Identity where supported.
 8. OpenClaw calls Azure AI Foundry's configured LLM deployment endpoint.

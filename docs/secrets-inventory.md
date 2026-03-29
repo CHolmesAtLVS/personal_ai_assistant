@@ -39,6 +39,7 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_AI_MODEL_CAPACITY` | Model deployment TPM capacity in thousands (default: `10`) | On quota change | Platform Engineering |
 | `TF_VAR_OPENCLAW_IMAGE_TAG` | Pinned OpenClaw image tag to deploy (default: `2026.2.26`) | Per release | Platform Engineering |
 | `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB` | Azure Files share quota in GiB for persisted OpenClaw state (default: `100`) | On storage review | Platform Engineering |
+| `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` | JSON array of HTTPS origins allowed for the OpenClaw Control UI (default: `[]`) | On FQDN change | Platform Engineering |
 | `TF_VAR_ENABLE_DEV_VM` | Set to `true` in the `dev` GitHub Environment to provision the Windows dev VM (default: `false`) — **dev environment only** | On demand | Platform Engineering |
 
 > **Note:** `TF_VAR_ENVIRONMENT` is hardcoded per job in the CI workflow (`dev` or `prod`) and does not need to be set as a GitHub Environment variable.
@@ -51,6 +52,16 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 - Pull requests are plan-only for both environments; apply must not run on PR events.
 - Non-main push events use `dev` environment secrets/vars for auto-apply.
 - `main` push events use `prod` environment secrets/vars and remain subject to prod environment protections.
+
+## Key Vault-Managed Runtime Secrets
+
+The following secrets are provisioned directly in Azure Key Vault by the operator and are not stored in GitHub Secrets or Terraform state. The Container App reads them at runtime via its Managed Identity.
+
+| Secret Name (Key Vault) | Purpose | Rotation Cadence | Owner |
+| --- | --- | --- | --- |
+| `openclaw-gateway-token` | Authentication token for the OpenClaw gateway. Required before first deploy. | On compromise or scheduled rotation | Platform Engineering |
+
+See [openclaw-containerapp-operations.md](openclaw-containerapp-operations.md) for provisioning and rotation procedures.
 
 ## Managed Identity Access Patterns
 
@@ -72,3 +83,5 @@ The following non-sensitive values are injected as container environment variabl
 | -------- | ------ | ----------- |
 | `AZURE_OPENAI_ENDPOINT` | Terraform output from AI Services (`azapi_resource` read) | AI Services endpoint URL for OpenAI inference |
 | `OPENCLAW_GATEWAY_BIND` | Hardcoded `lan` | Instructs OpenClaw to bind its gateway to the LAN interface |
+| `OPENCLAW_GATEWAY_TOKEN` | Key Vault secret reference (`openclaw-gateway-token`) | Gateway authentication token; read from Key Vault by the Container App at startup via Managed Identity |
+| `OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS` | Terraform variable `openclaw_control_ui_allowed_origins_json` | JSON array of HTTPS origins allowed for the Control UI; used in gateway bootstrap config |

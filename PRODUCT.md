@@ -33,7 +33,7 @@ This provides a simple but effective protection boundary for a public endpoint.
 - Runs OpenClaw from the pre-built public image at `ghcr.io/openclaw/openclaw`, pinned to an explicit version tag
 - Hosts the container in Azure Container Apps
 - Persists all long-lived user data (config, auth profiles, skills state, workspace files) to an Azure Files share mounted at `/home/node/.openclaw`; data survives container restarts and revision deployments
-- Gateway token authentication is required; the token is stored in Azure Key Vault and injected at runtime via Managed Identity
+- Supports gateway token authentication; when enabled, the token is stored in Azure Key Vault and injected into the container at runtime via Managed Identity
 
 ### 3. Secure Configuration Handling
 

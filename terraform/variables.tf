@@ -118,6 +118,18 @@ variable "openclaw_state_share_quota_gb" {
   }
 }
 
+
+variable "openclaw_control_ui_allowed_origins_json" {
+  description = "JSON array of HTTPS origins allowed for the OpenClaw Control UI (for example '[\"https://myapp.example.com\"]'). Used in the gateway bootstrap configuration. Leave as empty array \"[]\" until the app FQDN is known."
+  type        = string
+  default     = "[]"
+
+  validation {
+    condition     = can(jsondecode(var.openclaw_control_ui_allowed_origins_json))
+    error_message = "openclaw_control_ui_allowed_origins_json must be a valid JSON string."
+  }
+}
+
 variable "monthly_budget_amount" {
   description = "Monthly USD budget cap for the OpenClaw resource group."
   type        = number

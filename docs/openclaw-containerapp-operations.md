@@ -99,7 +99,7 @@ az storage file upload \
 rm /tmp/openclaw.json
 ```
 
-> **Security note:** The gateway token value appears in the config file stored on the Azure Files share. Ensure the share is not publicly accessible (default: `public_network_access_enabled = true` with no anonymous access, protected by storage account key and SAS). Access is further limited by the Container Apps Environment network boundary.
+> **Security note:** The gateway token value appears in the config file stored on the Azure Files share. By default, `public_network_access_enabled = true`, so the share is reachable from the public internet for callers that have the storage account key or a valid SAS token. There is no anonymous access, and access is additionally constrained by the Container Apps Environment network boundary. For stronger network isolation, update the storage account Terraform configuration to disable public network access and/or use private endpoints and virtual network integration.
 
 #### Rollback for config seed step
 

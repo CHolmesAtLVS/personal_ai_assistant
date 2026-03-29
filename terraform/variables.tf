@@ -68,22 +68,54 @@ variable "ai_model_capacity" {
   }
 }
 
-variable "container_image_tag" {
-  description = "Tag of the container image to deploy. Used by the container build pipeline to trigger a specific ACR revision."
+variable "openclaw_image_repository" {
+  description = "Container image repository for OpenClaw runtime."
   type        = string
-  default     = "latest"
+  default     = "ghcr.io/openclaw/openclaw"
+
+  validation {
+    condition     = trim(var.openclaw_image_repository, " ") != ""
+    error_message = "openclaw_image_repository must not be empty."
+  }
+}
+
+variable "openclaw_image_tag" {
+  description = "Pinned container image tag for OpenClaw runtime. Do not use mutable tags such as latest."
+  type        = string
+  default     = "2026.2.26"
+
+  validation {
+    condition     = lower(var.openclaw_image_tag) != "latest"
+    error_message = "openclaw_image_tag must be a pinned version and cannot be latest."
+  }
 }
 
 variable "container_image" {
-  description = "Full container image reference to deploy. Defaults to a public placeholder until the first ACR image is built and pushed."
+  description = "Deprecated legacy image override. Leave unset; OpenClaw image is computed from openclaw_image_repository and openclaw_image_tag."
   type        = string
-  default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+  default     = null
+
+  validation {
+    condition     = var.container_image == null
+    error_message = "container_image is deprecated. Use openclaw_image_repository and openclaw_image_tag instead."
+  }
 }
 
 variable "container_image_acr_server" {
   description = "ACR login server to configure as a registry credential on the Container App. Set when container_image is sourced from ACR. Leave null when using a public image."
   type        = string
   default     = null
+}
+
+variable "openclaw_state_share_quota_gb" {
+  description = "Quota in GiB for the Azure Files share mounted at /home/node/.openclaw."
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.openclaw_state_share_quota_gb >= 10 && var.openclaw_state_share_quota_gb <= 102400
+    error_message = "openclaw_state_share_quota_gb must be between 10 and 102400."
+  }
 }
 
 variable "monthly_budget_amount" {

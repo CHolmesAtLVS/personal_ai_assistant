@@ -37,7 +37,8 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_AI_MODEL_NAME` | AI model name to deploy (default: `gpt-4o`) | On model change | Platform Engineering |
 | `TF_VAR_AI_MODEL_VERSION` | AI model version (default: `2024-11-20`) | On model change | Platform Engineering |
 | `TF_VAR_AI_MODEL_CAPACITY` | Model deployment TPM capacity in thousands (default: `10`) | On quota change | Platform Engineering |
-| `TF_VAR_CONTAINER_IMAGE_TAG` | Container image tag to deploy (default: `latest`) | Per release | Platform Engineering |
+| `TF_VAR_OPENCLAW_IMAGE_TAG` | Pinned OpenClaw image tag to deploy (default: `2026.2.26`) | Per release | Platform Engineering |
+| `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB` | Azure Files share quota in GiB for persisted OpenClaw state (default: `100`) | On storage review | Platform Engineering |
 | `TF_VAR_ENABLE_DEV_VM` | Set to `true` in the `dev` GitHub Environment to provision the Windows dev VM (default: `false`) — **dev environment only** | On demand | Platform Engineering |
 
 > **Note:** `TF_VAR_ENVIRONMENT` is hardcoded per job in the CI workflow (`dev` or `prod`) and does not need to be set as a GitHub Environment variable.

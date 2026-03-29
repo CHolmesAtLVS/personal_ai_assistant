@@ -55,12 +55,25 @@ module "container_app" {
 
   template = {
     min_replicas = 0
+    volumes = [
+      {
+        name         = "openclaw-state"
+        storage_type = "AzureFile"
+        storage_name = azurerm_container_app_environment_storage.openclaw_state.name
+      }
+    ]
     containers = [
       {
         name   = "openclaw"
-        image  = var.container_image
+        image  = local.openclaw_image
         cpu    = 0.5
         memory = "1Gi"
+        volume_mounts = [
+          {
+            name = "openclaw-state"
+            path = "/home/node/.openclaw"
+          }
+        ]
         env = [
           {
             name  = "AZURE_OPENAI_ENDPOINT"

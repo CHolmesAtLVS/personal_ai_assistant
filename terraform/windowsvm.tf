@@ -87,6 +87,7 @@ module "vm" {
   sku_size = var.vm_size
   zone     = null
 
+  encryption_at_host_enabled         = false
   generate_admin_password_or_ssh_key = false
   admin_username                     = var.vm_admin_username
   admin_password                     = var.vm_admin_password

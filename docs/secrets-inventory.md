@@ -21,6 +21,7 @@ Create these secrets in both `dev` and `prod` GitHub Environments unless intenti
 | `TFSTATE_KEY` | Terraform state key path/name | On state partition redesign | Platform Engineering |
 | `BUDGET_ALERT_EMAIL` | Email address for budget overage notifications | On contact change | Platform Engineering |
 | `PUBLIC_IP` | Home public IP in CIDR form for Container App ingress restriction | On IP change | Platform Engineering |
+| `VM_ADMIN_PASSWORD` | Administrator password for the Windows dev VM — **dev environment only** | On rotation | Platform Engineering |
 
 ## Required GitHub Environment Variables
 
@@ -37,6 +38,7 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_AI_MODEL_VERSION` | AI model version (default: `2024-11-20`) | On model change | Platform Engineering |
 | `TF_VAR_AI_MODEL_CAPACITY` | Model deployment TPM capacity in thousands (default: `10`) | On quota change | Platform Engineering |
 | `TF_VAR_CONTAINER_IMAGE_TAG` | Container image tag to deploy (default: `latest`) | Per release | Platform Engineering |
+| `TF_VAR_ENABLE_DEV_VM` | Set to `true` in the `dev` GitHub Environment to provision the Windows dev VM (default: `false`) — **dev environment only** | On demand | Platform Engineering |
 
 > **Note:** `TF_VAR_ENVIRONMENT` is hardcoded per job in the CI workflow (`dev` or `prod`) and does not need to be set as a GitHub Environment variable.
 

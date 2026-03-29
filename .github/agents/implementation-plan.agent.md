@@ -22,6 +22,28 @@ This mode is designed for AI-to-AI communication and automated processing. All p
 - Ensure complete self-containment with no external dependencies for understanding
 - DO NOT make any code edits - only generate structured plans in markdown.  Markdown creation and edits should not be considered code.
 
+## Plan Types
+
+Two plan types exist. Determine the correct type **before** generating any output.
+
+### Standalone Plan
+
+A self-contained plan covering all phases and tasks for a single focused initiative. Use when the work is scoped to one component, feature, or concern and all tasks can be defined within a single file.
+
+- Set `plan_type: standalone` in front matter
+- All phases and tasks are defined inline
+- No subplan references required
+
+### Parent Summary Plan
+
+A high-level coordination document that aggregates multiple child subplans. Use when work spans multiple components, subsystems, or concerns that benefit from independent execution and tracking.
+
+- Set `plan_type: parent` in front matter
+- Section 2 is replaced by a **Subplans** table — no inline phases or tasks
+- Each subplan must be a standalone plan file saved in `/plan/`
+- Subplan file names must share the parent's component prefix (e.g., parent: `feature-auth-1.md`, subplans: `feature-auth-login-1.md`, `feature-auth-rbac-1.md`)
+- Parent completion is derived from aggregate subplan status; do not duplicate task detail from subplans
+
 ## Plan Structure Requirements
 
 Plans must consist of discrete, atomic phases containing executable tasks. Each phase must be independently processable by AI agents or humans without cross-phase dependencies unless explicitly declared.
@@ -55,7 +77,9 @@ When creating plan files:
 
 ## Mandatory Template Structure
 
-All implementation plans must strictly adhere to the following template. Each section is required and must be populated with specific, actionable content. AI agents must validate template compliance before execution.
+All implementation plans must strictly adhere to the applicable template below. Select the template matching `plan_type`. Each section is required and must be populated with specific, actionable content. AI agents must validate template compliance before execution.
+
+### Template: Standalone Plan (`plan_type: standalone`)
 
 ## Template Validation Rules
 
@@ -72,6 +96,7 @@ The status of the implementation plan must be clearly defined in the front matte
 ```md
 ---
 goal: [Concise Title Describing the Package Implementation Plan's Goal]
+plan_type: standalone
 version: [Optional: e.g., 1.0, Date]
 date_created: [YYYY-MM-DD]
 last_updated: [Optional: YYYY-MM-DD]
@@ -155,6 +180,76 @@ tags: [Optional: List of relevant tags or categories, e.g., `feature`, `upgrade`
 - **ASSUMPTION-001**: Assumption 1
 
 ## 8. Related Specifications / Further Reading
+
+[Link to related spec 1]
+[Link to relevant external documentation]
+```
+
+### Template: Parent Summary Plan (`plan_type: parent`)
+
+```md
+---
+goal: [Concise Title Describing the Overall Initiative]
+plan_type: parent
+version: [Optional: e.g., 1.0, Date]
+date_created: [YYYY-MM-DD]
+last_updated: [Optional: YYYY-MM-DD]
+owner: [Optional: Team/Individual responsible for this spec]
+status: 'Completed'|'In progress'|'Planned'|'Deprecated'|'On Hold'
+tags: [Optional: List of relevant tags or categories]
+---
+
+# Introduction
+
+![Status: <status>](https://img.shields.io/badge/status-<status>-<status_color>)
+
+[A short concise introduction to the overall initiative and what the subplans collectively achieve.]
+
+## 1. Requirements & Constraints
+
+[Explicitly list cross-cutting requirements and constraints that apply to all subplans.]
+
+- **REQ-001**: Requirement 1
+- **SEC-001**: Security Requirement 1
+- **CON-001**: Constraint 1
+
+## 2. Subplans
+
+[List all child subplan files. Each subplan must be a standalone plan in `/plan/`.]
+
+| ID      | Subplan File                        | Goal                            | Status      |
+| ------- | ----------------------------------- | ------------------------------- | ----------- |
+| SUB-001 | [filename-1.md](../plan/filename-1.md) | Goal of subplan 1            | Planned     |
+| SUB-002 | [filename-2.md](../plan/filename-2.md) | Goal of subplan 2            | Planned     |
+| SUB-003 | [filename-3.md](../plan/filename-3.md) | Goal of subplan 3            | Planned     |
+
+## 3. Alternatives
+
+[Alternative approaches considered for the overall initiative structure.]
+
+- **ALT-001**: Alternative approach 1
+
+## 4. Dependencies
+
+[Cross-subplan or external dependencies.]
+
+- **DEP-001**: Dependency 1
+
+## 5. Execution Order
+
+[Describe any required sequencing or parallelism constraints across subplans. If subplans are fully independent, state that explicitly.]
+
+- **ORD-001**: SUB-001 must complete before SUB-002 begins (reason: [state reason])
+- **ORD-002**: SUB-002 and SUB-003 may execute in parallel
+
+## 6. Risks & Assumptions
+
+[Risks and assumptions at the initiative level, not covered in individual subplans.]
+
+- **RISK-001**: Risk 1
+- **ASSUMPTION-001**: Assumption 1
+
+## 7. Related Specifications / Further Reading
 
 [Link to related spec 1]
 [Link to relevant external documentation]

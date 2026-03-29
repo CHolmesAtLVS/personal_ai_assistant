@@ -25,6 +25,7 @@ Core architecture goals:
 
 - GitHub Actions authenticates to Azure with a Service Principal provided through GitHub environment secrets
 - Terraform deploy workflow is split into explicit `dev` and `prod` jobs mapped to GitHub Environments with independent approvals and secret scopes
+- The `terraform-dev` job triggers on pull request events (opened, synchronize, reopened) targeting `main`; the `terraform-prod` job triggers on pull request merged to `main`
 - Azure CLI bootstraps Terraform remote state infrastructure (Resource Group, Storage Account, Blob Container) before Terraform backend initialization
 - Terraform uses Azure Blob remote state for shared, auditable infrastructure state
 - Resource naming and required tags are centralized in Terraform locals for consistent policy enforcement
@@ -32,9 +33,11 @@ Core architecture goals:
 ### Azure Runtime Platform
 
 - Azure Container Registry (ACR): stores built container images; lives in a dedicated shared resource group (`${project}-shared-rg`) provisioned only in the prod environment. Dev deployments use a public placeholder image and have no ACR dependency.
-- Azure Container Apps Environment: runtime environment for containerized workloads
-- OpenClaw Container App: running service endpoint
-- HTTPS ingress with source IP restriction to the user's home public IP
+- Azure Container Apps Environment: runtime environment for containerized workloads, linked to Log Analytics Workspace
+- OpenClaw Container App: running service endpoint; min replicas 0, 0.5 vCPU / 1 GiB per replica
+- HTTPS ingress with source IP restriction to the user's home public IP; insecure connections blocked
+- Log Analytics Workspace: centralized telemetry sink for Container Apps Environment, Key Vault diagnostics, and ACR diagnostics
+- Azure Monitor Action Group + Consumption Budget: cost alerts at 50 %, 80 %, 100 % actual, and 110 % forecasted thresholds against the environment resource group
 
 ### Resource Group Topology
 
@@ -43,14 +46,55 @@ Core architecture goals:
 
 ### Security and Configuration
 
-- Managed Identity: preferred authentication path to Azure services
-- Azure Key Vault and/or Azure-hosted secret stores: secret values outside code
-- Runtime configuration injection: non-secret settings injected at deployment/runtime
+- Managed Identity: preferred authentication path to Azure services; a single User-Assigned Managed Identity is attached to the Container App
+- Azure Key Vault (RBAC mode, admin-disabled): secret values outside code; legacy access policies disabled
+- Runtime configuration injection: non-secret settings (e.g. `AZURE_OPENAI_ENDPOINT`) injected as container environment variables at deployment time by Terraform
+- AI API keys are not used or stored anywhere; the Container App authenticates to AI Services exclusively via Managed Identity
+
+#### Managed Identity Role Assignments
+
+| Role | Scope | Environment |
+| ---- | ----- | ----------- |
+| AcrPull | Shared ACR | prod only |
+| Key Vault Secrets User | Environment Key Vault | all |
+| Cognitive Services OpenAI User | AI Services account | all |
 
 ### AI and Observability
 
-- Azure AI Foundry project and model deployment endpoint used by OpenClaw
-- Log Analytics / Azure monitoring for logs, telemetry, and diagnostics
+- Azure AI Services account (Cognitive Services) with an AI Foundry Hub and Project: provides the LLM model deployment endpoint consumed by OpenClaw
+- Model deployment: configurable name, version, and GlobalStandard capacity (default `gpt-4o`, `2024-11-20`, 10 K TPM)
+- Log Analytics Workspace (`${project}-${environment}-law`): 30-day retention; receives diagnostics from Key Vault, ACR (prod), and the Container Apps Environment
+
+### Resource Inventory
+
+#### Environment resource group (`${project}-${environment}-rg`) — all environments
+
+| Resource | AVM Module | Notes |
+| -------- | ---------- | ----- |
+| Resource Group | `avm-res-resources-resourcegroup` | |
+| Log Analytics Workspace | `avm-res-operationalinsights-workspace` | 30-day retention |
+| User-Assigned Managed Identity | `avm-res-managedidentity-userassignedidentity` | |
+| Key Vault (standard, RBAC mode) | `avm-res-keyvault-vault` | Diagnostics → LAW |
+| AI Services / AI Foundry Hub + Project + model deployment | `avm-ptn-aiml-ai-foundry` | Uses existing Key Vault |
+| Container Apps Environment | `avm-res-app-managedenvironment` | Linked to LAW |
+| Container App (OpenClaw) | `avm-res-app-containerapp` | HTTPS, IP-restricted ingress |
+| Monitor Action Group | `azurerm_monitor_action_group` | Budget email alerts |
+| Consumption Budget | `azurerm_consumption_budget_resource_group` | Monthly cap on env RG |
+
+#### Shared resource group (`${project}-shared-rg`) — prod only
+
+| Resource | AVM Module | Notes |
+| -------- | ---------- | ----- |
+| Shared Resource Group | `avm-res-resources-resourcegroup` | |
+| Azure Container Registry (Standard) | `avm-res-containerregistry-registry` | Admin disabled; Diagnostics → LAW |
+
+### Terraform Outputs
+
+| Output | Description | Sensitive |
+| ------ | ----------- | --------- |
+| `container_app_fqdn` | FQDN of the deployed OpenClaw Container App | yes |
+| `ai_services_endpoint` | Endpoint URL of the AI Services account | yes |
+| `acr_login_server` | ACR login server (null in non-prod) | yes |
 
 ## End-to-End Deployment and Runtime Flow
 
@@ -66,12 +110,12 @@ Core architecture goals:
 
 Terraform workflow details:
 
-1. CI selects the explicit environment job (`dev` for non-main refs, `prod` for `main`) and loads that environment's secrets and variables.
+1. CI selects the environment job: `terraform-dev` on PR opened/synchronize/reopened targeting `main`; `terraform-prod` on PR merged to `main`.
 2. CI runs an idempotent Azure CLI bootstrap script for backend state resources.
 3. CI runs `terraform fmt -check`, `terraform init`, `terraform validate`, `terraform plan`.
-4. CI uploads the environment-specific plan artifact for pull requests (plan-only).
-5. CI auto-applies in the `dev` job on non-main push events.
-6. CI applies in the `prod` job only on push to `main` with protected environment controls.
+4. CI uploads the environment-specific plan artifact (both jobs).
+5. CI auto-applies in the `terraform-dev` job after plan succeeds.
+6. CI applies in the `terraform-prod` job only on merge to `main`, subject to GitHub Environment protection controls.
 
 ## Trust Boundaries and Access Model
 

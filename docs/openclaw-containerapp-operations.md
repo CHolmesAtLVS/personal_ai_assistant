@@ -27,11 +27,13 @@ az keyvault secret set \
   --value "$TOKEN"
 ```
 
-The Container App's Managed Identity has `Key Vault Secrets User` access and will read this secret at startup. Terraform references the secret by its versionless URI; no token value passes through Terraform or CI.
+The Container App's Managed Identity has `Key Vault Secrets User` access and will read this secret at startup.
+
+> **Note:** Gateway token injection in the Container App is controlled by the `openclaw_gateway_token_enabled` Terraform variable (default: `false`). This two-phase design lets Terraform apply succeed before the KV secret exists. Once the secret is provisioned (step 1.1), set `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true` in the GitHub Environment variable and re-apply to activate the injection.
 
 ### 1.2 Run Terraform Apply
 
-After the secret is created, run Terraform to provision or update the Container App:
+After the secret is created, set `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true` in the GitHub Environment variable, then run Terraform to provision or update the Container App:
 
 ```bash
 # Via CI: open a PR to trigger terraform-dev, or merge to main for terraform-prod

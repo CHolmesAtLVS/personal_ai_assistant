@@ -29,3 +29,10 @@ TF_VAR_cost_center        = "<cost-center>"
 # TF_VAR_ai_model_version   = "2024-11-20"
 # TF_VAR_ai_model_capacity  = "10"
 # TF_VAR_monthly_budget_amount = "25"
+
+# Windows dev VM (set enable_dev_vm=true to provision)
+TF_VAR_enable_dev_vm          = "false"
+TF_VAR_vm_admin_username      = "azureadmin"
+TF_VAR_vm_admin_password      = "<strong-password-min-12-chars>"  # SENSITIVE — never commit
+# Optional overrides
+# TF_VAR_vm_size              = "Standard_D4s_v5"

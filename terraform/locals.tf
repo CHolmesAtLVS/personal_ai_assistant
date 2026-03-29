@@ -26,4 +26,9 @@ locals {
   app_name          = "${local.name_prefix}-app"
   budget_name       = "${local.name_prefix}-budget"
   action_group_name = "${local.name_prefix}-ag-cost"
+  vm_name           = "${local.name_prefix}-vm"
+  vm_vnet_name      = "${local.name_prefix}-vm-vnet"
+  vm_nsg_name       = "${local.name_prefix}-vm-nsg"
+  vm_pip_name       = "${local.name_prefix}-vm-pip"
+  vm_nic_name       = "${local.name_prefix}-vm-nic"
 }

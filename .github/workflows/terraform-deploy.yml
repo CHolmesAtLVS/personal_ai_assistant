@@ -43,6 +43,8 @@ jobs:
       TF_VAR_container_image_tag: ${{ vars.TF_VAR_CONTAINER_IMAGE_TAG || 'latest' }}
       TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
+      TF_VAR_enable_dev_vm: ${{ vars.TF_VAR_ENABLE_DEV_VM || 'false' }}
+      TF_VAR_vm_admin_password: ${{ secrets.VM_ADMIN_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

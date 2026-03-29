@@ -15,3 +15,13 @@ output "ai_services_endpoint" {
   sensitive   = true
   value       = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
 }
+
+output "openclaw_state_storage_account_name" {
+  description = "Storage account name that hosts the OpenClaw state Azure Files share."
+  value       = azurerm_storage_account.openclaw_state.name
+}
+
+output "openclaw_state_file_share_name" {
+  description = "Azure Files share name mounted to /home/node/.openclaw."
+  value       = azurerm_storage_share.openclaw_state.name
+}

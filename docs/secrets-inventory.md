@@ -21,7 +21,6 @@ Create these secrets in both `dev` and `prod` GitHub Environments unless intenti
 | `TFSTATE_KEY` | Terraform state key path/name | On state partition redesign | Platform Engineering |
 | `BUDGET_ALERT_EMAIL` | Email address for budget overage notifications | On contact change | Platform Engineering |
 | `PUBLIC_IP` | Home public IP in CIDR form for Container App ingress restriction | On IP change | Platform Engineering |
-| `VM_ADMIN_PASSWORD` | Administrator password for the Windows dev VM — **dev environment only** | On rotation | Platform Engineering |
 
 ## Required GitHub Environment Variables
 
@@ -38,9 +37,7 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_AI_MODEL_VERSION` | AI model version (default: `2024-11-20`) | On model change | Platform Engineering |
 | `TF_VAR_AI_MODEL_CAPACITY` | Model deployment TPM capacity in thousands (default: `10`) | On quota change | Platform Engineering |
 | `TF_VAR_OPENCLAW_IMAGE_TAG` | Pinned OpenClaw image tag to deploy (default: `2026.2.26`) | Per release | Platform Engineering |
-| `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB` | Azure Files share quota in GiB for persisted OpenClaw state (default: `100`) | On storage review | Platform Engineering |
-
-> **Note:** `TF_VAR_ENVIRONMENT` is hardcoded per job in the CI workflow (`dev` or `prod`) and does not need to be set as a GitHub Environment variable.
+| `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB` | Azure Files share quota in GiB for persisted OpenClaw state (default: `100`) | On storage review | Platform Engineering | (`dev` or `prod`) and does not need to be set as a GitHub Environment variable.
 
 ## Policy Notes
 
@@ -57,7 +54,7 @@ The following secrets are provisioned directly in Azure Key Vault by the operato
 
 | Secret Name (Key Vault) | Purpose | Rotation Cadence | Owner |
 | --- | --- | --- | --- |
-| `openclaw-gateway-token` | Authentication token for the OpenClaw gateway. Created and managed by Terraform (`azurerm_key_vault_secret` + `random_id`). The value is never overwritten by subsequent applies; manual rotation is preserved. | On compromise or scheduled rotation | Platform Engineering |
+| `openclaw-gateway-token` | Authentication token for the OpenClaw gateway. Created and managed by Terraform (`azurerm_key_vault_secret` + `random_id`). The value is stored in Terraform remote state (sensitive, encrypted at rest). Never overwritten by subsequent applies; manual rotation is preserved via `lifecycle { ignore_changes = [value] }`. | On compromise or scheduled rotation | Platform Engineering |
 
 See [openclaw-containerapp-operations.md](openclaw-containerapp-operations.md) for provisioning and rotation procedures.
 

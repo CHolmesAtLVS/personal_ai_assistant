@@ -150,10 +150,8 @@ This agent does not author or modify Terraform. If an issue requires infrastruct
 
 Follow `docs/openclaw-containerapp-operations.md` section 1 for the full bootstrap flow:
 
-- [ ] Key Vault secret `openclaw-gateway-token` provisioned
-- [ ] `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true` set in GitHub Environment variable
-- [ ] Terraform applied (Container App deployed with secret injection)
-- [ ] `openclaw.json` seeded to Azure Files share with valid schema-compliant config
+- [ ] Terraform applied (creates Key Vault, auto-generates `openclaw-gateway-token` secret, deploys Container App with secret injection)
+- [ ] `openclaw.json` seeded to Azure Files share by the workflow `Seed OpenClaw Config` step
 - [ ] `/healthz` and `/readyz` return 200
 - [ ] `openclaw status --all` shows gateway healthy
 - [ ] Channels configured and authenticated

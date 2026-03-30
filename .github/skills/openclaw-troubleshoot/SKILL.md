@@ -155,7 +155,7 @@ rm /tmp/openclaw.json    # Delete immediately — never leave on disk
 
 > **SEC**: Never print `auth.token` values. Redact before sharing output.
 
-Valid values: `gateway.mode` = `"server"` | `"remote"` | `"local"`. Port must match ingress (18789).
+Valid values: `gateway.mode` = `"remote"` | `"local"`. Port must match ingress (18789). `"server"` is **not** a valid value.
 
 ### H — Identity role assignments
 

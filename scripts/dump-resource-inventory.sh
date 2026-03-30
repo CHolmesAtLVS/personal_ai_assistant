@@ -3,7 +3,11 @@
 # as part of this project and write a CSV inventory to scripts/resource-inventory.csv.
 #
 # Usage:
-#   ./scripts/dump-resource-inventory.sh
+#   ./scripts/dump-resource-inventory.sh [MANAGED_BY_VALUE]
+#
+#   MANAGED_BY_VALUE  Value of the managed_by tag to filter on.
+#                     Defaults to the MANAGED_BY env var if set, otherwise
+#                     the script will prompt or exit with an error.
 #
 # Output (git-ignored):
 #   scripts/resource-inventory.csv
@@ -12,16 +16,23 @@
 #   - Azure CLI logged in with an account that has Reader access to the subscription(s).
 #   - jq installed (available in the dev container).
 #
-# The query returns all resources where the managed_by tag equals
-# "CHolmesAtLVS\personal_ai_assistant".  Output columns include resource identity,
-# type, location, environment tag, and the full tag bag for reference.
+# The query returns all resources where the managed_by tag matches the supplied
+# value. Output columns include resource identity, type, location, environment
+# tag, and the full tag bag for reference.
+# Do not commit the output file — it may contain Azure identifiers.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT_FILE="${SCRIPT_DIR}/resource-inventory.csv"
 
-MANAGED_BY_VALUE='CHolmesAtLVS\personal_ai_assistant'
+# Accept managed_by value as first arg, env var, or fail with a clear message.
+MANAGED_BY_VALUE="${1:-${MANAGED_BY:-}}"
+if [[ -z "$MANAGED_BY_VALUE" ]]; then
+  echo "ERROR: managed_by tag value required. Pass it as the first argument or set the MANAGED_BY env var."
+  echo "  Usage: $0 'YourOrg\\your-repo'"
+  exit 1
+fi
 
 # ── Pre-flight checks ─────────────────────────────────────────────────────────
 if ! command -v az &>/dev/null; then

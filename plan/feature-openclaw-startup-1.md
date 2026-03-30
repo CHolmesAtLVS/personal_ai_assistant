@@ -109,7 +109,7 @@ If `runningStateDetails` surfaces a known pattern, match it to the appropriate p
 
 ## 4. Dependencies
 
-- **DEP-001**: The `openclaw-gateway-token` Key Vault secret must exist in `paa-prod-kv` before `openclaw_gateway_token_enabled=true` is set. This is unchanged from the existing bootstrap procedure.
+- **DEP-001**: The `openclaw-gateway-token` Key Vault secret is managed by Terraform and will be created automatically on first apply. No manual pre-provisioning or enable flag is required.
 - **DEP-002**: `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` must be set to the app FQDN JSON array in the `terraform-prod` GitHub Environment before the next Terraform apply.
 
 ## 5. Files
@@ -129,14 +129,14 @@ If `runningStateDetails` surfaces a known pattern, match it to the appropriate p
 - **TEST-003**: Re-seed `openclaw.json` using the updated runbook template against the dev environment and confirm the Container App revision reaches `Running / Healthy` state within 3 minutes.
 - **TEST-004**: Run `bash scripts/diagnose-containerapp.sh dev` again after the fix cycle. Confirm section B shows `runningState: Running`, section D has no `PortMismatch` or `BackOff` events, section G shows `gateway.mode=local` with correct port and non-empty `allowedOrigins`, and section H confirms `Key Vault Secrets User` is assigned.
 - **TEST-005**: Confirm `az containerapp revision list` shows no `ActivationFailed` or `Failed` revisions after a clean Terraform apply + config seed cycle.
-- **TEST-006**: Confirm the Container Apps system event log (section D of the diagnostic output, or via `az containerapp logs show --type system`) for revision `paa-prod-app--tdodui2` no longer emits `PortMismatch` events after the revision is superseded or deactivated.
+- **TEST-006**: Confirm the Container Apps system event log (section D of the diagnostic output, or via `az containerapp logs show --type system`) for the superseded prod revision no longer emits `PortMismatch` events after the revision is deactivated.
 
 ## 7. Risks & Assumptions
 
 - **RISK-001**: `OPENCLAW_GATEWAY_PORT` env var may not be read by the OpenClaw binary. If it is not, port mismatch on first-boot is unavoidable without an init-container workaround. The impact is limited to the time between first Terraform apply and config seed (section 1.3 of the runbook).
 - **RISK-002**: OpenClaw does not publish official minimum resource requirements. 2 vCPU / 4 GiB is sized based on the observed OOM at 503 MB heap on a 1 GiB container, with headroom for future growth. Monitor memory usage metrics after the next stable revision and adjust if the gateway regularly approaches 3 GiB.
-- **ASSUMPTION-001**: The prod `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` GitHub Environment variable is currently unset or set to `[]`. It must be updated to `["https://paa-prod-app.livelypond-a4f5304c.eastus.azurecontainerapps.io"]` before the next Terraform apply.
-- **ASSUMPTION-002**: The `tdodui2` revision (pre-mount, running on port 80) carries 0% traffic weight and will be superseded by the next Terraform apply. No explicit deactivation is required.
+- **ASSUMPTION-001**: The prod `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` GitHub Environment variable is currently unset or set to `[]`. It must be updated to `["https://<prod-app-fqdn>"]` before the next Terraform apply.
+- **ASSUMPTION-002**: The legacy pre-mount revision (running on port 80) carries 0% traffic weight and will be superseded by the next Terraform apply. No explicit deactivation is required.
 
 ## 8. Related Specifications / Further Reading
 

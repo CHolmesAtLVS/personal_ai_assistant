@@ -108,6 +108,9 @@ jobs:
           STORAGE_ACCOUNT="${STORAGE_ACCOUNT//-/}"
           STORAGE_ACCOUNT="${STORAGE_ACCOUNT:0:24}"
 
+          # Ensure containerapp extension is available
+          az extension add --name containerapp --only-show-errors 2>/dev/null || true
+
           APP_FQDN=$(az containerapp show \
             --name "$APP_NAME" \
             --resource-group "$RG_NAME" \
@@ -121,7 +124,10 @@ jobs:
             -o tsv)
 
           export APP_FQDN
-          envsubst < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+          # Restrict substitution to APP_FQDN only to prevent runner env vars from
+          # accidentally expanding other ${VAR} references in the template.
+          trap 'rm -f /tmp/openclaw-seeded.json' EXIT
+          envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
 
           az storage file upload \
             --account-name "$STORAGE_ACCOUNT" \
@@ -129,8 +135,6 @@ jobs:
             --share-name "openclaw-state" \
             --source /tmp/openclaw-seeded.json \
             --path "openclaw.json"
-
-          rm /tmp/openclaw-seeded.json
 
   terraform-prod:
     name: Terraform Prod
@@ -237,6 +241,9 @@ jobs:
           STORAGE_ACCOUNT="${STORAGE_ACCOUNT//-/}"
           STORAGE_ACCOUNT="${STORAGE_ACCOUNT:0:24}"
 
+          # Ensure containerapp extension is available
+          az extension add --name containerapp --only-show-errors 2>/dev/null || true
+
           APP_FQDN=$(az containerapp show \
             --name "$APP_NAME" \
             --resource-group "$RG_NAME" \
@@ -250,7 +257,10 @@ jobs:
             -o tsv)
 
           export APP_FQDN
-          envsubst < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+          # Restrict substitution to APP_FQDN only to prevent runner env vars from
+          # accidentally expanding other ${VAR} references in the template.
+          trap 'rm -f /tmp/openclaw-seeded.json' EXIT
+          envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
 
           az storage file upload \
             --account-name "$STORAGE_ACCOUNT" \
@@ -258,5 +268,3 @@ jobs:
             --share-name "openclaw-state" \
             --source /tmp/openclaw-seeded.json \
             --path "openclaw.json"
-
-          rm /tmp/openclaw-seeded.json

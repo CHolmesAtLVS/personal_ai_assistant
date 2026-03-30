@@ -100,7 +100,7 @@ All fields below are required for `bind=lan` operation. An invalid or missing `o
 | `gateway.controlUi.allowedOrigins` | Non-empty array of `https://` URIs | Required when `bind=lan`; an empty array `[]` causes a gateway startup failure. |
 | `gateway.auth.token` | string | Optional when `OPENCLAW_GATEWAY_TOKEN` env var is set (KV-injected); env var takes priority. |
 
-> **Security note:** The gateway token value appears in the config file stored on the Azure Files share. By default, `public_network_access_enabled = true`, so the share is reachable from the public internet for callers that have the storage account key or a valid SAS token. There is no anonymous access, and access is additionally constrained by the Container Apps Environment network boundary. For stronger network isolation, update the storage account Terraform configuration to disable public network access and/or use private endpoints and virtual network integration.
+> **Security note:** In the canonical deployment, `gateway.auth.token` is intentionally omitted from `config/openclaw.json.tpl`. The token is supplied via the `OPENCLAW_GATEWAY_TOKEN` environment variable injected from Key Vault and never written to disk. If you explicitly add `gateway.auth.token` to `openclaw.json` (for testing or non-standard setups), be aware that this file is stored on the Azure Files share. By default, `public_network_access_enabled = true`, so the share is reachable from the public internet for callers with the storage account key or a valid SAS token. There is no anonymous access, and access is additionally constrained by the Container Apps Environment network boundary. For stronger network isolation, update the storage account Terraform configuration to disable public network access and/or use private endpoints.
 
 #### Rollback for config seed step
 
@@ -110,51 +110,27 @@ If the config file was seeded with incorrect values, re-upload the corrected fil
 
 ## 2. Gateway Token Rotation
 
-To rotate the gateway token without data loss or downtime:
+The gateway token is managed by Terraform in Key Vault. To rotate it without redeploying infrastructure:
 
 ```bash
 # 1. Generate a new token
 NEW_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(24))")
 
-# 2. Update the Key Vault secret (the Container App reads the versionless URI and will get the new value)
+# 2. Update the Key Vault secret directly
+#    (Terraform will skip this value on the next apply due to ignore_changes = [value])
 az keyvault secret set \
   --vault-name "<kv-name>" \
   --name "openclaw-gateway-token" \
   --value "$NEW_TOKEN"
 
-# 3. Update the config file on the Azure Files share with the new token
-STORAGE_ACCOUNT=$(terraform -chdir=terraform output -raw openclaw_state_storage_account_name)
-SHARE_NAME=$(terraform -chdir=terraform output -raw openclaw_state_file_share_name)
-STORAGE_KEY=$(az storage account keys list \
-  --account-name "$STORAGE_ACCOUNT" \
-  --resource-group "<env-resource-group>" \
-  --query "[0].value" --output tsv)
-
-# Download current config, update token, re-upload
-az storage file download \
-  --account-name "$STORAGE_ACCOUNT" \
-  --account-key "$STORAGE_KEY" \
-  --share-name "$SHARE_NAME" \
-  --path "openclaw.json" \
-  --dest /tmp/openclaw.json
-
-# Edit /tmp/openclaw.json to replace the token value, then re-upload
-az storage file upload \
-  --account-name "$STORAGE_ACCOUNT" \
-  --account-key "$STORAGE_KEY" \
-  --share-name "$SHARE_NAME" \
-  --source /tmp/openclaw.json \
-  --path "openclaw.json"
-rm /tmp/openclaw.json
-
-# 4. Restart the Container App to reload the KV secret and pick up the new config
+# 3. Restart the Container App revision so it pulls the new secret value
 az containerapp revision restart \
   --name "<app-name>" \
   --resource-group "<env-resource-group>" \
   --revision "<active-revision-name>"
 ```
 
-> **Note:** Azure Container Apps refreshes secrets from Key Vault when the Container App restarts or deploys a new revision. A manual restart is required for the token rotation to take immediate effect.
+> **Note:** `openclaw.json` does not contain the gateway token. No config file edit is required during rotation — only the Key Vault secret update and a revision restart.
 
 ---
 
@@ -313,8 +289,8 @@ First stop for any startup failure. Shows all revisions with health state, repli
 
 ```bash
 az containerapp revision list \
-  --name paa-dev-app \
-  --resource-group paa-dev-rg \
+  --name <project>-<env>-app \
+  --resource-group <project>-<env>-rg \
   -o table
 ```
 

@@ -155,29 +155,25 @@ Operational logs and telemetry are sent to Azure monitoring services for trouble
 
 ## Deployment Summary
 
-### Required secrets (provision in Key Vault before enabling token injection)
+### Required Key Vault secrets
 
 | Secret | Description |
 |--------|-------------|
-| `openclaw-gateway-token` | Gateway authentication token. Generate a strong random token and store it in the environment Key Vault. Required only when `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true`. |
+| `openclaw-gateway-token` | Gateway authentication token. Created automatically by Terraform on first apply via `random_id` + `azurerm_key_vault_secret`. No manual provisioning required. |
 
 ### GitHub Environment variables to set
 
 | Variable | Example |
 |----------|---------|
 | `TF_VAR_OPENCLAW_IMAGE_TAG` | `2026.2.26` |
-| `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED` | `true` (set after KV secret is provisioned) |
 
-### First-time bootstrap (two phases)
+### First-time bootstrap
 
-**Phase 1 — initial deploy (no KV secret required):**
-1. Open a PR — CI will plan and apply to dev with `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=false` (default).
-2. Pre-seed `/home/node/.openclaw/openclaw.json` on the Azure Files share using the bootstrap procedure in [`docs/openclaw-containerapp-operations.md`](docs/openclaw-containerapp-operations.md).
+1. Open a PR — CI plans and applies Terraform to dev. Terraform creates the Key Vault, generates the gateway token secret, and deploys the Container App.
+2. After `terraform apply`, the workflow's `Seed OpenClaw Config` step automatically renders `config/openclaw.json.tpl` and uploads it to the Azure Files share.
+3. The Container App starts, reads the gateway token from Key Vault via Managed Identity, and serves traffic.
 
-**Phase 2 — activate gateway token auth:**
-1. Provision `openclaw-gateway-token` in Key Vault (see runbook section 1.1).
-2. Set `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true` in the GitHub Environment variable.
-3. Apply Terraform (open a PR or merge) — the Container App is updated to inject the token at startup.
+No manual Key Vault provisioning or config file seeding is required. See [`docs/openclaw-containerapp-operations.md`](docs/openclaw-containerapp-operations.md) for emergency recovery procedures.
 
 ### Image upgrades
 

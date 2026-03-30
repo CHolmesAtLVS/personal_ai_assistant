@@ -41,10 +41,10 @@ Use `scripts/dump-tf-outputs.sh` to dump all Terraform outputs (including sensit
 
 Output is written to `scripts/dev.tfoutputs` and `scripts/prod.tfoutputs`. These files are git-ignored and contain sensitive values in plain text — treat them as secrets and never share or commit them.
 
-Use `scripts/dump-resource-inventory.sh` to query Azure Resource Graph for all resources tagged `managed_by:CHolmesAtLVS\personal_ai_assistant` and write a CSV inventory. Useful for auditing, cost analysis, and troubleshooting resource presence:
+Use `scripts/dump-resource-inventory.sh` to query Azure Resource Graph for all resources with a given `managed_by` tag value and write a CSV inventory. Pass your tag value as the first argument (do not commit deployment-identifying values into docs or code). Useful for auditing, cost analysis, and troubleshooting resource presence:
 
 ```bash
-./scripts/dump-resource-inventory.sh
+./scripts/dump-resource-inventory.sh 'YourOrg\your-repo'
 ```
 
 Output is written to `scripts/resource-inventory.csv`. The file is git-ignored and may contain Azure identifiers — do not share or commit it. Requires an active `az login` session with Reader access to the subscription(s).

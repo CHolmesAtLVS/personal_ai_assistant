@@ -21,6 +21,8 @@ Use these documents as the primary project context:
 - Prefer Managed Identity over embedded credentials where supported.
 - Preserve IP-restricted ingress and HTTPS unless explicitly asked to change it.
 - Keep infrastructure changes declarative in Terraform.
+- **All troubleshooting, diagnosis, and live operational commands (`az`, Terraform, scripts) must target the dev environment only. Never execute commands against production resources during a troubleshooting or debugging session.** If the target environment is ambiguous, ask for explicit confirmation before running any command. This rule applies equally to AI agents and to human operators.
+- Never accept or use production resource identifiers (resource group names, Key Vault names, storage account names, app names) when the intent is to diagnose a problem. Require the user to provide dev equivalents, or surface the ambiguity and stop.
 
 ## Implementation Guidance
 

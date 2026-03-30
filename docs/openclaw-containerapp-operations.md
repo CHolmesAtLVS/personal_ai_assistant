@@ -8,6 +8,8 @@ This document covers operational procedures for the OpenClaw Container App runti
 - Access to the Key Vault in the environment resource group
 - Terraform state is healthy and `terraform plan` shows no unexpected drift
 
+> **Environment safety:** Unless performing an authorized production incident response, always execute these procedures against the **dev** environment first. Validate the outcome in dev before applying to prod. AI agents must only be directed to operate against dev resources; do not supply production resource names to an AI agent during a troubleshooting or debugging session.
+
 ---
 
 ## 1. First-Time Bootstrap
@@ -284,3 +286,227 @@ The Container App runtime configures health probes at:
 | Readiness | `/readyz` | 18789 |
 
 If the liveness probe fails repeatedly, the Container App platform restarts the container. If the readiness probe fails, the replica is removed from the ingress rotation. Both probes run over HTTP against the container's internal port.
+
+---
+
+## 7. Troubleshooting
+
+> **Environment safety:** Always troubleshoot against the **dev** environment. Never supply production resource names to a diagnostic command or AI agent during a troubleshooting session. If the target environment is ambiguous, confirm explicitly before running any command.
+
+### 7.1 Quick Start
+
+Run the diagnostic script to capture a complete snapshot without needing Terraform state or `.tfvars` files:
+
+```bash
+bash scripts/diagnose-containerapp.sh dev
+# Output written to: scripts/diag-dev-<timestamp>.txt  (git-ignored)
+```
+
+The script derives all resource names from the `env` argument using the standard naming convention (`paa-dev-*`) and runs sections A–H in order. It always exits 0 — treat its output as a report, not a pass/fail gate.
+
+### 7.2 Step-by-Step Diagnostic Procedure
+
+Work through these sections in order, stopping when the root cause is found.
+
+#### A — Revision list
+
+First stop for any startup failure. Shows all revisions with health state, replica count (0 = crashed), and traffic weight.
+
+```bash
+az containerapp revision list \
+  --name paa-dev-app \
+  --resource-group paa-dev-rg \
+  -o table
+```
+
+#### B — Active revision detail
+
+Gets the human-readable failure reason from `runningStateDetails` (e.g. `"1/1 Container crashing: openclaw"`).
+
+```bash
+az containerapp revision show \
+  --name paa-dev-app \
+  --resource-group paa-dev-rg \
+  --revision <revision-name> \
+  --query "properties.{runningState:runningState, healthState:healthState, details:runningStateDetails}" \
+  -o json
+```
+
+#### C — Container console logs
+
+Pull container stdout/stderr (the actual crash output). Requires a running replica — skip if replicas=0.
+
+```bash
+# Get replica name
+az containerapp replica list \
+  --name paa-dev-app --resource-group paa-dev-rg \
+  --revision <revision-name> -o table
+
+# Pull logs
+az containerapp logs show \
+  --name paa-dev-app --resource-group paa-dev-rg \
+  --revision <revision-name> --replica <replica-name> \
+  --tail 100 --follow false
+```
+
+#### D — System event stream
+
+Streams Container App controller events. **This surfaced the `PortMismatch` error in the 2026-03-30 incident.** Works even when replicas=0.
+
+```bash
+az containerapp logs show \
+  --name paa-dev-app \
+  --resource-group paa-dev-rg \
+  --type system \
+  --tail 50 --follow false
+```
+
+Sample `PortMismatch` event pattern:
+
+```json
+{"reason":"PortMismatch","message":"Container port 18789 does not match ingress port 80"}
+```
+
+#### E — Container exit events (diagnostics API)
+
+Yields exit code summary and backoff-restart counts across all revisions in a time window.
+
+```bash
+RESOURCE_ID=$(az containerapp show \
+  --name paa-dev-app --resource-group paa-dev-rg \
+  --query id -o tsv)
+
+az rest --method GET \
+  --url "https://management.azure.com${RESOURCE_ID}/detectors/containerappscontainerexitevents?api-version=2023-05-01"
+```
+
+#### F — Storage mount failures (diagnostics API)
+
+A non-clean status means the Azure Files share failed to mount — the container will not start.
+
+```bash
+az rest --method GET \
+  --url "https://management.azure.com${RESOURCE_ID}/detectors/containerappsstoragemountfailures?api-version=2023-05-01"
+```
+
+#### G — Config file inspection
+
+Downloads `openclaw.json` from the Azure Files share. **Redact `auth.token` before sharing output. Delete the local copy immediately.**
+
+```bash
+STORAGE_KEY=$(az storage account keys list \
+  --account-name paadevocstate \
+  --resource-group paa-dev-rg \
+  --query "[0].value" -o tsv)
+
+az storage file download \
+  --account-name paadevocstate \
+  --account-key "$STORAGE_KEY" \
+  --share-name openclaw-state \
+  --path "openclaw.json" \
+  --dest /tmp/openclaw.json
+
+cat /tmp/openclaw.json   # Verify gateway.mode, port, auth.mode
+rm /tmp/openclaw.json    # Delete immediately — never leave on disk
+```
+
+Valid values: `gateway.mode` must be `"server"` | `"remote"` | `"local"`. Port must be `18789`.
+
+#### H — Identity role assignments
+
+Confirms the Managed Identity has required roles: `Key Vault Secrets User`, `AcrPull`, and any AI/Cognitive Services user role.
+
+```bash
+PRINCIPAL_ID=$(az identity show \
+  --name paa-dev-id \
+  --resource-group paa-dev-rg \
+  --query principalId -o tsv)
+
+az role assignment list \
+  --assignee-object-id "$PRINCIPAL_ID" \
+  --all -o table
+```
+
+#### I — Image schema inspection
+
+Discover valid `gateway.mode` values (or other config schema values) directly from the bundled JS — no source code needed.
+
+```bash
+docker run --rm ghcr.io/openclaw/openclaw:<tag> \
+  sh -c "grep -r 'gateway.mode\|\"local\"\|\"remote\"\|\"server\"' dist/ 2>/dev/null | grep -v '.map' | head -20"
+```
+
+### 7.3 Tool Reference
+
+All tools used during the 2026-03-30 incident.
+
+| Tool / Command | Purpose | Key Limitation |
+|---|---|---|
+| `bash scripts/diagnose-containerapp.sh dev` | Single command that runs all sections A–H and writes a timestamped output file | Requires `az login`; no Terraform state needed |
+| `bash scripts/dump-resource-inventory.sh` | Discover all resource names by tag via Resource Graph | Requires Resource Graph access |
+| `az containerapp revision list -o table` | All revisions: health/traffic/replica counts | First stop for any startup failure |
+| `az containerapp revision show --query "properties.runningStateDetails"` | Human-readable failure reason | Only meaningful on active revisions |
+| `az containerapp replica list` | Get replica name for per-replica log retrieval | Returns empty when replicas=0 |
+| `az containerapp logs show --revision <r> --replica <n> --follow false` | Container stdout/stderr — the actual crash output | Requires a running replica; unavailable at replicas=0 |
+| `az containerapp logs show --type system --tail 50` | Container App controller events — **surfaced the 2026-03-30 `PortMismatch` error** | May be empty for very recent events |
+| `az rest GET .../detectors/containerappscontainerexitevents` | Exit code summary, backoff-restart counts, last error type | Undocumented API; time-windowed results |
+| `az rest GET .../detectors/containerappsstoragemountfailures` | Confirms whether Azure Files mount failures contributed | Undocumented API; clean result rules out storage |
+| `az containerapp env storage show` | Verify the Azure Files share binding exists and is configured | — |
+| `az storage file list / download` | Inspect `openclaw.json` on the persistent share | Requires storage account key; delete local copy after use |
+| `docker inspect <image>` | Reveal `Entrypoint`, `Cmd`, and env vars baked into the image | Requires docker CLI and image pull access |
+| `docker run --rm <image> sh -c "grep -r ..."` | Search bundled JS for valid config schema values | Used to discover `gateway.mode` valid values |
+| `az monitor log-analytics query` | Full KQL queries against Container App console logs | **Blocked by prod NSP** — not usable from outside Azure |
+| `az monitor activity-log list` | Activity log for deployment history and provisioning failures | No container-level detail |
+| `az role assignment list --assignee-object-id` | Confirm Managed Identity roles (KV Secrets User, AcrPull, AI User) | — |
+
+### 7.4 Known Limitations
+
+| Limitation | Workaround |
+|------------|------------|
+| `az monitor log-analytics query` blocked by the prod NSP | Use direct CLI methods: `az containerapp logs show` (sections C, D) |
+| `az containerapp logs show` returns nothing when replicas=0 | Use system events (section D) and exit codes API (section E) |
+| `az containerapp exec` unreliable against crashing containers | Use `docker run` for image inspection instead (section I) |
+| Diagnostics API (sections E, F) is time-windowed | Wait ~5 min after a crash before querying; retry if results are empty |
+
+### 7.5 Real-Time System Event Stream
+
+The system event stream exposes Container App controller events and is the fastest diagnostic for infrastructure-level failures (port mismatches, image pull errors, storage mount failures):
+
+```bash
+az containerapp logs show \
+  --name paa-dev-app \
+  --resource-group paa-dev-rg \
+  --type system \
+  --tail 50 \
+  --follow false
+```
+
+To stream live events in real time, add `--follow true`.
+
+**Sample `PortMismatch` event** — seen in the 2026-03-30 incident when `gateway.port` in `openclaw.json` was set to `80` instead of `18789`:
+
+```
+2026-03-30T12:34:56.000Z Reason: PortMismatch
+  Message: Container port 18789 does not match ingress port 80
+  Container: openclaw
+```
+
+Recognition: if you see `PortMismatch`, check `gateway.port` in `openclaw.json` (section G). It must be `18789` to match the Container App ingress configuration.
+
+### 7.6 Image Schema Inspection
+
+When the valid values for a config field are uncertain (for example, `gateway.mode`), you can discover them directly from the bundled JS inside the image — no source code or documentation needed:
+
+```bash
+docker run --rm ghcr.io/openclaw/openclaw:<tag> \
+  sh -c "grep -r '\"local\"\|\"remote\"\|\"server\"\|\"mode\"' dist/ 2>/dev/null | grep -v '.map' | head -20"
+```
+
+This technique was used during the 2026-03-30 incident to discover that `gateway.mode` must be `"server"` (not `"lan"` or other values). It works because OpenClaw ships its compiled JavaScript in the image under `dist/`.
+
+You can extend the pattern to search for any other config key:
+
+```bash
+docker run --rm ghcr.io/openclaw/openclaw:<tag> \
+  sh -c "grep -r '<search-term>' dist/ 2>/dev/null | grep -v '.map' | head -20"
+```

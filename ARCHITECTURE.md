@@ -159,6 +159,14 @@ This gives a single declarative infrastructure source, a single CI/CD execution 
 - Home public IP is stable, or ingress rules can be updated when it changes
 - Terraform remains the source of truth for Azure resource state
 
+## Operational Environment Policy
+
+The two deployed environments (`dev`, `prod`) exist specifically to separate change-risk from production traffic.
+
+- **All troubleshooting, diagnosis, and live operational work must be performed against the dev environment.** Production is only touched for authorized deployment or incident response where the issue is confirmed non-reproducible in dev.
+- This rule applies to human operators and to AI agents. An AI agent must never be provided production resource identifiers (resource group, Key Vault, storage account, Container App name) in a debugging context. If there is any ambiguity about which environment is targeted, the agent must stop and ask before executing any `az`, Terraform, or script command.
+- Production incidents are an exception, not a default. Explicitly document the authorization to work in prod before executing any live commands.
+
 ## Planned Evolution
 
 Recommended next enhancements:

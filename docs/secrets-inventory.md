@@ -40,6 +40,7 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_OPENCLAW_IMAGE_TAG` | Pinned OpenClaw image tag to deploy (default: `2026.2.26`) | Per release | Platform Engineering |
 | `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB` | Azure Files share quota in GiB for persisted OpenClaw state (default: `100`) | On storage review | Platform Engineering |
 | `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` | JSON array of HTTPS origins allowed for the OpenClaw Control UI (default: `[]`) | On FQDN change | Platform Engineering |
+| `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED` | Set to `true` to enable gateway token injection via Key Vault secret reference. Enable only after `openclaw-gateway-token` has been provisioned in Key Vault (default: `false`) | After KV bootstrap | Platform Engineering |
 | `TF_VAR_ENABLE_DEV_VM` | Set to `true` in the `dev` GitHub Environment to provision the Windows dev VM (default: `false`) — **dev environment only** | On demand | Platform Engineering |
 
 > **Note:** `TF_VAR_ENVIRONMENT` is hardcoded per job in the CI workflow (`dev` or `prod`) and does not need to be set as a GitHub Environment variable.

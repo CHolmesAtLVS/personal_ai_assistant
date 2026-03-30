@@ -31,6 +31,7 @@ TF_VAR_cost_center        = "<cost-center>"
 # TF_VAR_openclaw_image_tag = "2026.2.26"
 # TF_VAR_openclaw_state_share_quota_gb = "100"
 # TF_VAR_openclaw_control_ui_allowed_origins_json = '["https://<app-fqdn>"]'
+# TF_VAR_openclaw_gateway_token_enabled = "true"  # set after openclaw-gateway-token secret is provisioned in Key Vault
 # TF_VAR_monthly_budget_amount = "25"
 
 # Windows dev VM (set enable_dev_vm=true to provision)

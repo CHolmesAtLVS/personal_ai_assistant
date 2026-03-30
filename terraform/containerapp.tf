@@ -82,6 +82,24 @@ module "container_app" {
             path = "/home/node/.openclaw"
           }
         ]
+        liveness_probes = [
+          {
+            transport             = "HTTP"
+            port                  = 18789
+            path                  = "/healthz"
+            initial_delay_seconds = 10
+            period_seconds        = 30
+          }
+        ]
+        readiness_probes = [
+          {
+            transport             = "HTTP"
+            port                  = 18789
+            path                  = "/readyz"
+            initial_delay_seconds = 5
+            period_seconds        = 10
+          }
+        ]
         env = concat(
           [
             {

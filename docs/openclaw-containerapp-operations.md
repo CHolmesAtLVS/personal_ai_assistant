@@ -37,10 +37,8 @@ After the secret is created, set `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true` in
 
 ```bash
 # Via CI: open a PR to trigger terraform-dev, or merge to main for terraform-prod
-# Locally (dev only):
-cd terraform
-terraform init -backend-config=../scripts/backend.dev.hcl
-terraform apply -var-file=../scripts/dev.tfvars
+# Locally (dev only): uses scripts/dev.tfvars (copied from scripts/dev.tfvars.example)
+./scripts/terraform-local.sh dev apply
 ```
 
 ### 1.3 Seed the Gateway Configuration File

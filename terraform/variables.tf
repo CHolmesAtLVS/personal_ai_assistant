@@ -131,8 +131,15 @@ variable "openclaw_control_ui_allowed_origins_json" {
   default     = "[]"
 
   validation {
-    condition     = can(jsondecode(var.openclaw_control_ui_allowed_origins_json))
-    error_message = "openclaw_control_ui_allowed_origins_json must be a valid JSON string."
+    condition = (
+      can(jsondecode(var.openclaw_control_ui_allowed_origins_json)) &&
+      can([for o in jsondecode(var.openclaw_control_ui_allowed_origins_json) : o]) &&
+      alltrue([
+        for origin in jsondecode(var.openclaw_control_ui_allowed_origins_json) :
+        startswith(origin, "https://")
+      ])
+    )
+    error_message = "openclaw_control_ui_allowed_origins_json must be a JSON array of HTTPS origins, e.g. '[\"https://myapp.example.com\"]'. Use [] for an empty allow list."
   }
 }
 

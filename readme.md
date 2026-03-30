@@ -155,11 +155,11 @@ Operational logs and telemetry are sent to Azure monitoring services for trouble
 
 ## Deployment Summary
 
-### Required secrets (provision in Key Vault before first deploy)
+### Required secrets (provision in Key Vault before enabling token injection)
 
 | Secret | Description |
 |--------|-------------|
-| `openclaw-gateway-token` | Gateway authentication token. Generate a strong random token and store it in the environment Key Vault. |
+| `openclaw-gateway-token` | Gateway authentication token. Generate a strong random token and store it in the environment Key Vault. Required only when `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true`. |
 
 ### GitHub Environment variables to set
 
@@ -167,12 +167,18 @@ Operational logs and telemetry are sent to Azure monitoring services for trouble
 |----------|---------|
 | `TF_VAR_OPENCLAW_IMAGE_TAG` | `2026.2.26` |
 | `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` | `["https://<app-fqdn>"]` |
+| `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED` | `true` (set after KV secret is provisioned) |
 
-### First-time bootstrap
+### First-time bootstrap (two phases)
 
-1. Provision `openclaw-gateway-token` in Key Vault.
-2. Apply Terraform via PR to provision all resources.
-3. Pre-seed `/home/node/.openclaw/openclaw.json` on the Azure Files share using the bootstrap procedure in [`docs/openclaw-containerapp-operations.md`](docs/openclaw-containerapp-operations.md).
+**Phase 1 — initial deploy (no KV secret required):**
+1. Open a PR — CI will plan and apply to dev with `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=false` (default).
+2. Pre-seed `/home/node/.openclaw/openclaw.json` on the Azure Files share using the bootstrap procedure in [`docs/openclaw-containerapp-operations.md`](docs/openclaw-containerapp-operations.md).
+
+**Phase 2 — activate gateway token auth:**
+1. Provision `openclaw-gateway-token` in Key Vault (see runbook section 1.1).
+2. Set `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true` in the GitHub Environment variable.
+3. Apply Terraform (open a PR or merge) — the Container App is updated to inject the token at startup.
 
 ### Image upgrades
 

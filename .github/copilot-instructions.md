@@ -24,6 +24,12 @@ Use these documents as the primary project context:
 - **All troubleshooting, diagnosis, and live operational commands (`az`, Terraform, scripts) must target the dev environment only. Never execute commands against production resources during a troubleshooting or debugging session.** If the target environment is ambiguous, ask for explicit confirmation before running any command. This rule applies equally to AI agents and to human operators.
 - Never accept or use production resource identifiers (resource group names, Key Vault names, storage account names, app names) when the intent is to diagnose a problem. Require the user to provide dev equivalents, or surface the ambiguity and stop.
 
+## OpenClaw Configuration Preferences
+
+- Always reference environment variables explicitly in `openclaw.json` using `${VAR_NAME}` substitution (e.g. `"token": "${OPENCLAW_GATEWAY_TOKEN}"`, `"apiKey": "${CUSTOM_API_KEY}"`). This makes the mapping between env vars and config values clear and auditable.
+- `OPENCLAW_LOAD_SHELL_ENV=1` is **not** required for `${VAR_NAME}` substitution — it only imports shell env vars not already in the process environment. In Container Apps all env vars are process-injected, so substitution works without it.
+- Missing or empty referenced vars throw an error at gateway load time (fail-fast). Use `$${VAR}` for a literal `${VAR}` in output.
+
 ## Implementation Guidance
 
 - Prioritize minimal, focused changes.

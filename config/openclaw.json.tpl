@@ -4,7 +4,8 @@
     "port": 18789,
     "bind": "lan",
     "auth": {
-      "mode": "token"
+      "mode": "token",
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
     },
     "controlUi": {
       "allowedOrigins": ["https://${APP_FQDN}"]

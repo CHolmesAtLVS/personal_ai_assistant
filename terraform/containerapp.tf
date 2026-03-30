@@ -52,7 +52,7 @@ module "container_app" {
       identity            = module.identity.resource_id
       key_vault_secret_id = local.openclaw_gateway_token_kv_secret_id
     }
-  } : null
+  } : {}
 
   registries = var.container_image_acr_server != null ? [
     {

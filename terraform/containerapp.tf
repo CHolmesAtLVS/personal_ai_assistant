@@ -84,20 +84,24 @@ module "container_app" {
         ]
         liveness_probes = [
           {
-            transport             = "HTTP"
-            port                  = 18789
-            path                  = "/healthz"
-            initial_delay_seconds = 10
-            period_seconds        = 30
+            transport               = "HTTP"
+            port                    = 18789
+            path                    = "/healthz"
+            initial_delay           = 10
+            interval_seconds        = 30
+            timeout                 = 5
+            failure_count_threshold = 3
           }
         ]
         readiness_probes = [
           {
-            transport             = "HTTP"
-            port                  = 18789
-            path                  = "/readyz"
-            initial_delay_seconds = 5
-            period_seconds        = 10
+            transport               = "HTTP"
+            port                    = 18789
+            path                    = "/readyz"
+            interval_seconds        = 10
+            timeout                 = 5
+            failure_count_threshold = 3
+            success_count_threshold = 1
           }
         ]
         env = concat(
@@ -113,7 +117,7 @@ module "container_app" {
             {
               name  = "OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS"
               value = var.openclaw_control_ui_allowed_origins_json
-            }
+            },
           ],
           var.openclaw_gateway_token_enabled ? [
             {

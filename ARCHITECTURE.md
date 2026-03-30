@@ -35,7 +35,7 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 
 - Azure Container Registry (ACR): stores built container images; lives in a dedicated shared resource group (`${project}-shared-rg`) provisioned only in the prod environment. Dev deployments use a public placeholder image and have no ACR dependency. ACR is reserved for custom-built image scenarios; standard deployment uses the pre-built GHCR image.
 - Azure Container Apps Environment: runtime environment for containerized workloads, linked to Log Analytics Workspace
-- OpenClaw Container App: running service endpoint; min replicas 0, 0.5 vCPU / 1 GiB per replica; pulls pre-built image from `ghcr.io/openclaw/openclaw` at the pinned tag
+- OpenClaw Container App: running service endpoint; min replicas 0, 2 vCPU / 4 GiB per replica; pulls pre-built image from `ghcr.io/openclaw/openclaw` at the pinned tag
 - Azure Files share mounted at `/home/node/.openclaw`: persists all long-lived OpenClaw state (config, auth profiles, skills state, workspace files) across revisions and restarts
 - Gateway token auth: the OpenClaw gateway runs with `bind=lan` and token authentication; the token is stored in Key Vault under the canonical secret name `openclaw-gateway-token` and injected into the container at startup via Managed Identity secret reference
 - HTTPS ingress with source IP restriction to the user's home public IP; insecure connections blocked

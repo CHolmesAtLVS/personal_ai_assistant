@@ -17,3 +17,12 @@ resource "azurerm_role_assignment" "mi_ai_openai_user" {
   role_definition_name = "Cognitive Services OpenAI User"
   principal_id         = module.identity.principal_id
 }
+
+# Grants the CI/CD Service Principal write access to Key Vault secrets so the
+# Bootstrap Gateway Token workflow step can idempotently create the
+# openclaw-gateway-token secret on first deploy without manual intervention.
+resource "azurerm_role_assignment" "ci_sp_kv_secrets_officer" {
+  scope                = module.key_vault.resource_id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+}

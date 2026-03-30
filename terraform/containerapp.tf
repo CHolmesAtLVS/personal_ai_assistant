@@ -46,13 +46,13 @@ module "container_app" {
     user_assigned_resource_ids = toset([module.identity.resource_id])
   }
 
-  secrets = var.openclaw_gateway_token_enabled ? {
+  secrets = {
     "openclaw-gateway-token" = {
       name                = "openclaw-gateway-token"
       identity            = module.identity.resource_id
-      key_vault_secret_id = local.openclaw_gateway_token_kv_secret_id
+      key_vault_secret_id = azurerm_key_vault_secret.openclaw_gateway_token.versionless_id
     }
-  } : {}
+  }
 
   registries = var.container_image_acr_server != null ? [
     {
@@ -104,25 +104,21 @@ module "container_app" {
             success_count_threshold = 1
           }
         ]
-        env = concat(
-          [
-            {
-              name  = "AZURE_OPENAI_ENDPOINT"
-              value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
-            },
-            {
-              # Ensures gateway starts on the correct port even before openclaw.json is seeded.
-              name  = "OPENCLAW_GATEWAY_PORT"
-              value = "18789"
-            },
-          ],
-          var.openclaw_gateway_token_enabled ? [
-            {
-              name        = "OPENCLAW_GATEWAY_TOKEN"
-              secret_name = "openclaw-gateway-token"
-            }
-          ] : []
-        )
+        env = [
+          {
+            name  = "AZURE_OPENAI_ENDPOINT"
+            value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
+          },
+          {
+            # Ensures gateway starts on the correct port even before openclaw.json is seeded.
+            name  = "OPENCLAW_GATEWAY_PORT"
+            value = "18789"
+          },
+          {
+            name        = "OPENCLAW_GATEWAY_TOKEN"
+            secret_name = "openclaw-gateway-token"
+          },
+        ]
       }
     ]
   }

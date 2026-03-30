@@ -22,3 +22,28 @@ module "key_vault" {
     }
   }
 }
+
+# Generates a stable 48-character hex token on first deploy.
+# The value is stored in Terraform state (sensitive) and never regenerated
+# unless this resource is explicitly replaced. Manual KV rotation is
+# preserved by the ignore_changes lifecycle rule on the secret resource.
+resource "random_id" "openclaw_gateway_token" {
+  byte_length = 24
+}
+
+resource "azurerm_key_vault_secret" "openclaw_gateway_token" {
+  name         = "openclaw-gateway-token"
+  value        = random_id.openclaw_gateway_token.hex
+  key_vault_id = module.key_vault.resource_id
+  content_type = "text/plain"
+
+  # Prevent Terraform from overwriting a token that was manually rotated.
+  lifecycle {
+    ignore_changes = [value]
+  }
+
+  # The CI SP must hold Key Vault Secrets Officer before this resource can be
+  # created. The role assignment is managed by Terraform in the same apply;
+  # RBAC propagation may require a retry on a brand-new environment.
+  depends_on = [azurerm_role_assignment.ci_sp_kv_secrets_officer]
+}

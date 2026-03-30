@@ -135,10 +135,4 @@ variable "budget_alert_email" {
   sensitive   = true
 }
 
-variable "openclaw_gateway_token_enabled" {
-  description = "Enable gateway token injection from Key Vault secret into the Container App. Set to true only after the openclaw-gateway-token secret has been provisioned in Key Vault."
-  type        = bool
-  default     = false
-}
-
 # vm_* variables removed — dev VM is no longer managed by Terraform.

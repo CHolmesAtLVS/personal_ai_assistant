@@ -14,31 +14,34 @@ This document covers operational procedures for the OpenClaw Container App runti
 
 ## 1. First-Time Bootstrap
 
-### 1.1 Create the Gateway Token Secret in Key Vault
+### 1.1 Gateway Token — Terraform-Managed
 
-Before the first Terraform apply (or before the Container App starts), provision the gateway token in Key Vault. Generate a strong random token, then store it under the canonical secret name `openclaw-gateway-token`:
+The `openclaw-gateway-token` Key Vault secret is fully managed by Terraform. On first apply, Terraform generates a stable 48-character hex token via the `random_id` resource, stores it in Key Vault via `azurerm_key_vault_secret`, and wires the Container App to read it at startup via Managed Identity. The token value is stored in Terraform state (sensitive, encrypted at rest in the Azure Blob backend).
+
+The secret is created once and never overwritten by subsequent applies (`lifecycle { ignore_changes = [value] }`), so manual rotations (section 2) are preserved.
+
+> **Note:** On a brand-new environment, Terraform creates the `Key Vault Secrets Officer` role assignment for the CI SP in the same apply that creates the secret. Azure RBAC propagation can take up to a minute, which may cause the secret creation to fail on the very first apply. A retry of `terraform apply` resolves it.
+
+**Manual rotation:** Generate a new token and update the secret directly, then restart the Container App revision so it pulls the new value:
 
 ```bash
-# Generate a 48-character random token
 TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(24))")
-
-# Store in Key Vault (replace <kv-name> with the environment Key Vault name)
 az keyvault secret set \
   --vault-name "<kv-name>" \
   --name "openclaw-gateway-token" \
   --value "$TOKEN"
+
+az containerapp revision restart \
+  --name "<app-name>" \
+  --resource-group "<env-resource-group>" \
+  --revision "<revision-name>"
 ```
-
-The Container App's Managed Identity has `Key Vault Secrets User` access and will read this secret at startup.
-
-> **Note:** Gateway token injection in the Container App is controlled by the `openclaw_gateway_token_enabled` Terraform variable (default: `false`). This two-phase design lets Terraform apply succeed before the KV secret exists. Once the secret is provisioned (step 1.1), set `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true` in the GitHub Environment variable and re-apply to activate the injection.
 
 ### 1.2 Run Terraform Apply
 
-After the secret is created, set `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true` in the GitHub Environment variable, then run Terraform to provision or update the Container App:
+Terraform apply is triggered automatically by CI on every PR to `main` (dev) and on merge to `main` (prod). No manual steps are required.
 
 ```bash
-# Via CI: open a PR to trigger terraform-dev, or merge to main for terraform-prod
 # Locally (dev only): uses scripts/dev.tfvars (copied from scripts/dev.tfvars.example)
 ./scripts/terraform-local.sh dev apply
 ```

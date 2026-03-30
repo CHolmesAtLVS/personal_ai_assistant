@@ -29,5 +29,4 @@ locals {
   action_group_name                   = "${local.name_prefix}-ag-cost"
   openclaw_state_storage_account_name = substr(replace("${var.project}${var.environment}ocstate", "-", ""), 0, 24)
   openclaw_state_file_share_name      = "openclaw-state"
-  openclaw_gateway_token_kv_secret_id = "https://${local.kv_name}.vault.azure.net/secrets/openclaw-gateway-token"
 }

@@ -46,13 +46,13 @@ module "container_app" {
     user_assigned_resource_ids = toset([module.identity.resource_id])
   }
 
-  secrets = var.openclaw_gateway_token_enabled ? {
+  secrets = {
     "openclaw-gateway-token" = {
       name                = "openclaw-gateway-token"
       identity            = module.identity.resource_id
       key_vault_secret_id = local.openclaw_gateway_token_kv_secret_id
     }
-  } : {}
+  }
 
   registries = var.container_image_acr_server != null ? [
     {
@@ -84,44 +84,44 @@ module "container_app" {
         ]
         liveness_probes = [
           {
-            transport             = "HTTP"
-            port                  = 18789
-            path                  = "/healthz"
-            initial_delay_seconds = 10
-            period_seconds        = 30
+            transport               = "HTTP"
+            port                    = 18789
+            path                    = "/healthz"
+            initial_delay           = 10
+            interval_seconds        = 30
+            timeout                 = 5
+            failure_count_threshold = 3
           }
         ]
         readiness_probes = [
           {
-            transport             = "HTTP"
-            port                  = 18789
-            path                  = "/readyz"
-            initial_delay_seconds = 5
-            period_seconds        = 10
+            transport               = "HTTP"
+            port                    = 18789
+            path                    = "/readyz"
+            interval_seconds        = 10
+            timeout                 = 5
+            failure_count_threshold = 3
+            success_count_threshold = 1
           }
         ]
-        env = concat(
-          [
-            {
-              name  = "AZURE_OPENAI_ENDPOINT"
-              value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
-            },
-            {
-              name  = "OPENCLAW_GATEWAY_BIND"
-              value = "lan"
-            },
-            {
-              name  = "OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS"
-              value = var.openclaw_control_ui_allowed_origins_json
-            }
-          ],
-          var.openclaw_gateway_token_enabled ? [
-            {
-              name        = "OPENCLAW_GATEWAY_TOKEN"
-              secret_name = "openclaw-gateway-token"
-            }
-          ] : []
-        )
+        env = [
+          {
+            name  = "AZURE_OPENAI_ENDPOINT"
+            value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
+          },
+          {
+            name  = "OPENCLAW_GATEWAY_BIND"
+            value = "lan"
+          },
+          {
+            name        = "OPENCLAW_GATEWAY_TOKEN"
+            secret_name = "openclaw-gateway-token"
+          },
+          {
+            name  = "OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS"
+            value = var.openclaw_control_ui_allowed_origins_json
+          }
+        ]
       }
     ]
   }

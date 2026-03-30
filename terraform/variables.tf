@@ -118,13 +118,6 @@ variable "openclaw_state_share_quota_gb" {
   }
 }
 
-
-variable "openclaw_gateway_token_enabled" {
-  description = "Enable gateway token injection into the Container App via Key Vault secret reference. Set to true only after openclaw-gateway-token has been pre-provisioned in Key Vault. See docs/openclaw-containerapp-operations.md."
-  type        = bool
-  default     = false
-}
-
 variable "openclaw_control_ui_allowed_origins_json" {
   description = "JSON array of HTTPS origins allowed for the OpenClaw Control UI (for example '[\"https://myapp.example.com\"]'). Used in the gateway bootstrap configuration. Leave as empty array \"[]\" until the app FQDN is known."
   type        = string
@@ -139,7 +132,7 @@ variable "openclaw_control_ui_allowed_origins_json" {
         startswith(origin, "https://")
       ])
     )
-    error_message = "openclaw_control_ui_allowed_origins_json must be a JSON array of HTTPS origins, e.g. '[\"https://myapp.example.com\"]'. Use [] for an empty allow list."
+    error_message = "openclaw_control_ui_allowed_origins_json must be a JSON array of HTTPS origins (for example '[\"https://myapp.example.com\"]'). Use [] for an empty allow list."
   }
 }
 

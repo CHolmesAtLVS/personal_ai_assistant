@@ -47,9 +47,9 @@ After the secret is created, set `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED=true` in
 
 OpenClaw reads its gateway configuration from `/home/node/.openclaw/openclaw.json` on the persistent Azure Files share. The file must exist with a schema-valid baseline before the app successfully starts under strict config validation.
 
-**Method: Pre-seed via Azure Files (recommended)**
+**Normal path (automated):** The `Seed OpenClaw Config` step in the `terraform-deploy.yml` workflow automatically renders `config/openclaw.json.tpl` (using `envsubst` for `${APP_FQDN}`) and uploads it to the Azure Files share after every `terraform apply`. No manual action is required for routine deployments.
 
-Use the Azure CLI to upload the config file directly to the Azure Files share before the Container App starts:
+**Emergency recovery only:** If the automated seed step fails or the file is corrupt, use the following manual procedure to re-seed:
 
 ```bash
 # Replace placeholders with actual values from Terraform outputs
@@ -62,34 +62,16 @@ STORAGE_KEY=$(az storage account keys list \
   --resource-group "<env-resource-group>" \
   --query "[0].value" --output tsv)
 
-# Retrieve the current gateway token from Key Vault
-GATEWAY_TOKEN=$(az keyvault secret show \
-  --vault-name "<kv-name>" \
-  --name "openclaw-gateway-token" \
-  --query "value" --output tsv)
-
 # Retrieve the Container App FQDN
-APP_FQDN=$(terraform -chdir=terraform output -raw container_app_fqdn 2>/dev/null || echo "https://<app-fqdn>")
+APP_FQDN=$(az containerapp show \
+  --name "<app-name>" \
+  --resource-group "<env-resource-group>" \
+  --query "properties.configuration.ingress.fqdn" -o tsv)
 
-# Write the openclaw.json config
-cat > /tmp/openclaw.json <<EOF
-{
-  "gateway": {
-    "mode": "server",
-    "port": 18789,
-    "bind": "lan",
-    "auth": {
-      "mode": "token",
-      "token": "${GATEWAY_TOKEN}"
-    },
-    "controlUi": {
-      "allowedOrigins": ["${APP_FQDN}"]
-    }
-  }
-}
-EOF
+# Render and upload (mirrors the automated workflow step)
+export APP_FQDN
+envsubst < config/openclaw.json.tpl > /tmp/openclaw.json
 
-# Upload to Azure Files
 az storage file upload \
   --account-name "$STORAGE_ACCOUNT" \
   --account-key "$STORAGE_KEY" \
@@ -97,9 +79,23 @@ az storage file upload \
   --source /tmp/openclaw.json \
   --path "openclaw.json"
 
-# Clean up local copy
 rm /tmp/openclaw.json
 ```
+
+> **Canonical source of truth:** `config/openclaw.json.tpl` in the repository is the authoritative template. The `${APP_FQDN}` placeholder is substituted at deploy time. `gateway.auth.token` is intentionally absent — the KV-injected `OPENCLAW_GATEWAY_TOKEN` env var supplies it.
+
+#### Schema reference
+
+All fields below are required for `bind=lan` operation. An invalid or missing `openclaw.json` prevents the gateway from starting.
+
+| Field | Valid values | Notes |
+|-------|-------------|-------|
+| `gateway.mode` | `"local"`, `"remote"` | `"local"` for standard single-instance deployments. `"server"` is **not** a valid value. |
+| `gateway.port` | positive integer | Must match Container App ingress `targetPort` (`18789`). Defaults to `18789` if omitted. |
+| `gateway.bind` | `"lan"`, `"loopback"` | `"lan"` binds to all LAN interfaces and is required for Container Apps reachability. Use `"loopback"` for localhost-only testing. |
+| `gateway.auth.mode` | `"token"`, `"none"` | `"token"` required for authenticated operation. |
+| `gateway.controlUi.allowedOrigins` | Non-empty array of `https://` URIs | Required when `bind=lan`; an empty array `[]` causes a gateway startup failure. |
+| `gateway.auth.token` | string | Optional when `OPENCLAW_GATEWAY_TOKEN` env var is set (KV-injected); env var takes priority. |
 
 > **Security note:** The gateway token value appears in the config file stored on the Azure Files share. By default, `public_network_access_enabled = true`, so the share is reachable from the public internet for callers that have the storage account key or a valid SAS token. There is no anonymous access, and access is additionally constrained by the Container Apps Environment network boundary. For stronger network isolation, update the storage account Terraform configuration to disable public network access and/or use private endpoints and virtual network integration.
 
@@ -193,7 +189,7 @@ rm /tmp/openclaw.json
 
 After re-uploading the config, restart the Container App revision for the changes to take effect.
 
-If adding an origin to `controlUi.allowedOrigins`, also update `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` in the GitHub Environment variable so Terraform keeps the value in sync with the `OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS` environment variable injected into the container.
+For `controlUi.allowedOrigins` updates, edit `config/openclaw.json.tpl` in the repo and open a PR — the `Seed OpenClaw Config` workflow step will render and upload the updated config automatically after `terraform apply`.
 
 ---
 
@@ -410,7 +406,7 @@ cat /tmp/openclaw.json   # Verify gateway.mode, port, auth.mode
 rm /tmp/openclaw.json    # Delete immediately — never leave on disk
 ```
 
-Valid values: `gateway.mode` must be `"server"` | `"remote"` | `"local"`. Port must be `18789`.
+Valid values: `gateway.mode` must be `"local"` or `"remote"` (`"server"` is **not** valid). Port must be `18789`.
 
 #### H — Identity role assignments
 
@@ -502,7 +498,7 @@ docker run --rm ghcr.io/openclaw/openclaw:<tag> \
   sh -c "grep -r '\"local\"\|\"remote\"\|\"server\"\|\"mode\"' dist/ 2>/dev/null | grep -v '.map' | head -20"
 ```
 
-This technique was used during the 2026-03-30 incident to discover that `gateway.mode` must be `"server"` (not `"lan"` or other values). It works because OpenClaw ships its compiled JavaScript in the image under `dist/`.
+This technique was used during the 2026-03-30 incident to confirm that `gateway.mode` valid values are `"local"` and `"remote"` only (not `"server"`, which causes a startup crash). It works because OpenClaw ships its compiled JavaScript in the image under `dist/`.
 
 You can extend the pattern to search for any other config key:
 

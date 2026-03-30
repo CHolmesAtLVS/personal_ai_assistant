@@ -39,7 +39,6 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_AI_MODEL_CAPACITY` | Model deployment TPM capacity in thousands (default: `10`) | On quota change | Platform Engineering |
 | `TF_VAR_OPENCLAW_IMAGE_TAG` | Pinned OpenClaw image tag to deploy (default: `2026.2.26`) | Per release | Platform Engineering |
 | `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB` | Azure Files share quota in GiB for persisted OpenClaw state (default: `100`) | On storage review | Platform Engineering |
-| `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` | JSON array of HTTPS origins allowed for the OpenClaw Control UI (default: `[]`) | On FQDN change | Platform Engineering |
 | `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED` | Set to `true` to enable gateway token injection via Key Vault secret reference. Enable only after `openclaw-gateway-token` has been provisioned in Key Vault (default: `false`) | After KV bootstrap | Platform Engineering |
 | `TF_VAR_ENABLE_DEV_VM` | Set to `true` in the `dev` GitHub Environment to provision the Windows dev VM (default: `false`) — **dev environment only** | On demand | Platform Engineering |
 
@@ -83,6 +82,5 @@ The following non-sensitive values are injected as container environment variabl
 | Variable | Source | Description |
 | -------- | ------ | ----------- |
 | `AZURE_OPENAI_ENDPOINT` | Terraform output from AI Services (`azapi_resource` read) | AI Services endpoint URL for OpenAI inference |
-| `OPENCLAW_GATEWAY_BIND` | Hardcoded `lan` | Instructs OpenClaw to bind its gateway to the LAN interface |
+| `OPENCLAW_GATEWAY_PORT` | Hardcoded `18789` | Gateway listen port; ensures the correct port is used even before `openclaw.json` is seeded |
 | `OPENCLAW_GATEWAY_TOKEN` | Key Vault secret reference (`openclaw-gateway-token`) | Gateway authentication token; read from Key Vault by the Container App at startup via Managed Identity |
-| `OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS` | Terraform variable `openclaw_control_ui_allowed_origins_json` | JSON array of HTTPS origins allowed for the Control UI; used in gateway bootstrap config |

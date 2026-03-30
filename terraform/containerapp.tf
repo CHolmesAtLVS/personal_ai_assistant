@@ -74,8 +74,8 @@ module "container_app" {
       {
         name   = "openclaw"
         image  = local.openclaw_image
-        cpu    = 0.5
-        memory = "1Gi"
+        cpu    = 2
+        memory = "4Gi"
         volume_mounts = [
           {
             name = "openclaw-state"
@@ -111,10 +111,17 @@ module "container_app" {
               value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
             },
             {
+              # Ensures gateway starts on the correct port even before openclaw.json is seeded.
+              name  = "OPENCLAW_GATEWAY_PORT"
+              value = "18789"
+            },
+            {
               name  = "OPENCLAW_GATEWAY_BIND"
               value = "lan"
             },
             {
+              # WARNING: an empty array here ("[]") causes a gateway startup failure when bind=all.
+              # Set TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON to the app FQDN JSON array before enabling.
               name  = "OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS"
               value = var.openclaw_control_ui_allowed_origins_json
             },

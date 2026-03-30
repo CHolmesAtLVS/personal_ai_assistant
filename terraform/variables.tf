@@ -119,7 +119,7 @@ variable "openclaw_state_share_quota_gb" {
 }
 
 variable "openclaw_control_ui_allowed_origins_json" {
-  description = "JSON array of HTTPS origins allowed for the OpenClaw Control UI (for example '[\"https://myapp.example.com\"]'). Used in the gateway bootstrap configuration. Leave as empty array \"[]\" until the app FQDN is known."
+  description = "JSON array of HTTPS origins allowed for the OpenClaw Control UI (for example '[\"https://myapp.example.com\"]'). Used in the gateway bootstrap configuration. WARNING: leaving this as an empty array '[]' will cause the OpenClaw gateway to fail to start when gateway.bind=lan — the FQDN must be set before enabling the Container App."
   type        = string
   default     = "[]"
 

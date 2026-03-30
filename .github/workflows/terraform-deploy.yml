@@ -42,6 +42,8 @@ jobs:
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.2.26' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
+      TF_VAR_openclaw_control_ui_allowed_origins_json: ${{ vars.TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON || '[]' }}
+      TF_VAR_openclaw_gateway_token_enabled: ${{ vars.TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED || 'false' }}
       TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
       TF_VAR_enable_dev_vm: ${{ vars.TF_VAR_ENABLE_DEV_VM || 'false' }}
@@ -128,6 +130,8 @@ jobs:
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.2.26' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
+      TF_VAR_openclaw_control_ui_allowed_origins_json: ${{ vars.TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON || '[]' }}
+      TF_VAR_openclaw_gateway_token_enabled: ${{ vars.TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED || 'false' }}
       TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
     steps:

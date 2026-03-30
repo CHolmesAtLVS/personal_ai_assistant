@@ -46,6 +46,14 @@ module "container_app" {
     user_assigned_resource_ids = toset([module.identity.resource_id])
   }
 
+  secrets = var.openclaw_gateway_token_enabled ? {
+    "openclaw-gateway-token" = {
+      name                = "openclaw-gateway-token"
+      identity            = module.identity.resource_id
+      key_vault_secret_id = local.openclaw_gateway_token_kv_secret_id
+    }
+  } : {}
+
   registries = var.container_image_acr_server != null ? [
     {
       server   = var.container_image_acr_server
@@ -74,16 +82,46 @@ module "container_app" {
             path = "/home/node/.openclaw"
           }
         ]
-        env = [
+        liveness_probes = [
           {
-            name  = "AZURE_OPENAI_ENDPOINT"
-            value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
-          },
-          {
-            name  = "OPENCLAW_GATEWAY_BIND"
-            value = "lan"
+            transport             = "HTTP"
+            port                  = 18789
+            path                  = "/healthz"
+            initial_delay_seconds = 10
+            period_seconds        = 30
           }
         ]
+        readiness_probes = [
+          {
+            transport             = "HTTP"
+            port                  = 18789
+            path                  = "/readyz"
+            initial_delay_seconds = 5
+            period_seconds        = 10
+          }
+        ]
+        env = concat(
+          [
+            {
+              name  = "AZURE_OPENAI_ENDPOINT"
+              value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
+            },
+            {
+              name  = "OPENCLAW_GATEWAY_BIND"
+              value = "lan"
+            },
+            {
+              name  = "OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS"
+              value = var.openclaw_control_ui_allowed_origins_json
+            }
+          ],
+          var.openclaw_gateway_token_enabled ? [
+            {
+              name        = "OPENCLAW_GATEWAY_TOKEN"
+              secret_name = "openclaw-gateway-token"
+            }
+          ] : []
+        )
       }
     ]
   }

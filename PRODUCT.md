@@ -30,9 +30,10 @@ This provides a simple but effective protection boundary for a public endpoint.
 
 ### 2. Cloud-Native Runtime
 
-- Runs OpenClaw in an Ubuntu-based Docker container
+- Runs OpenClaw from the pre-built public image at `ghcr.io/openclaw/openclaw`, pinned to an explicit version tag
 - Hosts the container in Azure Container Apps
-- Pulls application images from Azure Container Registry
+- Persists all long-lived user data (config, auth profiles, skills state, workspace files) to an Azure Files share mounted at `/home/node/.openclaw`; data survives container restarts and revision deployments
+- Supports gateway token authentication; when enabled, the token is stored in Azure Key Vault and injected into the container at runtime via Managed Identity
 
 ### 3. Secure Configuration Handling
 
@@ -56,11 +57,11 @@ This provides a simple but effective protection boundary for a public endpoint.
 
 ## Product Workflow
 
-1. Maintainer updates app code, Docker config, or Terraform in GitHub.
-2. CI/CD builds and publishes a new container image.
-3. Terraform applies infrastructure changes where needed.
-4. Container Apps runs the updated OpenClaw service.
-5. User accesses the web interface from approved home IP.
+1. Maintainer updates Terraform (or bumps the pinned image tag variable) in GitHub.
+2. CI/CD applies Terraform to provision or update Azure resources.
+3. Container Apps pulls the pre-built OpenClaw image at the pinned tag and starts the container.
+4. Persistent state from the Azure Files share is available immediately on startup.
+5. User accesses the web interface from the approved home IP.
 6. OpenClaw processes prompt/response cycles through Azure AI Foundry.
 7. Logs and diagnostics are available in Azure monitoring.
 

@@ -27,8 +27,6 @@ Use these documents as the primary project context:
 ## OpenClaw Configuration Preferences
 
 - Always reference environment variables explicitly in `openclaw.json` using `${VAR_NAME}` substitution (e.g. `"token": "${OPENCLAW_GATEWAY_TOKEN}"`, `"apiKey": "${CUSTOM_API_KEY}"`). This makes the mapping between env vars and config values clear and auditable.
-- `OPENCLAW_LOAD_SHELL_ENV=1` is **not** required for `${VAR_NAME}` substitution — it only imports shell env vars not already in the process environment. In Container Apps all env vars are process-injected, so substitution works without it.
-- Missing or empty referenced vars throw an error at gateway load time (fail-fast). Use `$${VAR}` for a literal `${VAR}` in output.
 
 ## Implementation Guidance
 

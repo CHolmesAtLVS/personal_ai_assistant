@@ -166,7 +166,6 @@ Operational logs and telemetry are sent to Azure monitoring services for trouble
 | Variable | Example |
 |----------|---------|
 | `TF_VAR_OPENCLAW_IMAGE_TAG` | `2026.2.26` |
-| `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` | `["https://<app-fqdn>"]` |
 | `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED` | `true` (set after KV secret is provisioned) |
 
 ### First-time bootstrap (two phases)

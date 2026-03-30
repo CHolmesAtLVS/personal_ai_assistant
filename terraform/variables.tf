@@ -118,24 +118,6 @@ variable "openclaw_state_share_quota_gb" {
   }
 }
 
-variable "openclaw_control_ui_allowed_origins_json" {
-  description = "JSON array of HTTPS origins allowed for the OpenClaw Control UI (for example '[\"https://myapp.example.com\"]'). Used in the gateway bootstrap configuration. WARNING: leaving this as an empty array '[]' will cause the OpenClaw gateway to fail to start when gateway.bind=lan — the FQDN must be set before enabling the Container App."
-  type        = string
-  default     = "[]"
-
-  validation {
-    condition = (
-      can(jsondecode(var.openclaw_control_ui_allowed_origins_json)) &&
-      can([for o in jsondecode(var.openclaw_control_ui_allowed_origins_json) : o]) &&
-      alltrue([
-        for origin in jsondecode(var.openclaw_control_ui_allowed_origins_json) :
-        startswith(origin, "https://")
-      ])
-    )
-    error_message = "openclaw_control_ui_allowed_origins_json must be a JSON array of HTTPS origins (for example '[\"https://myapp.example.com\"]'). Use [] for an empty allow list."
-  }
-}
-
 variable "monthly_budget_amount" {
   description = "Monthly USD budget cap for the OpenClaw resource group."
   type        = number
@@ -159,32 +141,4 @@ variable "openclaw_gateway_token_enabled" {
   default     = false
 }
 
-variable "enable_dev_vm" {
-  description = "Deploy the Windows dev VM in the current environment."
-  type        = bool
-  default     = false
-}
-
-variable "vm_admin_username" {
-  description = "Administrator username for the Windows dev VM."
-  type        = string
-  default     = "azureadmin"
-}
-
-variable "vm_admin_password" {
-  description = "Administrator password for the Windows dev VM. Set via TF_VAR_vm_admin_password in dev.tfvars."
-  type        = string
-  sensitive   = true
-  default     = null
-}
-
-variable "vm_size" {
-  description = "VM SKU — must support nested virtualisation for Docker Desktop WSL2 backend."
-  type        = string
-  default     = "Standard_D4s_v5"
-
-  validation {
-    condition     = length(var.vm_size) > 0
-    error_message = "vm_size must not be empty."
-  }
-}
+# vm_* variables removed — dev VM is no longer managed by Terraform.

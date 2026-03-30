@@ -115,16 +115,6 @@ module "container_app" {
               name  = "OPENCLAW_GATEWAY_PORT"
               value = "18789"
             },
-            {
-              name  = "OPENCLAW_GATEWAY_BIND"
-              value = "lan"
-            },
-            {
-              # WARNING: an empty array here ("[]") causes a gateway startup failure when bind=all.
-              # Set TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON to the app FQDN JSON array before enabling.
-              name  = "OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS"
-              value = var.openclaw_control_ui_allowed_origins_json
-            },
           ],
           var.openclaw_gateway_token_enabled ? [
             {

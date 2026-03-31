@@ -4,19 +4,21 @@
 # Pairs this machine as a temporary trusted device, runs layered health checks
 # against the remote gateway, revokes the device, and restores local state.
 #
-# Suitable as a CI post-deploy smoke test and a developer health check.
-#
 # Sections:
 #   A — Infrastructure pre-flight  (AI account, env vars, health probes)
 #   B — Gateway health             (openclaw health, probe, RPC status)
 #   C — Full gateway status        (openclaw status --all)
 #   D — Remote config validation   (schema, auth mode, primary model, catalog)
-#   E — Model availability         (openclaw models status — no missing providers)
+#   E — Model availability         (openclaw models status)
 #   F — Channel health             (openclaw channels status --probe)
 #   G — Agent health               (openclaw agents status)
 #   H — Memory health              (openclaw memory status --deep)
 #   I — Config doctor              (openclaw doctor --non-interactive)
 #   J — Live inference             (az containerapp exec — optional, rate-limited)
+#
+# Sections B–C and F–I require a live gateway connection (paired device).
+# Sections D and E use the config swap trick and only require the CLI binary.
+# Section A and J use az CLI only.
 #
 # Usage:
 #   bash scripts/test-multi-model.sh [dev|prod]
@@ -104,13 +106,17 @@ for tool in az jq curl; do
   fi
 done
 
-OPENCLAW_MISSING=false
+# Two flags: OPENCLAW_UNAVAILABLE = CLI binary absent;
+#            GATEWAY_CONNECTED   = pairing succeeded, live RPC session active.
+OPENCLAW_UNAVAILABLE=false
+GATEWAY_CONNECTED=false
+
 if command -v openclaw &>/dev/null; then
   OC_VER=$(openclaw --version 2>/dev/null | head -1 || echo "unknown")
   pass "Tool: openclaw ${OC_VER}"
 else
   warn "openclaw CLI not installed — Sections B–I skipped (install: npm install -g openclaw)"
-  OPENCLAW_MISSING=true
+  OPENCLAW_UNAVAILABLE=true
 fi
 
 if [[ "${PREREQ_FAIL}" == "true" ]]; then
@@ -145,29 +151,26 @@ TMP_SHARE_CONFIG="/tmp/openclaw-share-config-$$.json"
 DEVICE_ID=""
 DEVICE_ROLE="admin"
 
-# Back up whatever local config exists before the test modifies it.
 mkdir -p "${HOME}/.openclaw"
 cp "${LOCAL_CONFIG}" "${LOCAL_CONFIG_BACKUP}" 2>/dev/null || true
 
 cleanup() {
   echo ""
   # 1. Revoke test device while onboard credentials are still reachable.
-  if [[ -n "${DEVICE_ID}" && "${OPENCLAW_MISSING}" != "true" ]]; then
+  if [[ -n "${DEVICE_ID}" && "${OPENCLAW_UNAVAILABLE}" != "true" ]]; then
     echo "  CLEANUP  Revoking test device ${DEVICE_ID} (role: ${DEVICE_ROLE})..."
-    # Restore onboard config so the revoke call can authenticate.
     [[ -f "${ONBOARD_CONFIG_CACHE}" ]] && cp "${ONBOARD_CONFIG_CACHE}" "${LOCAL_CONFIG}" 2>/dev/null || true
     openclaw devices revoke "${DEVICE_ID}" "${DEVICE_ROLE}" 2>/dev/null \
       && echo "  CLEANUP  Device revoked." \
       || echo "  CLEANUP  Device revoke failed (may already be removed)."
   fi
-  # 2. Restore the original pre-test local config (or remove if none existed).
+  # 2. Restore the original pre-test local config.
   if [[ -f "${LOCAL_CONFIG_BACKUP}" ]]; then
     cp "${LOCAL_CONFIG_BACKUP}" "${LOCAL_CONFIG}" 2>/dev/null || true
     echo "  CLEANUP  Local openclaw config restored."
   else
     rm -f "${LOCAL_CONFIG}"
   fi
-  # 3. Remove temp files.
   rm -f "${LOCAL_CONFIG_BACKUP}" "${ONBOARD_CONFIG_CACHE}" "${TMP_SHARE_CONFIG}" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -175,11 +178,10 @@ trap cleanup EXIT
 # ── Device pairing ────────────────────────────────────────────────────────────
 section "Device pairing"
 
-if [[ "${OPENCLAW_MISSING}" == "true" ]]; then
+if [[ "${OPENCLAW_UNAVAILABLE}" == "true" ]]; then
   echo "  SKIP  No openclaw CLI"
 elif [[ -z "${GATEWAY_TOKEN}" || -z "${FQDN}" ]]; then
-  warn "Cannot resolve gateway credentials or FQDN — CLI sections B–I will be skipped"
-  OPENCLAW_MISSING=true
+  warn "Cannot resolve gateway credentials or FQDN — live CLI sections B–C, F–I will be skipped"
 else
   ONBOARD_OUT=$(openclaw onboard \
     --non-interactive \
@@ -189,15 +191,12 @@ else
     --remote-token "${GATEWAY_TOKEN}" 2>&1 || echo "ONBOARD_FAILED")
 
   if echo "${ONBOARD_OUT}" | grep -q "ONBOARD_FAILED"; then
-    warn "Device self-pairing failed — CLI sections B–I will be skipped"
+    warn "Device self-pairing failed — live gateway sections B–C, F–I will be skipped; D + E will still run"
     echo "${ONBOARD_OUT}" | head -3 | sed 's/^/    /'
-    OPENCLAW_MISSING=true
   else
     pass "Device paired to ${GATEWAY_WS_URL}"
-    # Cache the onboard-written config; needed to restore after swap trick sections.
+    GATEWAY_CONNECTED=true
     cp "${LOCAL_CONFIG}" "${ONBOARD_CONFIG_CACHE}" 2>/dev/null || true
-
-    # Identify the newly paired device (most recently seen) for cleanup.
     DEVICES_JSON=$(openclaw devices list --json 2>/dev/null || echo "[]")
     DEVICE_ID=$(echo "${DEVICES_JSON}" | jq -r \
       'if type=="array" then sort_by(.pairedAt // .lastSeen // "") | last | .id // "" else "" end' \
@@ -209,7 +208,7 @@ else
   fi
 fi
 
-# Helper: run openclaw with a 30s timeout, capturing exit and output together.
+# Helper: run openclaw with a 30s timeout.
 oc() { timeout 30 openclaw "$@" 2>&1 || echo "OC_TIMEOUT_OR_ERROR"; }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -217,7 +216,6 @@ oc() { timeout 30 openclaw "$@" 2>&1 || echo "OC_TIMEOUT_OR_ERROR"; }
 # ══════════════════════════════════════════════════════════════════════════════
 section "A  Infrastructure pre-flight"
 
-# AI Services account + embedding deployment.
 AI_ACCOUNT_NAME=$(az cognitiveservices account list \
   --resource-group "${RG_NAME}" \
   --query "[?kind=='AIServices' || kind=='OpenAI'].name | [0]" \
@@ -245,7 +243,6 @@ else
     fail "Embedding deployment '${EXPECTED_EMBEDDING_DEPLOYMENT}': not found"
   fi
 
-  # Grok models are MaaS — they must NOT appear as account deployments.
   for grok_name in "${EXPECTED_GROK4FAST_DEPLOYMENT}" "${EXPECTED_GROK3_DEPLOYMENT}" "${EXPECTED_GROK3MINI_DEPLOYMENT}"; do
     GROK_ENTRY=$(echo "${DEPLOYMENTS}" | jq -r --arg n "${grok_name}" '.[] | select(.name==$n) | .name // ""')
     if [[ -z "${GROK_ENTRY}" ]]; then
@@ -256,7 +253,6 @@ else
   done
 fi
 
-# Container App env vars.
 ENV_JSON=$(az containerapp show \
   --name "${APP_NAME}" --resource-group "${RG_NAME}" \
   --query "properties.template.containers[0].env" \
@@ -295,7 +291,6 @@ else
   check_env_value "AZURE_AI_DEPLOYMENT_GROK3MINI"     "${EXPECTED_GROK3MINI_DEPLOYMENT}"
 fi
 
-# Health probes.
 if [[ -n "${GATEWAY_HTTPS_URL}" ]]; then
   pass "Gateway FQDN: ${FQDN}"
   for probe in healthz readyz; do
@@ -310,16 +305,14 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Sections B–I — OpenClaw CLI health checks (require paired device)
+# Sections B–C: live gateway checks (openclaw CLI + paired session required)
 # ══════════════════════════════════════════════════════════════════════════════
-if [[ "${OPENCLAW_MISSING}" == "true" ]]; then
-  echo ""
-  warn "Sections B–I skipped (openclaw CLI unavailable or pairing failed)"
+if [[ "${OPENCLAW_UNAVAILABLE}" == "true" ]]; then
+  warn "Sections B–C skipped (openclaw CLI not installed)"
+elif [[ "${GATEWAY_CONNECTED}" != "true" ]]; then
+  warn "Sections B–C skipped (pairing failed — live gateway connection unavailable)"
 else
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Section B — Gateway health
-# ══════════════════════════════════════════════════════════════════════════════
 section "B  Gateway health"
 
 HEALTH_OUT=$(oc health)
@@ -349,9 +342,6 @@ else
   fi
 fi
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Section C — Full gateway status
-# ══════════════════════════════════════════════════════════════════════════════
 section "C  Full gateway status"
 
 STATUS_OUT=$(oc status --all)
@@ -362,19 +352,22 @@ else
   LATENCY=$(echo "${STATUS_OUT}" | grep -iE "latenc|ms\b" | head -1 | sed 's/^[[:space:]]*//' || echo "")
   pass "openclaw status --all: reachable${SUMMARY:+ — ${SUMMARY}}"
   [[ -n "${LATENCY}" ]] && echo "  INFO  ${LATENCY}"
-
   PROBLEM_LINES=$(echo "${STATUS_OUT}" | grep -iE "error|warn|fail|disconnected|missing|degraded" \
     | grep -ivE "PASS|OK|healthy|connected|enabled|uptime|running|replica|version|latency|agent|pairing" \
     | head -5 || true)
   [[ -n "${PROBLEM_LINES}" ]] && { warn "Status issues:"; echo "${PROBLEM_LINES}" | sed 's/^/    /'; }
 fi
 
+fi  # end GATEWAY_CONNECTED sections (B–C)
+
 # ══════════════════════════════════════════════════════════════════════════════
-# Section D — Remote config validation
-# (swap trick: temporarily replace local config with share config so openclaw
-#  config validate and subsequent jq checks run against the live remote config)
+# Sections D + E: run when CLI is available, even if pairing failed.
+# Both use the config swap trick (temporarily replace local config with the
+# one downloaded from Azure Files) — no live gateway RPC required.
 # ══════════════════════════════════════════════════════════════════════════════
-section "D  Remote config validation"
+if [[ "${OPENCLAW_UNAVAILABLE}" == "true" ]]; then
+  warn "Sections D, E skipped (openclaw CLI not installed)"
+else
 
 # Export env vars so openclaw can resolve ${VAR} refs in the share config.
 export OPENCLAW_GATEWAY_TOKEN="${GATEWAY_TOKEN}"
@@ -382,12 +375,13 @@ export APP_FQDN="${FQDN}"
 export AZURE_AI_DEPLOYMENT_GROK4FAST="${EXPECTED_GROK4FAST_DEPLOYMENT}"
 export AZURE_AI_DEPLOYMENT_GROK3="${EXPECTED_GROK3_DEPLOYMENT}"
 export AZURE_AI_DEPLOYMENT_GROK3MINI="${EXPECTED_GROK3MINI_DEPLOYMENT}"
-# AZURE_AI_INFERENCE_ENDPOINT: pull from the Container App env var list.
 if [[ -n "${ENV_JSON:-}" && "${ENV_JSON}" != "null" ]]; then
   _ENDPOINT=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_AI_INFERENCE_ENDPOINT") | .value // ""' 2>/dev/null || echo "")
   [[ -n "${_ENDPOINT}" ]] && export AZURE_AI_INFERENCE_ENDPOINT="${_ENDPOINT}"
 fi
-# AZURE_AI_API_KEY: pre-exported by CI workflow env or caller; no-op if already set.
+# AZURE_AI_API_KEY: pre-exported by CI workflow env step (or caller); no-op if already set.
+
+section "D  Remote config validation"
 
 if [[ -z "${STORAGE_KEY}" ]]; then
   fail "Cannot read storage key for ${STORAGE_ACCOUNT} — skipping config checks"
@@ -411,7 +405,6 @@ else
     else
       pass "openclaw.json: valid JSON"
 
-      # jq structural checks — accept both resolved values and ${VAR} template form.
       check_json_path() {
         local label="$1" path="$2" expected="$3" tpl="${4:-}" actual
         actual=$(jq -r "${path} // \"\"" "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
@@ -436,10 +429,10 @@ else
         fail "Fallback missing grok-3: [${FALLBACKS}]"
       fi
 
-      check_json_path "azure-foundry auth"   ".models.providers[\"azure-foundry\"].auth"   "${EXPECTED_PROVIDER_AUTH}" ""
-      check_json_path "azure-foundry apiKey" ".models.providers[\"azure-foundry\"].apiKey" "" ""
+      check_json_path "azure-foundry auth"    ".models.providers[\"azure-foundry\"].auth"    "${EXPECTED_PROVIDER_AUTH}" ""
+      check_json_path "azure-foundry apiKey"  ".models.providers[\"azure-foundry\"].apiKey"  "" ""
       check_json_path "azure-foundry baseUrl" ".models.providers[\"azure-foundry\"].baseUrl" "" ""
-      check_json_path "azure-foundry api"    ".models.providers[\"azure-foundry\"].api"    "openai-completions" ""
+      check_json_path "azure-foundry api"     ".models.providers[\"azure-foundry\"].api"     "openai-completions" ""
 
       check_catalog_entry() {
         local label="$1" resolved_key="$2" tpl_key="$3" entry
@@ -457,7 +450,7 @@ else
         "azure-foundry/${EXPECTED_GROK3MINI_DEPLOYMENT}" 'azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3MINI}'
     fi
 
-    # Schema validation via swap: replace local config with share config, validate, restore.
+    # Schema validation via swap trick.
     SWAP_BACKUP_D="/tmp/openclaw-swap-d-$$.json"
     cp "${LOCAL_CONFIG}" "${SWAP_BACKUP_D}" 2>/dev/null || true
     cp "${TMP_SHARE_CONFIG}" "${LOCAL_CONFIG}"
@@ -477,10 +470,6 @@ else
   fi
 fi
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Section E — Model availability
-# (swap trick: same pattern — swap in share config, run models commands, restore)
-# ══════════════════════════════════════════════════════════════════════════════
 section "E  Model availability"
 
 if [[ ! -f "${TMP_SHARE_CONFIG}" ]]; then
@@ -494,7 +483,6 @@ else
   cp "${SWAP_BACKUP_E}" "${LOCAL_CONFIG}" 2>/dev/null || true
   rm -f "${SWAP_BACKUP_E}"
 
-  # Check for missing auth providers.
   if echo "${MODELS_STATUS_JSON}" | grep -q "OC_ERROR"; then
     warn "openclaw models status: command failed"
   else
@@ -506,7 +494,6 @@ else
     fi
   fi
 
-  # Check each Grok model shows as available.
   if ! echo "${MODELS_LIST_JSON}" | grep -q "OC_ERROR"; then
     for model_key in \
       "azure-foundry/${EXPECTED_GROK4FAST_DEPLOYMENT}" \
@@ -525,9 +512,13 @@ else
   fi
 fi
 
+fi  # end OPENCLAW_UNAVAILABLE check for D + E
+
 # ══════════════════════════════════════════════════════════════════════════════
-# Section F — Channel health
+# Sections F–I: live gateway checks continued (requires GATEWAY_CONNECTED)
 # ══════════════════════════════════════════════════════════════════════════════
+if [[ "${OPENCLAW_UNAVAILABLE}" != "true" && "${GATEWAY_CONNECTED}" == "true" ]]; then
+
 section "F  Channel health"
 
 CHANNELS_OUT=$(oc channels status --probe)
@@ -543,9 +534,6 @@ else
   echo "${CHANNELS_OUT}" | head -8 | sed 's/^/    /'
 fi
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Section G — Agent health
-# ══════════════════════════════════════════════════════════════════════════════
 section "G  Agent health"
 
 AGENTS_OUT=$(oc agents status)
@@ -558,29 +546,21 @@ else
   pass "Agent health: $(echo "${AGENTS_OUT}" | head -1 | tr -s ' ')"
 fi
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Section H — Memory health
-# (informational: memory may not be configured; WARN not FAIL)
-# ══════════════════════════════════════════════════════════════════════════════
 section "H  Memory health"
 
 MEMORY_OUT=$(oc memory status --deep)
 if echo "${MEMORY_OUT}" | grep -q "OC_TIMEOUT_OR_ERROR"; then
   warn "openclaw memory status --deep: timed out or error"
 elif echo "${MEMORY_OUT}" | grep -qiE "not configured|not enabled|disabled|no memory"; then
-  warn "Memory: not configured (add memory section to openclaw.json to enable embedding-backed memory)"
+  warn "Memory: not configured (add memory section to openclaw.json to enable)"
 elif echo "${MEMORY_OUT}" | grep -qiE "error|failed"; then
   fail "Memory health: $(echo "${MEMORY_OUT}" | grep -iE 'error|failed' | head -1)"
 else
   pass "Memory health: $(echo "${MEMORY_OUT}" | head -1 | tr -s ' ')"
 fi
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Section I — Config doctor
-# ══════════════════════════════════════════════════════════════════════════════
 section "I  Config doctor"
 
-# Doctor reads from local ~/.openclaw/openclaw.json (onboard config); no --fix in CI.
 DOCTOR_OUT=$(openclaw doctor --non-interactive 2>&1)
 DOCTOR_EXIT=$?
 if [[ ${DOCTOR_EXIT} -ne 0 ]]; then
@@ -596,7 +576,7 @@ else
   pass "openclaw doctor: complete (${CRITICAL_COUNT} critical, ${WARN_COUNT} warnings)"
 fi
 
-fi  # end openclaw CLI sections (B–I)
+fi  # end GATEWAY_CONNECTED sections (F–I)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Section J — Live inference (exec into container)

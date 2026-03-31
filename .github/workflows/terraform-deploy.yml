@@ -144,7 +144,10 @@ jobs:
             --path "openclaw.json"
 
       - name: Install OpenClaw CLI
-        run: npm install -g openclaw --silent 2>/dev/null
+        run: |
+          npm install -g openclaw
+          # Persist the npm global bin directory to PATH for subsequent steps.
+          echo "$(npm prefix -g)/bin" >> "$GITHUB_PATH"
 
       - name: Validate OpenClaw Health
         shell: bash
@@ -299,7 +302,9 @@ jobs:
             --path "openclaw.json"
 
       - name: Install OpenClaw CLI
-        run: npm install -g openclaw --silent 2>/dev/null
+        run: |
+          npm install -g openclaw
+          echo "$(npm prefix -g)/bin" >> "$GITHUB_PATH"
 
       - name: Validate OpenClaw Health
         shell: bash

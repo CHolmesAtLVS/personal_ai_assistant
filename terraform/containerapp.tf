@@ -1,9 +1,19 @@
 data "azapi_resource" "ai_foundry" {
   resource_id            = module.ai_foundry.resource_id
   type                   = "Microsoft.CognitiveServices/accounts@2023-05-01"
-  response_export_values = ["properties.endpoint"]
+  response_export_values = ["properties.endpoint", "properties.endpoints"]
 
   depends_on = [module.ai_foundry]
+}
+
+locals {
+  # Azure AI Model Inference endpoint for Grok (xAI) models.
+  # Key "Azure AI Model Inference API" is the standard name in properties.endpoints.
+  # Confirm with az resource show or the Azure portal if the apply fails on this reference.
+  ai_inference_endpoint = format(
+    "%s/models",
+    trimsuffix(tostring(data.azapi_resource.ai_foundry.output.properties.endpoints["Azure AI Model Inference API"]), "/")
+  )
 }
 
 module "container_apps_environment" {
@@ -38,6 +48,7 @@ module "container_app" {
     azurerm_role_assignment.mi_acr_pull,
     azurerm_role_assignment.mi_kv_secrets_user,
     azurerm_role_assignment.mi_ai_openai_user,
+    azurerm_role_assignment.mi_ai_inference_user,
   ]
 
   enable_telemetry = true
@@ -108,6 +119,26 @@ module "container_app" {
           {
             name  = "AZURE_OPENAI_ENDPOINT"
             value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
+          },
+          {
+            name  = "AZURE_AI_INFERENCE_ENDPOINT"
+            value = local.ai_inference_endpoint
+          },
+          {
+            name  = "AZURE_OPENAI_DEPLOYMENT_EMBEDDING"
+            value = var.embedding_model_name
+          },
+          {
+            name  = "AZURE_AI_DEPLOYMENT_GROK4FAST"
+            value = var.grok4fast_model_name
+          },
+          {
+            name  = "AZURE_AI_DEPLOYMENT_GROK3"
+            value = var.grok3_model_name
+          },
+          {
+            name  = "AZURE_AI_DEPLOYMENT_GROK3MINI"
+            value = var.grok3mini_model_name
           },
           {
             # Ensures gateway starts on the correct port even before openclaw.json is seeded.

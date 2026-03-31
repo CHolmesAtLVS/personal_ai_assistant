@@ -38,6 +38,18 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_AI_MODEL_CAPACITY` | Model deployment TPM capacity in thousands (default: `10`) | On quota change | Platform Engineering |
 | `TF_VAR_OPENCLAW_IMAGE_TAG` | Pinned OpenClaw image tag to deploy (default: `2026.2.26`) | Per release | Platform Engineering |
 | `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB` | Azure Files share quota in GiB for persisted OpenClaw state (default: `100`) | On storage review | Platform Engineering | (`dev` or `prod`) and does not need to be set as a GitHub Environment variable.
+| `TF_VAR_EMBEDDING_MODEL_NAME` | Embedding deployment name (default: `text-embedding-3-large`) | On model change | Platform Engineering |
+| `TF_VAR_EMBEDDING_MODEL_VERSION` | Embedding model version (default: `1`) | On model change | Platform Engineering |
+| `TF_VAR_EMBEDDING_MODEL_CAPACITY` | Embedding TPM capacity in thousands (default: `50`) | On quota change | Platform Engineering |
+| `TF_VAR_GROK4FAST_MODEL_NAME` | grok-4-fast-reasoning deployment name (default: `grok-4-fast-reasoning`) | On model change | Platform Engineering |
+| `TF_VAR_GROK4FAST_MODEL_VERSION` | grok-4-fast-reasoning version (default: `2025-04-25`) | On model change | Platform Engineering |
+| `TF_VAR_GROK4FAST_MODEL_CAPACITY` | grok-4-fast-reasoning TPM capacity in thousands (default: `50`) | On quota change | Platform Engineering |
+| `TF_VAR_GROK3_MODEL_NAME` | grok-3 deployment name (default: `grok-3`) | On model change | Platform Engineering |
+| `TF_VAR_GROK3_MODEL_VERSION` | grok-3 version (default: `2025-04-25`) | On model change | Platform Engineering |
+| `TF_VAR_GROK3_MODEL_CAPACITY` | grok-3 TPM capacity in thousands (default: `50`) | On quota change | Platform Engineering |
+| `TF_VAR_GROK3MINI_MODEL_NAME` | grok-3-mini deployment name (default: `grok-3-mini`) | On model change | Platform Engineering |
+| `TF_VAR_GROK3MINI_MODEL_VERSION` | grok-3-mini version (default: `2025-04-25`) | On model change | Platform Engineering |
+| `TF_VAR_GROK3MINI_MODEL_CAPACITY` | grok-3-mini TPM capacity in thousands (default: `20`) | On quota change | Platform Engineering |
 
 ## Policy Notes
 

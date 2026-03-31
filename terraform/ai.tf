@@ -32,6 +32,7 @@ module "ai_foundry" {
   }
 
   ai_model_deployments = {
+    # gpt-4o retained until Grok deployments are validated in dev (GUD-002).
     main = {
       name = var.ai_model_name
       model = {
@@ -42,6 +43,64 @@ module "ai_foundry" {
       scale = {
         type     = "GlobalStandard"
         capacity = var.ai_model_capacity
+      }
+    }
+
+    # Embeddings — Azure OpenAI endpoint (text-embedding-3-large).
+    embedding = {
+      name = var.embedding_model_name
+      model = {
+        format  = "OpenAI"
+        name    = var.embedding_model_name
+        version = var.embedding_model_version
+      }
+      scale = {
+        type     = "GlobalStandard"
+        capacity = var.embedding_model_capacity
+      }
+    }
+
+    # Grok chat models — Azure AI Model Inference endpoint (OpenAI-compatible serving).
+    # NOTE (TASK-002): format = "OpenAI" is used because Grok is served via the
+    # OpenAI-compatible AI Model Inference API. Confirm this against the AVM module
+    # source before applying. If the module rejects non-native format values, switch
+    # to a raw azurerm_cognitive_account_deployment resource for these entries.
+    "grok-4-fast-reasoning" = {
+      name = var.grok4fast_model_name
+      model = {
+        format  = "OpenAI"
+        name    = var.grok4fast_model_name
+        version = var.grok4fast_model_version
+      }
+      scale = {
+        type     = "GlobalStandard"
+        capacity = var.grok4fast_model_capacity
+      }
+    }
+
+    "grok-3" = {
+      name = var.grok3_model_name
+      model = {
+        format  = "OpenAI"
+        name    = var.grok3_model_name
+        version = var.grok3_model_version
+      }
+      scale = {
+        type     = "GlobalStandard"
+        capacity = var.grok3_model_capacity
+      }
+    }
+
+    "grok-3-mini" = {
+      name = var.grok3mini_model_name
+      model = {
+        format  = "OpenAI"
+        name    = var.grok3mini_model_name
+        version = var.grok3mini_model_version
+      }
+      scale = {
+        type     = "GlobalStandard"
+        capacity = var.grok3mini_model_capacity
       }
     }
   }

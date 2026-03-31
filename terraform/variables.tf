@@ -135,4 +135,120 @@ variable "budget_alert_email" {
   sensitive   = true
 }
 
+# Embedding model deployment variables (Azure OpenAI endpoint).
+
+variable "embedding_model_name" {
+  description = "Deployment name for the text embedding model (for example: text-embedding-3-large)."
+  type        = string
+  default     = "text-embedding-3-large"
+
+  validation {
+    condition     = trim(var.embedding_model_name, " ") != ""
+    error_message = "embedding_model_name must not be empty."
+  }
+}
+
+variable "embedding_model_version" {
+  description = "Version of the text embedding model to deploy."
+  type        = string
+  default     = "1"
+}
+
+variable "embedding_model_capacity" {
+  description = "Tokens-per-minute capacity for the embedding model deployment (in thousands)."
+  type        = number
+  default     = 50
+
+  validation {
+    condition     = var.embedding_model_capacity > 0
+    error_message = "embedding_model_capacity must be a positive integer greater than zero."
+  }
+}
+
+# Grok model deployment variables (Azure AI Model Inference endpoint).
+
+variable "grok4fast_model_name" {
+  description = "Deployment name for the grok-4-fast-reasoning model."
+  type        = string
+  default     = "grok-4-fast-reasoning"
+
+  validation {
+    condition     = trim(var.grok4fast_model_name, " ") != ""
+    error_message = "grok4fast_model_name must not be empty."
+  }
+}
+
+variable "grok4fast_model_version" {
+  description = "Version of the grok-4-fast-reasoning model to deploy. Confirm the available version in the Azure AI Foundry portal before applying."
+  type        = string
+  default     = "2025-04-25"
+}
+
+variable "grok4fast_model_capacity" {
+  description = "Tokens-per-minute capacity for the grok-4-fast-reasoning deployment (in thousands)."
+  type        = number
+  default     = 50
+
+  validation {
+    condition     = var.grok4fast_model_capacity > 0
+    error_message = "grok4fast_model_capacity must be a positive integer greater than zero."
+  }
+}
+
+variable "grok3_model_name" {
+  description = "Deployment name for the grok-3 model."
+  type        = string
+  default     = "grok-3"
+
+  validation {
+    condition     = trim(var.grok3_model_name, " ") != ""
+    error_message = "grok3_model_name must not be empty."
+  }
+}
+
+variable "grok3_model_version" {
+  description = "Version of the grok-3 model to deploy. Confirm the available version in the Azure AI Foundry portal before applying."
+  type        = string
+  default     = "2025-04-25"
+}
+
+variable "grok3_model_capacity" {
+  description = "Tokens-per-minute capacity for the grok-3 deployment (in thousands)."
+  type        = number
+  default     = 50
+
+  validation {
+    condition     = var.grok3_model_capacity > 0
+    error_message = "grok3_model_capacity must be a positive integer greater than zero."
+  }
+}
+
+variable "grok3mini_model_name" {
+  description = "Deployment name for the grok-3-mini model."
+  type        = string
+  default     = "grok-3-mini"
+
+  validation {
+    condition     = trim(var.grok3mini_model_name, " ") != ""
+    error_message = "grok3mini_model_name must not be empty."
+  }
+}
+
+variable "grok3mini_model_version" {
+  description = "Version of the grok-3-mini model to deploy. Confirm the available version in the Azure AI Foundry portal before applying."
+  type        = string
+  default     = "2025-04-25"
+}
+
+variable "grok3mini_model_capacity" {
+  description = "Tokens-per-minute capacity for the grok-3-mini deployment (in thousands)."
+  type        = number
+  default     = 20
+
+  validation {
+    condition     = var.grok3mini_model_capacity > 0
+    error_message = "grok3mini_model_capacity must be a positive integer greater than zero."
+  }
+}
+
 # vm_* variables removed — dev VM is no longer managed by Terraform.

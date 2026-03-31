@@ -18,6 +18,16 @@ resource "azurerm_role_assignment" "mi_ai_openai_user" {
   principal_id         = module.identity.principal_id
 }
 
+# Grants the Managed Identity access to the Azure AI Model Inference endpoint
+# (required for Grok/xAI models served via services.ai.azure.com/models).
+# Cognitive Services OpenAI User only covers the openai.azure.com endpoint;
+# Cognitive Services User covers all Cognitive Services APIs including AI Inference.
+resource "azurerm_role_assignment" "mi_ai_inference_user" {
+  scope                = module.ai_foundry.resource_id
+  role_definition_name = "Cognitive Services User"
+  principal_id         = module.identity.principal_id
+}
+
 # Grants the CI/CD Service Principal write access to Key Vault secrets so
 # Terraform can manage the openclaw-gateway-token secret (azurerm_key_vault_secret).
 # Bound to the object ID of the identity running Terraform (the CI SP in CI/CD;

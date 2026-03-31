@@ -26,6 +26,12 @@
       }
     }
   },
+  "tools": {
+    "profile": "full"
+  },
+  "update": {
+    "checkOnStart": false
+  },
   "agents": {
     "defaults": {
       "models": {

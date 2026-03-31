@@ -200,4 +200,10 @@ variable "grok3mini_model_name" {
   }
 }
 
+variable "azure_ai_api_key" {
+  description = "API key for the Azure AI Foundry account, injected as AZURE_AI_API_KEY and used by the azure-foundry provider in openclaw.json."
+  type        = string
+  sensitive   = true
+}
+
 # vm_* variables removed — dev VM is no longer managed by Terraform.

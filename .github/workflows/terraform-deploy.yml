@@ -51,6 +51,7 @@ jobs:
       TF_VAR_grok4fast_model_name: ${{ vars.TF_VAR_GROK4FAST_MODEL_NAME || 'grok-4-fast-reasoning' }}
       TF_VAR_grok3_model_name: ${{ vars.TF_VAR_GROK3_MODEL_NAME || 'grok-3' }}
       TF_VAR_grok3mini_model_name: ${{ vars.TF_VAR_GROK3MINI_MODEL_NAME || 'grok-3-mini' }}
+      TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -180,6 +181,7 @@ jobs:
       TF_VAR_grok4fast_model_name: ${{ vars.TF_VAR_GROK4FAST_MODEL_NAME || 'grok-4-fast-reasoning' }}
       TF_VAR_grok3_model_name: ${{ vars.TF_VAR_GROK3_MODEL_NAME || 'grok-3' }}
       TF_VAR_grok3mini_model_name: ${{ vars.TF_VAR_GROK3MINI_MODEL_NAME || 'grok-3-mini' }}
+      TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

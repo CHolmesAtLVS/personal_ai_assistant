@@ -15,12 +15,13 @@
     "providers": {
       "azure-foundry": {
         "baseUrl": "${AZURE_AI_INFERENCE_ENDPOINT}",
-        "auth": "token",
+        "auth": "api-key",
+        "apiKey": "${AZURE_AI_API_KEY}",
         "api": "openai-completions",
         "models": [
-          "${AZURE_AI_DEPLOYMENT_GROK4FAST}",
-          "${AZURE_AI_DEPLOYMENT_GROK3}",
-          "${AZURE_AI_DEPLOYMENT_GROK3MINI}"
+          { "id": "${AZURE_AI_DEPLOYMENT_GROK4FAST}", "name": "${AZURE_AI_DEPLOYMENT_GROK4FAST}" },
+          { "id": "${AZURE_AI_DEPLOYMENT_GROK3}", "name": "${AZURE_AI_DEPLOYMENT_GROK3}" },
+          { "id": "${AZURE_AI_DEPLOYMENT_GROK3MINI}", "name": "${AZURE_AI_DEPLOYMENT_GROK3MINI}" }
         ]
       }
     }

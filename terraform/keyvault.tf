@@ -47,3 +47,17 @@ resource "azurerm_key_vault_secret" "openclaw_gateway_token" {
   # RBAC propagation may require a retry on a brand-new environment.
   depends_on = [azurerm_role_assignment.ci_sp_kv_secrets_officer]
 }
+
+resource "azurerm_key_vault_secret" "azure_ai_api_key" {
+  name         = "azure-ai-api-key"
+  value        = var.azure_ai_api_key
+  key_vault_id = module.key_vault.resource_id
+  content_type = "text/plain"
+
+  # Prevent Terraform from overwriting a key that was rotated in-place.
+  lifecycle {
+    ignore_changes = [value]
+  }
+
+  depends_on = [azurerm_role_assignment.ci_sp_kv_secrets_officer]
+}

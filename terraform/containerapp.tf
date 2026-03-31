@@ -63,6 +63,11 @@ module "container_app" {
       identity            = module.identity.resource_id
       key_vault_secret_id = azurerm_key_vault_secret.openclaw_gateway_token.versionless_id
     }
+    "azure-ai-api-key" = {
+      name                = "azure-ai-api-key"
+      identity            = module.identity.resource_id
+      key_vault_secret_id = azurerm_key_vault_secret.azure_ai_api_key.versionless_id
+    }
   }
 
   registries = var.container_image_acr_server != null ? [
@@ -148,6 +153,10 @@ module "container_app" {
           {
             name        = "OPENCLAW_GATEWAY_TOKEN"
             secret_name = "openclaw-gateway-token"
+          },
+          {
+            name        = "AZURE_AI_API_KEY"
+            secret_name = "azure-ai-api-key"
           },
         ]
       }

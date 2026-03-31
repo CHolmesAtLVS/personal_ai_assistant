@@ -19,6 +19,7 @@ Create these secrets in both `dev` and `prod` GitHub Environments unless intenti
 | `TFSTATE_STORAGE_ACCOUNT` | Storage account name for Terraform state | On backend redesign | Platform Engineering |
 | `TFSTATE_CONTAINER` | Blob container name for Terraform state | On backend redesign | Platform Engineering |
 | `TFSTATE_KEY` | Terraform state key path/name | On state partition redesign | Platform Engineering |
+| `TF_VAR_azure_ai_api_key` | Azure AI Foundry account API key; stored in Key Vault as `azure-ai-api-key`, injected as `AZURE_AI_API_KEY` in the Container App | On key rotation or incident | Platform Engineering |
 | `BUDGET_ALERT_EMAIL` | Email address for budget overage notifications | On contact change | Platform Engineering |
 | `PUBLIC_IP` | Home public IP in CIDR form for Container App ingress restriction | On IP change | Platform Engineering |
 
@@ -61,12 +62,13 @@ The following secrets are provisioned directly in Azure Key Vault by the operato
 | Secret Name (Key Vault) | Purpose | Rotation Cadence | Owner |
 | --- | --- | --- | --- |
 | `openclaw-gateway-token` | Authentication token for the OpenClaw gateway. Created and managed by Terraform (`azurerm_key_vault_secret` + `random_id`). The value is stored in Terraform remote state (sensitive, encrypted at rest). Never overwritten by subsequent applies; manual rotation is preserved via `lifecycle { ignore_changes = [value] }`. | On compromise or scheduled rotation | Platform Engineering |
+| `azure-ai-api-key` | API key for the Azure AI Foundry account. Set via `TF_VAR_azure_ai_api_key` on first apply; never overwritten by subsequent applies (`lifecycle { ignore_changes = [value] }`). Injected as `AZURE_AI_API_KEY` into the Container App and referenced in `openclaw.json` as `${AZURE_AI_API_KEY}` for the `azure-foundry` model provider. | On key rotation or incident | Platform Engineering |
 
 See [openclaw-containerapp-operations.md](openclaw-containerapp-operations.md) for provisioning and rotation procedures.
 
 ## Managed Identity Access Patterns
 
-The Container App's User-Assigned Managed Identity is the exclusive authentication mechanism for all Azure service access. No API keys, SAS tokens, or service-specific credentials are stored or used.
+The Container App's User-Assigned Managed Identity is the authentication mechanism for Azure service access that does not use API keys. The `azure-foundry` model provider uses API key auth (`AZURE_AI_API_KEY` from Key Vault) rather than Managed Identity.
 
 | Access Path | Role | Notes |
 | ----------- | ---- | ----- |

@@ -16,10 +16,6 @@
       "azure-openai": {
         "baseUrl": "${AZURE_OPENAI_ENDPOINT}/deployments/${AZURE_OPENAI_DEPLOYMENT_CHAT}",
         "apiKey": "${AZURE_AI_API_KEY}",
-        "authHeader": false,
-        "headers": {
-          "api-key": "${AZURE_AI_API_KEY}"
-        },
         "api": "openai-completions",
         "models": [
           { "id": "${AZURE_OPENAI_DEPLOYMENT_CHAT}", "name": "${AZURE_OPENAI_DEPLOYMENT_CHAT}", "input": ["text", "image"], "contextWindow": 128000, "maxTokens": 16384 }
@@ -28,10 +24,6 @@
       "azure-foundry": {
         "baseUrl": "${AZURE_AI_INFERENCE_ENDPOINT}",
         "apiKey": "${AZURE_AI_API_KEY}",
-        "authHeader": false,
-        "headers": {
-          "api-key": "${AZURE_AI_API_KEY}"
-        },
         "api": "openai-completions",
         "models": [
           { "id": "${AZURE_AI_DEPLOYMENT_GROK4FAST}", "name": "${AZURE_AI_DEPLOYMENT_GROK4FAST}", "reasoning": true, "input": ["text", "image"], "contextWindow": 128000, "maxTokens": 128000, "compat": { "supportsStore": false } },

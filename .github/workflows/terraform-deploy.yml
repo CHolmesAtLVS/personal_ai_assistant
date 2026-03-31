@@ -146,8 +146,13 @@ jobs:
       - name: Install OpenClaw CLI
         run: |
           npm install -g openclaw
-          # Persist the npm global bin directory to PATH for subsequent steps.
-          echo "$(npm prefix -g)/bin" >> "$GITHUB_PATH"
+          GLOBAL_BIN="$(npm prefix -g)/bin"
+          echo "${GLOBAL_BIN}" >> "$GITHUB_PATH"
+          # Symlink to /usr/local/bin so the binary is available in --noprofile --norc
+          # shells (used by subsequent steps with explicit shell: bash).
+          ln -sf "${GLOBAL_BIN}/openclaw" /usr/local/bin/openclaw 2>/dev/null \
+            || sudo ln -sf "${GLOBAL_BIN}/openclaw" /usr/local/bin/openclaw 2>/dev/null \
+            || true
 
       - name: Validate OpenClaw Health
         shell: bash
@@ -304,7 +309,11 @@ jobs:
       - name: Install OpenClaw CLI
         run: |
           npm install -g openclaw
-          echo "$(npm prefix -g)/bin" >> "$GITHUB_PATH"
+          GLOBAL_BIN="$(npm prefix -g)/bin"
+          echo "${GLOBAL_BIN}" >> "$GITHUB_PATH"
+          ln -sf "${GLOBAL_BIN}/openclaw" /usr/local/bin/openclaw 2>/dev/null \
+            || sudo ln -sf "${GLOBAL_BIN}/openclaw" /usr/local/bin/openclaw 2>/dev/null \
+            || true
 
       - name: Validate OpenClaw Health
         shell: bash

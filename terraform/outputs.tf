@@ -25,3 +25,29 @@ output "openclaw_state_file_share_name" {
   description = "Azure Files share name mounted to /home/node/.openclaw."
   value       = azurerm_storage_share.openclaw_state.name
 }
+
+output "embedding_deployment_name" {
+  description = "Deployment name for the text embedding model (driven by var.embedding_model_name)."
+  value       = var.embedding_model_name
+}
+
+output "grok4fast_model_name" {
+  description = "Model name used when routing requests to grok-4-fast-reasoning via the Azure AI Model Inference endpoint (MaaS — not a Cognitive Services account deployment)."
+  value       = var.grok4fast_model_name
+}
+
+output "grok3_model_name" {
+  description = "Model name used when routing requests to grok-3 via the Azure AI Model Inference endpoint (MaaS — not a Cognitive Services account deployment)."
+  value       = var.grok3_model_name
+}
+
+output "grok3mini_model_name" {
+  description = "Model name used when routing requests to grok-3-mini via the Azure AI Model Inference endpoint (MaaS — not a Cognitive Services account deployment)."
+  value       = var.grok3mini_model_name
+}
+
+output "ai_inference_endpoint" {
+  description = "Azure AI Model Inference endpoint URL for Grok models."
+  sensitive   = true
+  value       = local.ai_inference_endpoint
+}

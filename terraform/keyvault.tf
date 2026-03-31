@@ -47,3 +47,21 @@ resource "azurerm_key_vault_secret" "openclaw_gateway_token" {
   # RBAC propagation may require a retry on a brand-new environment.
   depends_on = [azurerm_role_assignment.ci_sp_kv_secrets_officer]
 }
+
+resource "azurerm_key_vault_secret" "azure_ai_api_key" {
+  name         = "azure-ai-api-key"
+  value        = var.azure_ai_api_key
+  key_vault_id = module.key_vault.resource_id
+  content_type = "text/plain"
+
+  # The Azure AI Model Inference endpoint (used for Grok/MaaS models) does not
+  # support Azure AD bearer token / Managed Identity auth in the current API.
+  # The API key is the required auth mechanism (SEC-003). It is stored in Key
+  # Vault and injected into the Container App via secret reference — no static
+  # credential is placed in code or Terraform state.
+  lifecycle {
+    ignore_changes = [value]
+  }
+
+  depends_on = [azurerm_role_assignment.ci_sp_kv_secrets_officer]
+}

@@ -45,6 +45,13 @@ jobs:
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
       TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
+      TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
+      TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
+      TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
+      TF_VAR_grok4fast_model_name: ${{ vars.TF_VAR_GROK4FAST_MODEL_NAME || 'grok-4-fast-reasoning' }}
+      TF_VAR_grok3_model_name: ${{ vars.TF_VAR_GROK3_MODEL_NAME || 'grok-3' }}
+      TF_VAR_grok3mini_model_name: ${{ vars.TF_VAR_GROK3MINI_MODEL_NAME || 'grok-3-mini' }}
+      TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -136,6 +143,28 @@ jobs:
             --source /tmp/openclaw-seeded.json \
             --path "openclaw.json"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install OpenClaw CLI
+        run: |
+          npm install -g openclaw
+          openclaw --version
+
+      - name: Validate OpenClaw Health
+        shell: bash
+        # Allow post-deploy config hot-reload before probing.
+        # AZURE_AI_API_KEY is exported so openclaw can resolve ${VAR} refs in the
+        # share config during the swap-trick model availability check.
+        env:
+          CI: "true"
+          AZURE_AI_API_KEY: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
+        run: |
+          sleep 15
+          bash scripts/test-multi-model.sh dev
+
   terraform-prod:
     name: Terraform Prod
     if: github.event.pull_request.merged == true && github.base_ref == 'main'
@@ -168,6 +197,13 @@ jobs:
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
       TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
+      TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
+      TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
+      TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
+      TF_VAR_grok4fast_model_name: ${{ vars.TF_VAR_GROK4FAST_MODEL_NAME || 'grok-4-fast-reasoning' }}
+      TF_VAR_grok3_model_name: ${{ vars.TF_VAR_GROK3_MODEL_NAME || 'grok-3' }}
+      TF_VAR_grok3mini_model_name: ${{ vars.TF_VAR_GROK3MINI_MODEL_NAME || 'grok-3-mini' }}
+      TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -268,3 +304,22 @@ jobs:
             --share-name "openclaw-state" \
             --source /tmp/openclaw-seeded.json \
             --path "openclaw.json"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install OpenClaw CLI
+        run: |
+          npm install -g openclaw
+          openclaw --version
+
+      - name: Validate OpenClaw Health
+        shell: bash
+        env:
+          CI: "true"
+          AZURE_AI_API_KEY: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
+        run: |
+          sleep 15
+          bash scripts/test-multi-model.sh prod

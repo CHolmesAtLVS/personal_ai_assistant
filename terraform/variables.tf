@@ -64,7 +64,7 @@ variable "ai_model_capacity" {
 
   validation {
     condition     = var.ai_model_capacity > 0
-    error_message = "ai_model_capacity must be a positive integer greater than zero."
+    error_message = "ai_model_capacity must be greater than zero."
   }
 }
 
@@ -133,6 +133,82 @@ variable "budget_alert_email" {
   description = "Email address for budget alert notifications. Must be injected via GitHub Secret; do not set a default or supply via a committed .tfvars file."
   type        = string
   sensitive   = true
+}
+
+# Embedding model deployment variables (Azure OpenAI endpoint).
+
+variable "embedding_model_name" {
+  description = "Deployment name for the text embedding model (for example: text-embedding-3-large)."
+  type        = string
+  default     = "text-embedding-3-large"
+
+  validation {
+    condition     = trim(var.embedding_model_name, " ") != ""
+    error_message = "embedding_model_name must not be empty."
+  }
+}
+
+variable "embedding_model_version" {
+  description = "Version of the text embedding model to deploy."
+  type        = string
+  default     = "1"
+}
+
+variable "embedding_model_capacity" {
+  description = "Tokens-per-minute capacity for the embedding model deployment (in thousands)."
+  type        = number
+  default     = 50
+
+  validation {
+    condition     = var.embedding_model_capacity > 0
+    error_message = "embedding_model_capacity must be a number greater than zero."
+  }
+}
+
+# Grok model deployment variables (Azure AI Model Inference endpoint).
+
+variable "grok4fast_model_name" {
+  description = "Model name for grok-4-fast-reasoning, passed as AZURE_AI_DEPLOYMENT_GROK4FAST env var."
+  type        = string
+  default     = "grok-4-fast-reasoning"
+
+  validation {
+    condition     = trim(var.grok4fast_model_name, " ") != ""
+    error_message = "grok4fast_model_name must not be empty."
+  }
+}
+
+variable "grok3_model_name" {
+  description = "Model name for grok-3, passed as AZURE_AI_DEPLOYMENT_GROK3 env var."
+  type        = string
+  default     = "grok-3"
+
+  validation {
+    condition     = trim(var.grok3_model_name, " ") != ""
+    error_message = "grok3_model_name must not be empty."
+  }
+}
+
+variable "grok3mini_model_name" {
+  description = "Model name for grok-3-mini, passed as AZURE_AI_DEPLOYMENT_GROK3MINI env var."
+  type        = string
+  default     = "grok-3-mini"
+
+  validation {
+    condition     = trim(var.grok3mini_model_name, " ") != ""
+    error_message = "grok3mini_model_name must not be empty."
+  }
+}
+
+variable "azure_ai_api_key" {
+  description = "API key for the Azure AI Foundry account, injected as AZURE_AI_API_KEY and used by the azure-foundry provider in openclaw.json."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(trimspace(var.azure_ai_api_key)) > 0
+    error_message = "azure_ai_api_key must not be empty. Set TF_VAR_azure_ai_api_key to the Azure AI Foundry account key."
+  }
 }
 
 # vm_* variables removed — dev VM is no longer managed by Terraform.

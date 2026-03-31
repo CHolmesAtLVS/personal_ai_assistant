@@ -17,6 +17,7 @@ TFSTATE_KEY              = "terraform-prod.tfstate"
 # Terraform input variables — sensitive
 TF_VAR_public_ip          = "<your-home-ip>/32"
 TF_VAR_budget_alert_email = "<your-email>"
+TF_VAR_azure_ai_api_key   = "<azure-ai-foundry-api-key>"
 
 # Terraform input variables — non-sensitive
 TF_VAR_project            = "<project-slug>"
@@ -31,3 +32,9 @@ TF_VAR_cost_center        = "<cost-center>"
 # TF_VAR_openclaw_image_tag = "2026.2.26"
 # TF_VAR_openclaw_state_share_quota_gb = "100"
 # TF_VAR_monthly_budget_amount = "25"
+# TF_VAR_embedding_model_name     = "text-embedding-3-large"
+# TF_VAR_embedding_model_version  = "1"
+# TF_VAR_embedding_model_capacity = "50"
+# TF_VAR_grok4fast_model_name     = "grok-4-fast-reasoning"
+# TF_VAR_grok3_model_name         = "grok-3"
+# TF_VAR_grok3mini_model_name     = "grok-3-mini"

@@ -32,6 +32,7 @@ module "ai_foundry" {
   }
 
   ai_model_deployments = {
+    # gpt-4o retained until Grok deployments are validated in dev (GUD-002).
     main = {
       name = var.ai_model_name
       model = {
@@ -44,5 +45,24 @@ module "ai_foundry" {
         capacity = var.ai_model_capacity
       }
     }
+
+    # Embeddings — Azure OpenAI endpoint (text-embedding-3-large).
+    embedding = {
+      name = var.embedding_model_name
+      model = {
+        format  = "OpenAI"
+        name    = var.embedding_model_name
+        version = var.embedding_model_version
+      }
+      scale = {
+        type     = "GlobalStandard"
+        capacity = var.embedding_model_capacity
+      }
+    }
   }
 }
+# Grok (xAI) models — grok-4-fast-reasoning, grok-3, grok-3-mini — are Azure AI Foundry
+# serverless/MaaS hosted models. They are NOT deployed as Cognitive Services account
+# deployments. No Terraform resource is required; the models are accessed directly via
+# the AI Model Inference endpoint (AZURE_AI_INFERENCE_ENDPOINT) using the model name
+# in each API request. OpenClaw routes to them via the azure-foundry custom provider.

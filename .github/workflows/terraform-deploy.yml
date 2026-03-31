@@ -146,10 +146,12 @@ jobs:
       - name: Install OpenClaw CLI
         run: |
           npm install -g openclaw
-          # Capture absolute paths to node and openclaw.mjs while nvm is active.
-          # Write a wrapper at /usr/local/bin/openclaw so the binary works in
-          # subsequent steps that run --noprofile --norc (no nvm context).
-          NODE_ABS="$(which node)"
+          # Derive node from the same bin dir as npm so the binary and the
+          # installed module are always from the same Node installation.
+          # 'which node' can return the nvm node while npm prefix points to
+          # the system npm, causing a module-not-found mismatch.
+          NPM_BIN_DIR="$(dirname "$(which npm)")"
+          NODE_ABS="${NPM_BIN_DIR}/node"
           OC_MJS="$(npm prefix -g)/lib/node_modules/openclaw/openclaw.mjs"
           printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "${NODE_ABS}" "${OC_MJS}" \
             | sudo tee /usr/local/bin/openclaw > /dev/null
@@ -311,7 +313,8 @@ jobs:
       - name: Install OpenClaw CLI
         run: |
           npm install -g openclaw
-          NODE_ABS="$(which node)"
+          NPM_BIN_DIR="$(dirname "$(which npm)")"
+          NODE_ABS="${NPM_BIN_DIR}/node"
           OC_MJS="$(npm prefix -g)/lib/node_modules/openclaw/openclaw.mjs"
           printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "${NODE_ABS}" "${OC_MJS}" \
             | sudo tee /usr/local/bin/openclaw > /dev/null

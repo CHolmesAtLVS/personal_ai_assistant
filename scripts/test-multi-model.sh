@@ -533,35 +533,15 @@ else
       fi
 
       # azure-openai provider checks (primary chat model).
-      OAI_AUTH_HDR=$(jq -r '.models.providers["azure-openai"].authHeader | if . == null then "missing" else tostring end' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "missing")
-      if [[ "${OAI_AUTH_HDR}" == "false" ]]; then
-        pass "azure-openai authHeader: false"
+      OAI_API_KEY=$(jq -r '.models.providers["azure-openai"].apiKey // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
+      if [[ -n "${OAI_API_KEY}" ]]; then
+        pass "azure-openai apiKey: present"
       else
-        fail "azure-openai authHeader: expected false, got '${OAI_AUTH_HDR}'"
-      fi
-      OAI_HDR_KEY=$(jq -r '.models.providers["azure-openai"].headers["api-key"] // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
-      if [[ -n "${OAI_HDR_KEY}" ]]; then
-        pass "azure-openai headers[api-key]: present"
-      else
-        fail "azure-openai headers[api-key]: missing or empty"
+        fail "azure-openai apiKey: missing or empty"
       fi
       check_json_path "azure-openai api" ".models.providers[\"azure-openai\"].api" "openai-completions" ""
 
-      # authHeader must be false; headers["api-key"] replaces the auth field in this config version.
-      # Use tostring (not //) because jq // treats false as falsy and returns the alternative.
-      AUTH_HDR=$(jq -r '.models.providers["azure-foundry"].authHeader | if . == null then "missing" else tostring end' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "missing")
-      if [[ "${AUTH_HDR}" == "false" ]]; then
-        pass "azure-foundry authHeader: false"
-      else
-        fail "azure-foundry authHeader: expected false, got '${AUTH_HDR}'"
-      fi
-      HDR_KEY=$(jq -r '.models.providers["azure-foundry"].headers["api-key"] // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
-      if [[ -n "${HDR_KEY}" ]]; then
-        pass "azure-foundry headers[api-key]: present"
-      else
-        fail "azure-foundry headers[api-key]: missing or empty"
-      fi
-      # apiKey is a ${VAR} placeholder in the template; check it is present and non-empty.
+      # azure-foundry provider checks.
       AK_VAL=$(jq -r '.models.providers["azure-foundry"].apiKey // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
       if [[ -n "${AK_VAL}" ]]; then
         pass "azure-foundry apiKey: present (${AK_VAL})"

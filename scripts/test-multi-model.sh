@@ -195,8 +195,17 @@ else
     echo "${ONBOARD_OUT}" | head -3 | sed 's/^/    /'
   else
     pass "Device paired to ${GATEWAY_WS_URL}"
-    GATEWAY_CONNECTED=true
     cp "${LOCAL_CONFIG}" "${ONBOARD_CONFIG_CACHE}" 2>/dev/null || true
+    # Verify the gateway accepted the session. onboard exits 0 when the pairing
+    # request is submitted, but the gateway rejects with 1008 (pairing required)
+    # until an admin approves the device. Probe here so failures become WARNs.
+    PROBE_VERIFY=$(timeout 15 openclaw gateway probe 2>&1 || echo "OC_PROBE_FAILED")
+    if echo "${PROBE_VERIFY}" | grep -qiE "pairing required|1008|OC_PROBE_FAILED|failed|error|unreachable"; then
+      warn "Gateway rejected session (${PROBE_VERIFY%%$'\n'*}) — device approval pending; live sections B–C, F–I skipped"
+    else
+      GATEWAY_CONNECTED=true
+      pass "Gateway session confirmed active"
+    fi
     DEVICES_JSON=$(openclaw devices list --json 2>/dev/null || echo "[]")
     DEVICE_ID=$(echo "${DEVICES_JSON}" | jq -r \
       'if type=="array" then sort_by(.pairedAt // .lastSeen // "") | last | .id // "" else "" end' \

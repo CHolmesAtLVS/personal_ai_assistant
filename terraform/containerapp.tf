@@ -155,6 +155,9 @@ module "container_app" {
             secret_name = "openclaw-gateway-token"
           },
           {
+            # AZURE_AI_API_KEY is required for the Azure AI Model Inference endpoint (Grok/MaaS).
+            # Managed Identity is not supported for this endpoint; the key is stored in
+            # Key Vault and injected via secret reference (same pattern as OPENCLAW_GATEWAY_TOKEN).
             name        = "AZURE_AI_API_KEY"
             secret_name = "azure-ai-api-key"
           },

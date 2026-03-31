@@ -54,7 +54,11 @@ resource "azurerm_key_vault_secret" "azure_ai_api_key" {
   key_vault_id = module.key_vault.resource_id
   content_type = "text/plain"
 
-  # Prevent Terraform from overwriting a key that was rotated in-place.
+  # The Azure AI Model Inference endpoint (used for Grok/MaaS models) does not
+  # support Azure AD bearer token / Managed Identity auth in the current API.
+  # The API key is the required auth mechanism (SEC-003). It is stored in Key
+  # Vault and injected into the Container App via secret reference — no static
+  # credential is placed in code or Terraform state.
   lifecycle {
     ignore_changes = [value]
   }

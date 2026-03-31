@@ -52,7 +52,8 @@ if [[ "${ENV}" == "prod" && "${CI_MODE}" != "true" ]]; then
 fi
 
 # ── Resource names (Terraform locals.tf naming convention) ─────────────────────
-PROJECT="paa"
+# Derive project slug from TF_VAR_project env var (set by CI) or default to "paa".
+PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
 APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 KV_NAME="${PROJECT}-${ENV}-kv"
@@ -518,7 +519,13 @@ else
       fi
 
       check_json_path "azure-foundry auth"    ".models.providers[\"azure-foundry\"].auth"    "${EXPECTED_PROVIDER_AUTH}" ""
-      check_json_path "azure-foundry apiKey"  ".models.providers[\"azure-foundry\"].apiKey"  "" ""
+      # apiKey is a ${VAR} placeholder in the template; check it is present and non-empty.
+      AK_VAL=$(jq -r '.models.providers["azure-foundry"].apiKey // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
+      if [[ -n "${AK_VAL}" ]]; then
+        pass "azure-foundry apiKey: present (${AK_VAL})"
+      else
+        fail "azure-foundry apiKey: missing or empty"
+      fi
       check_json_path "azure-foundry baseUrl" ".models.providers[\"azure-foundry\"].baseUrl" "" ""
       check_json_path "azure-foundry api"     ".models.providers[\"azure-foundry\"].api"     "openai-completions" ""
 

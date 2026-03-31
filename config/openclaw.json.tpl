@@ -23,6 +23,14 @@
           { "id": "${AZURE_AI_DEPLOYMENT_GROK3}", "name": "${AZURE_AI_DEPLOYMENT_GROK3}" },
           { "id": "${AZURE_AI_DEPLOYMENT_GROK3MINI}", "name": "${AZURE_AI_DEPLOYMENT_GROK3MINI}" }
         ]
+      },
+      "azure-openai": {
+        "baseUrl": "${AZURE_OPENAI_ENDPOINT}",
+        "auth": "managed-identity",
+        "api": "openai-embeddings",
+        "models": [
+          { "id": "${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}", "name": "${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}" }
+        ]
       }
     }
   },

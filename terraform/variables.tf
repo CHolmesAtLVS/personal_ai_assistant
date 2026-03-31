@@ -161,7 +161,7 @@ variable "embedding_model_capacity" {
 
   validation {
     condition     = var.embedding_model_capacity > 0
-    error_message = "embedding_model_capacity must be a positive integer greater than zero."
+    error_message = "embedding_model_capacity must be a number greater than zero."
   }
 }
 
@@ -204,6 +204,11 @@ variable "azure_ai_api_key" {
   description = "API key for the Azure AI Foundry account, injected as AZURE_AI_API_KEY and used by the azure-foundry provider in openclaw.json."
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(trimspace(var.azure_ai_api_key)) > 0
+    error_message = "azure_ai_api_key must not be empty. Set TF_VAR_azure_ai_api_key to the Azure AI Foundry account key."
+  }
 }
 
 # vm_* variables removed — dev VM is no longer managed by Terraform.

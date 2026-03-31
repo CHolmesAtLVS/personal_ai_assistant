@@ -11,7 +11,7 @@ tags: [feature, infrastructure, terraform, azure-ai-foundry, models, xai, embedd
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow)
 
 The current deployment supports a single AI model (`gpt-4o`) provisioned via the `avm-ptn-aiml-ai-foundry` AVM module. This plan migrates OpenClaw to use **xAI Grok** as the primary chat model family (`grok-4-fast-reasoning` as default), retaining only `text-embedding-3-large` from the Azure OpenAI endpoint for embeddings/RAG. The existing `gpt-4o` OpenAI deployment will be removed once Grok is validated.
 
@@ -74,7 +74,7 @@ From the live configuration reference at `https://docs.openclaw.ai/gateway/confi
 
 ### Open Questions Requiring Investigation
 
-1. **Azure AI Model Inference auth via Managed Identity**: **RESOLVED.** `Cognitive Services User` at the AI Services account scope grants access to both the OpenAI endpoint and the AI Model Inference endpoint. A new `mi_ai_inference_user` role assignment (`Cognitive Services User`) has been added to `terraform/roleassignments.tf`. OpenClaw is configured with `"auth": "token"` in the `azure-foundry` provider block, enabling Azure AD token authentication via Managed Identity. No API key is required.
+1. **Azure AI Model Inference auth via Managed Identity**: **RESOLVED (api-key fallback).** Investigation confirmed that the Azure AI Model Inference endpoint does not accept Azure AD bearer tokens for Managed Identity auth in the current SDK/API version. The `Cognitive Services User` role assignment was added (`roleassignments.tf`) but is insufficient for this endpoint. **ALT-006 was invoked**: the AI Model Inference API key is stored in Key Vault (`azure-ai-api-key`) and injected into the Container App as `AZURE_AI_API_KEY` via secret reference. OpenClaw is configured with `"auth": "api-key"` in the `azure-foundry` provider block. See SEC-003.
 2. **AVM module `format` value for Grok**: **RESOLVED (assumed).** `format = "OpenAI"` is used for all Grok deployments since they are served via the OpenAI-compatible Azure AI Model Inference API. The AVM module source confirms it passes `format` through to `azurerm_cognitive_account_deployment`, which accepts `"OpenAI"` as the valid format for OpenAI-compatible model serving. **Confirm by reviewing `terraform plan` output — if Azure rejects the format, switch to a raw `azurerm_cognitive_account_deployment` resource per RISK-002.**
 3. **Azure AI Model Inference endpoint URL**: **RESOLVED.** The endpoint is read dynamically from `data.azapi_resource.ai_foundry.output.properties.endpoints["Azure AI Model Inference API"]` with `/models` appended. The key name `"Azure AI Model Inference API"` is the standard key in the `properties.endpoints` map for AI Services accounts. Confirm by checking `terraform plan` or via `az resource show` on the AI Services account.
 
@@ -133,8 +133,8 @@ From the live configuration reference at `https://docs.openclaw.ai/gateway/confi
 | Task     | Description                                                                                                                                                                                                  | Completed | Date |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- | ---- |
 | TASK-009 | In `terraform/variables.tf`, add variable blocks for `grok4fast_model_name/version/capacity`, `grok3_model_name/version/capacity`, `grok3mini_model_name/version/capacity`. | ✅ | 2026-03-31 |
-| TASK-010 | In `terraform/ai.tf`, add three Grok entries to `ai_model_deployments` using the confirmed `format` value from TASK-002. | ✅ | 2026-03-31 |
-| TASK-011 | If TASK-001 determined Managed Identity is NOT supported for Grok: add a new Key Vault secret for the AI Model Inference API key in `terraform/keyvault.tf` and inject it via secret reference in `terraform/containerapp.tf` (same pattern as `openclaw-gateway-token`). Add the required IAM role assignment in `terraform/roleassignments.tf` if a different role is required. | ✅ N/A — MI supported via `Cognitive Services User` role; see `roleassignments.tf` | 2026-03-31 |
+| TASK-010 | In `terraform/ai.tf`, add three Grok entries to `ai_model_deployments` using the confirmed `format` value from TASK-002. | ✅ N/A — Grok models are Azure AI Foundry MaaS (serverless) models. No Cognitive Services account deployment is created in Terraform; the models are accessed directly via `AZURE_AI_INFERENCE_ENDPOINT` using the model name in each request. A clarifying comment was added to `ai.tf`. | 2026-03-31 |
+| TASK-011 | If TASK-001 determined Managed Identity is NOT supported for Grok: add a new Key Vault secret for the AI Model Inference API key in `terraform/keyvault.tf` and inject it via secret reference in `terraform/containerapp.tf` (same pattern as `openclaw-gateway-token`). Add the required IAM role assignment in `terraform/roleassignments.tf` if a different role is required. | ✅ Done — MI is not supported for this endpoint (see TASK-001 resolution). Key Vault secret `azure-ai-api-key` added in `keyvault.tf`; `AZURE_AI_API_KEY` injected via secret ref in `containerapp.tf`. | 2026-03-31 |
 | TASK-012 | Run `terraform plan` in dev including Grok additions. Verify additive only; `gpt-4o` deployment is not yet removed at this stage. | ⬜ Pending deploy | — |
 
 ### Implementation Phase 4 — Container App: Environment Injection
@@ -156,7 +156,7 @@ From the live configuration reference at `https://docs.openclaw.ai/gateway/confi
 | TASK-016 | Add a `models.providers` block for the Grok custom provider (`azure-foundry` or similar), pointing `baseUrl` to `${AZURE_AI_INFERENCE_ENDPOINT}`, using `openai-completions` or `openai-responses` API adapter, and setting `apiKey` via the confirmed auth mechanism from TASK-001. | ✅ | 2026-03-31 |
 | TASK-017 | Add an `agents.defaults.models` catalog block listing: `azure-foundry/grok-4-fast-reasoning` (alias `grok`), `azure-foundry/grok-3` (alias `grok-3`), `azure-foundry/grok-3-mini` (alias `grok-mini`). | ✅ | 2026-03-31 |
 | TASK-018 | Set `agents.defaults.model.primary` to `"azure-foundry/grok-4-fast-reasoning"` and `fallbacks` to `["azure-foundry/grok-3"]`. | ✅ | 2026-03-31 |
-| TASK-019 | If TASK-001 confirmed Managed Identity is supported for Grok, configure `auth: "token"` (Azure AD token) in the custom provider block instead of an API key string. | ✅ | 2026-03-31 |
+| TASK-019 | If TASK-001 confirmed Managed Identity is supported for Grok, configure `auth: "token"` (Azure AD token) in the custom provider block instead of an API key string. | ✅ Resolved as api-key — MI not supported for this endpoint. `auth: "api-key"` is used in `openclaw.json.tpl`; `apiKey` references `${AZURE_AI_API_KEY}` injected from Key Vault. | 2026-03-31 |
 | TASK-020 | Remove all OpenAI chat model entries (`gpt-4o`, `gpt-4.1`, etc.) from the config template. Retain `AZURE_OPENAI_ENDPOINT` reference only for the embedding deployment name env var. | ✅ N/A — no OpenAI chat was in the previous template | 2026-03-31 |
 
 ### Implementation Phase 6 — Decommission gpt-4o

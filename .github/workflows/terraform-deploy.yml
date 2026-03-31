@@ -143,19 +143,14 @@ jobs:
             --source /tmp/openclaw-seeded.json \
             --path "openclaw.json"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
       - name: Install OpenClaw CLI
         run: |
           npm install -g openclaw
-          # Derive node from the same bin dir as npm so the binary and the
-          # installed module are always from the same Node installation.
-          # 'which node' can return the nvm node while npm prefix points to
-          # the system npm, causing a module-not-found mismatch.
-          NPM_BIN_DIR="$(dirname "$(which npm)")"
-          NODE_ABS="${NPM_BIN_DIR}/node"
-          OC_MJS="$(npm prefix -g)/lib/node_modules/openclaw/openclaw.mjs"
-          printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "${NODE_ABS}" "${OC_MJS}" \
-            | sudo tee /usr/local/bin/openclaw > /dev/null
-          sudo chmod +x /usr/local/bin/openclaw
           openclaw --version
 
       - name: Validate OpenClaw Health
@@ -310,15 +305,14 @@ jobs:
             --source /tmp/openclaw-seeded.json \
             --path "openclaw.json"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
       - name: Install OpenClaw CLI
         run: |
           npm install -g openclaw
-          NPM_BIN_DIR="$(dirname "$(which npm)")"
-          NODE_ABS="${NPM_BIN_DIR}/node"
-          OC_MJS="$(npm prefix -g)/lib/node_modules/openclaw/openclaw.mjs"
-          printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "${NODE_ABS}" "${OC_MJS}" \
-            | sudo tee /usr/local/bin/openclaw > /dev/null
-          sudo chmod +x /usr/local/bin/openclaw
           openclaw --version
 
       - name: Validate OpenClaw Health

@@ -146,13 +146,15 @@ jobs:
       - name: Install OpenClaw CLI
         run: |
           npm install -g openclaw
-          GLOBAL_BIN="$(npm prefix -g)/bin"
-          echo "${GLOBAL_BIN}" >> "$GITHUB_PATH"
-          # Symlink to /usr/local/bin so the binary is available in --noprofile --norc
-          # shells (used by subsequent steps with explicit shell: bash).
-          ln -sf "${GLOBAL_BIN}/openclaw" /usr/local/bin/openclaw 2>/dev/null \
-            || sudo ln -sf "${GLOBAL_BIN}/openclaw" /usr/local/bin/openclaw 2>/dev/null \
-            || true
+          # Capture absolute paths to node and openclaw.mjs while nvm is active.
+          # Write a wrapper at /usr/local/bin/openclaw so the binary works in
+          # subsequent steps that run --noprofile --norc (no nvm context).
+          NODE_ABS="$(which node)"
+          OC_MJS="$(npm prefix -g)/lib/node_modules/openclaw/openclaw.mjs"
+          printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "${NODE_ABS}" "${OC_MJS}" \
+            | sudo tee /usr/local/bin/openclaw > /dev/null
+          sudo chmod +x /usr/local/bin/openclaw
+          openclaw --version
 
       - name: Validate OpenClaw Health
         shell: bash
@@ -309,11 +311,12 @@ jobs:
       - name: Install OpenClaw CLI
         run: |
           npm install -g openclaw
-          GLOBAL_BIN="$(npm prefix -g)/bin"
-          echo "${GLOBAL_BIN}" >> "$GITHUB_PATH"
-          ln -sf "${GLOBAL_BIN}/openclaw" /usr/local/bin/openclaw 2>/dev/null \
-            || sudo ln -sf "${GLOBAL_BIN}/openclaw" /usr/local/bin/openclaw 2>/dev/null \
-            || true
+          NODE_ABS="$(which node)"
+          OC_MJS="$(npm prefix -g)/lib/node_modules/openclaw/openclaw.mjs"
+          printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "${NODE_ABS}" "${OC_MJS}" \
+            | sudo tee /usr/local/bin/openclaw > /dev/null
+          sudo chmod +x /usr/local/bin/openclaw
+          openclaw --version
 
       - name: Validate OpenClaw Health
         shell: bash

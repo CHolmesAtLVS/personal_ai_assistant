@@ -300,6 +300,85 @@ else
   check_env_value "AZURE_AI_DEPLOYMENT_GROK3MINI"     "${EXPECTED_GROK3MINI_DEPLOYMENT}"
 fi
 
+# ── Container App provisioning + revision state ───────────────────────────────
+APP_JSON=$(az containerapp show \
+  --name "${APP_NAME}" \
+  --resource-group "${RG_NAME}" \
+  -o json 2>/dev/null || echo "{}")
+
+PROV_STATE=$(echo "${APP_JSON}" | jq -r '.properties.provisioningState // "unknown"')
+if [[ "${PROV_STATE}" == "Succeeded" ]]; then
+  pass "Container App provisioning state: Succeeded"
+else
+  fail "Container App provisioning state: ${PROV_STATE} (expected Succeeded)"
+fi
+
+LATEST_REV=$(echo "${APP_JSON}" | jq -r '.properties.latestRevisionName // ""')
+LATEST_READY=$(echo "${APP_JSON}" | jq -r '.properties.latestReadyRevisionName // ""')
+if [[ -n "${LATEST_REV}" && "${LATEST_REV}" == "${LATEST_READY}" ]]; then
+  pass "Active revision is ready: ${LATEST_REV}"
+else
+  fail "Revision mismatch: latest=${LATEST_REV} ready=${LATEST_READY}"
+fi
+
+ACTUAL_IMAGE=$(echo "${APP_JSON}" | jq -r '.properties.template.containers[0].image // ""')
+EXPECTED_IMAGE_PREFIX="ghcr.io/openclaw/openclaw:"
+if echo "${ACTUAL_IMAGE}" | grep -q "^${EXPECTED_IMAGE_PREFIX}"; then
+  pass "Container image: ${ACTUAL_IMAGE}"
+else
+  fail "Unexpected container image: '${ACTUAL_IMAGE}' (expected prefix: ${EXPECTED_IMAGE_PREFIX})"
+fi
+
+# ── Revision running state ─────────────────────────────────────────────────────
+REV_JSON=$(az containerapp revision show \
+  --name "${APP_NAME}" \
+  --resource-group "${RG_NAME}" \
+  --revision "${LATEST_REV}" \
+  -o json 2>/dev/null || echo "{}")
+
+REV_RUNNING=$(echo "${REV_JSON}" | jq -r '.properties.runningState // "unknown"')
+REV_REPLICAS=$(echo "${REV_JSON}" | jq -r '.properties.replicas // 0')
+if [[ "${REV_RUNNING}" == "Running" ]]; then
+  pass "Revision running state: Running (replicas: ${REV_REPLICAS})"
+elif [[ "${REV_RUNNING}" == "Stopped" && "${REV_REPLICAS}" == "0" ]]; then
+  warn "Revision stopped (replicas=0) — scale-to-zero; /healthz probe will wake it"
+else
+  fail "Revision running state: ${REV_RUNNING} (replicas: ${REV_REPLICAS})"
+fi
+
+# ── Console log health scan ────────────────────────────────────────────────────
+# Scan the last 50 log lines for crash/fatal indicators.
+# Pairing-required and closed-before-connect lines are normal operation.
+LOG_LINES=$(az containerapp logs show \
+  --name "${APP_NAME}" \
+  --resource-group "${RG_NAME}" \
+  --type console \
+  --tail 50 \
+  --follow false \
+  -o json 2>/dev/null \
+  | jq -r '.[].Log' 2>/dev/null || echo "")
+
+if [[ -z "${LOG_LINES}" ]]; then
+  warn "Container log scan: no log lines returned (container may be scaled to zero)"
+else
+  CRASH_LINES=$(echo "${LOG_LINES}" \
+    | grep -iE "crash|panic|fatal|OOMKilled|unhandledRejection|exit code [^0 ]" \
+    | grep -ivE "pairing required|closed before connect|Proxy headers|trustedProxies" \
+    | head -5 || true)
+  if [[ -n "${CRASH_LINES}" ]]; then
+    fail "Container log: crash/fatal indicators found:"
+    echo "${CRASH_LINES}" | sed 's/^/    /'
+  else
+    WS_OK=$(echo "${LOG_LINES}" | grep -c '\[ws\].*res.*' 2>/dev/null || echo "0")
+    if [[ "${WS_OK}" -gt 0 ]]; then
+      pass "Container log scan: no crashes; ${WS_OK} recent gateway RPC response(s)"
+    else
+      pass "Container log scan: no crash or fatal indicators"
+    fi
+  fi
+fi
+
+# ── Health probes ─────────────────────────────────────────────────────────────
 if [[ -n "${GATEWAY_HTTPS_URL}" ]]; then
   pass "Gateway FQDN: ${FQDN}"
   for probe in healthz readyz; do

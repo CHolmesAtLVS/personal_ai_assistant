@@ -143,8 +143,11 @@ case "${CMD}" in
   output)
     terraform -chdir="${TF_DIR}" output "${EXTRA_ARGS[@]}"
     ;;
+  state)
+    terraform -chdir="${TF_DIR}" state "${EXTRA_ARGS[@]}"
+    ;;
   *)
-    echo "ERROR: unknown command '${CMD}'. Valid: plan | apply | destroy | output | validate | fmt"
+    echo "ERROR: unknown command '${CMD}'. Valid: plan | apply | destroy | output | validate | fmt | state"
     exit 1
     ;;
 esac

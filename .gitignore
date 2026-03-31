@@ -2,3 +2,12 @@
 # Populate from the *.tfvars.example templates in scripts/.
 scripts/*.tfvars
 scripts/*.tfvars.local
+
+# Local Terraform output dumps — contain sensitive values in plain text.
+scripts/*.tfoutputs
+
+# Resource inventory CSV — may contain Azure identifiers; never commit.
+scripts/*.csv
+
+# Diagnostic snapshot files — may contain Azure resource details; never commit.
+scripts/diag-*.txt

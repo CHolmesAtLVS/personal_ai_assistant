@@ -12,6 +12,7 @@ This project deploys OpenClaw to Azure Container Apps using Terraform, GitHub Ac
 - Preserve ingress restriction to approved home public IP unless intentionally changed.
 - Keep changes small, reviewable, and reversible.
 - Never use `latest` or any mutable image tag in Terraform defaults or `.tfvars` examples; always use a pinned version tag.
+- **Never run live diagnostic or operational commands against the production environment when troubleshooting.** Always reproduce and diagnose issues in dev first. This applies to human operators and AI agents equally.
 
 ## What to Update for Typical Changes
 
@@ -19,6 +20,34 @@ This project deploys OpenClaw to Azure Container Apps using Terraform, GitHub Ac
 - Image version bump: update the `TF_VAR_OPENCLAW_IMAGE_TAG` GitHub Environment variable to the new pinned tag; open a PR so CI plans and applies only the tag change.
 - Infrastructure changes: update Terraform and document impact.
 - Deployment changes: update GitHub Actions workflow and rollout notes.
+
+## Environment Safety
+
+All live debugging, troubleshooting, and operational commands must target the **dev** environment unless you are performing an explicit, authorized production incident response where the problem cannot be reproduced in dev.
+
+- AI agents and automated tooling must only be directed against dev resources during troubleshooting sessions. Do not provide production resource group names, Key Vault names, storage account names, app names, or other production identifiers to an AI agent in a debugging context.
+- If a production issue cannot be reproduced in dev, document the impasse and explicitly authorize the scope change before proceeding against production.
+- Production operations (config seed, secret rotation, image upgrades) are documented in `docs/openclaw-containerapp-operations.md`. Validate all runbook steps in dev before applying to prod.
+
+## Local Troubleshooting
+
+Use `scripts/dump-tf-outputs.sh` to dump all Terraform outputs (including sensitive values) to local files for troubleshooting:
+
+```bash
+./scripts/dump-tf-outputs.sh          # both dev and prod
+./scripts/dump-tf-outputs.sh dev
+./scripts/dump-tf-outputs.sh prod
+```
+
+Output is written to `scripts/dev.tfoutputs` and `scripts/prod.tfoutputs`. These files are git-ignored and contain sensitive values in plain text — treat them as secrets and never share or commit them.
+
+Use `scripts/dump-resource-inventory.sh` to query Azure Resource Graph for all resources with a given `managed_by` tag value and write a CSV inventory. Pass your tag value as the first argument (do not commit deployment-identifying values into docs or code). Useful for auditing, cost analysis, and troubleshooting resource presence:
+
+```bash
+./scripts/dump-resource-inventory.sh 'YourOrg\your-repo'
+```
+
+Output is written to `scripts/resource-inventory.csv`. The file is git-ignored and may contain Azure identifiers — do not share or commit it. Requires an active `az login` session with Reader access to the subscription(s).
 
 ## Security Requirements
 

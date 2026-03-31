@@ -27,12 +27,6 @@ locals {
   app_name                            = "${local.name_prefix}-app"
   budget_name                         = "${local.name_prefix}-budget"
   action_group_name                   = "${local.name_prefix}-ag-cost"
-  vm_name                             = "${local.name_prefix}-vm"
-  vm_vnet_name                        = "${local.name_prefix}-vm-vnet"
-  vm_nsg_name                         = "${local.name_prefix}-vm-nsg"
-  vm_pip_name                         = "${local.name_prefix}-vm-pip"
-  vm_nic_name                         = "${local.name_prefix}-vm-nic"
   openclaw_state_storage_account_name = substr(replace("${var.project}${var.environment}ocstate", "-", ""), 0, 24)
   openclaw_state_file_share_name      = "openclaw-state"
-  openclaw_gateway_token_kv_secret_id = "https://${local.kv_name}.vault.azure.net/secrets/openclaw-gateway-token"
 }

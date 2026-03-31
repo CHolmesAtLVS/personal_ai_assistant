@@ -21,6 +21,14 @@ Use these documents as the primary project context:
 - Prefer Managed Identity over embedded credentials where supported.
 - Preserve IP-restricted ingress and HTTPS unless explicitly asked to change it.
 - Keep infrastructure changes declarative in Terraform.
+- **All troubleshooting, diagnosis, and live operational commands (`az`, Terraform, scripts) must target the dev environment only. Never execute commands against production resources during a troubleshooting or debugging session.** If the target environment is ambiguous, ask for explicit confirmation before running any command. This rule applies equally to AI agents and to human operators.
+- Never accept or use production resource identifiers (resource group names, Key Vault names, storage account names, app names) when the intent is to diagnose a problem. Require the user to provide dev equivalents, or surface the ambiguity and stop.
+
+## OpenClaw Configuration Preferences
+
+- Always reference environment variables explicitly in `openclaw.json` using `${VAR_NAME}` substitution (e.g. `"token": "${OPENCLAW_GATEWAY_TOKEN}"`, `"apiKey": "${CUSTOM_API_KEY}"`). This makes the mapping between env vars and config values clear and auditable.
+- For openclaw CLI usage (connecting to the remote gateway, diagnostics, config changes, device pairing): load the `openclaw-cli` skill (`.github/skills/openclaw-cli/SKILL.md`). The local CLI is preferred over `az containerapp exec`.
+- For `openclaw.json` schema, env vars, and triage commands: load the `openclaw-config` skill (`.github/skills/openclaw-config/SKILL.md`).
 
 ## Implementation Guidance
 

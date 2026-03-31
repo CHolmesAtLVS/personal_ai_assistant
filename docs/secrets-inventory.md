@@ -21,7 +21,6 @@ Create these secrets in both `dev` and `prod` GitHub Environments unless intenti
 | `TFSTATE_KEY` | Terraform state key path/name | On state partition redesign | Platform Engineering |
 | `BUDGET_ALERT_EMAIL` | Email address for budget overage notifications | On contact change | Platform Engineering |
 | `PUBLIC_IP` | Home public IP in CIDR form for Container App ingress restriction | On IP change | Platform Engineering |
-| `VM_ADMIN_PASSWORD` | Administrator password for the Windows dev VM — **dev environment only** | On rotation | Platform Engineering |
 
 ## Required GitHub Environment Variables
 
@@ -38,12 +37,7 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 | `TF_VAR_AI_MODEL_VERSION` | AI model version (default: `2024-11-20`) | On model change | Platform Engineering |
 | `TF_VAR_AI_MODEL_CAPACITY` | Model deployment TPM capacity in thousands (default: `10`) | On quota change | Platform Engineering |
 | `TF_VAR_OPENCLAW_IMAGE_TAG` | Pinned OpenClaw image tag to deploy (default: `2026.2.26`) | Per release | Platform Engineering |
-| `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB` | Azure Files share quota in GiB for persisted OpenClaw state (default: `100`) | On storage review | Platform Engineering |
-| `TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON` | JSON array of HTTPS origins allowed for the OpenClaw Control UI (default: `[]`) | On FQDN change | Platform Engineering |
-| `TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED` | Set to `true` to enable gateway token injection via Key Vault secret reference. Enable only after `openclaw-gateway-token` has been provisioned in Key Vault (default: `false`) | After KV bootstrap | Platform Engineering |
-| `TF_VAR_ENABLE_DEV_VM` | Set to `true` in the `dev` GitHub Environment to provision the Windows dev VM (default: `false`) — **dev environment only** | On demand | Platform Engineering |
-
-> **Note:** `TF_VAR_ENVIRONMENT` is hardcoded per job in the CI workflow (`dev` or `prod`) and does not need to be set as a GitHub Environment variable.
+| `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB` | Azure Files share quota in GiB for persisted OpenClaw state (default: `100`) | On storage review | Platform Engineering | (`dev` or `prod`) and does not need to be set as a GitHub Environment variable.
 
 ## Policy Notes
 
@@ -60,7 +54,7 @@ The following secrets are provisioned directly in Azure Key Vault by the operato
 
 | Secret Name (Key Vault) | Purpose | Rotation Cadence | Owner |
 | --- | --- | --- | --- |
-| `openclaw-gateway-token` | Authentication token for the OpenClaw gateway. Required before first deploy. | On compromise or scheduled rotation | Platform Engineering |
+| `openclaw-gateway-token` | Authentication token for the OpenClaw gateway. Created and managed by Terraform (`azurerm_key_vault_secret` + `random_id`). The value is stored in Terraform remote state (sensitive, encrypted at rest). Never overwritten by subsequent applies; manual rotation is preserved via `lifecycle { ignore_changes = [value] }`. | On compromise or scheduled rotation | Platform Engineering |
 
 See [openclaw-containerapp-operations.md](openclaw-containerapp-operations.md) for provisioning and rotation procedures.
 
@@ -74,6 +68,14 @@ The Container App's User-Assigned Managed Identity is the exclusive authenticati
 | Azure Key Vault (secret read) | Key Vault Secrets User | All environments |
 | Azure AI Services (OpenAI inference) | Cognitive Services OpenAI User | All environments |
 
+## CI/CD Service Principal Access Patterns
+
+The CI/CD Service Principal (used by GitHub Actions) has the following data-plane permissions beyond its ARM Contributor role.
+
+| Access Path | Role | Notes |
+| ----------- | ---- | ----- |
+| Azure Key Vault (secret write) | Key Vault Secrets Officer | Allows Terraform to create and manage `openclaw-gateway-token`. Granted by Terraform via `azurerm_role_assignment.ci_sp_kv_secrets_officer`. |
+
 **AI API keys are never generated, stored, or rotated.** The AI Services endpoint URL is a non-sensitive value injected as a container environment variable (`AZURE_OPENAI_ENDPOINT`) by Terraform at deploy time. Authentication to AI Services is performed exclusively via Managed Identity token exchange at runtime.
 
 ## Container App Runtime Environment Variables
@@ -83,6 +85,5 @@ The following non-sensitive values are injected as container environment variabl
 | Variable | Source | Description |
 | -------- | ------ | ----------- |
 | `AZURE_OPENAI_ENDPOINT` | Terraform output from AI Services (`azapi_resource` read) | AI Services endpoint URL for OpenAI inference |
-| `OPENCLAW_GATEWAY_BIND` | Hardcoded `lan` | Instructs OpenClaw to bind its gateway to the LAN interface |
+| `OPENCLAW_GATEWAY_PORT` | Hardcoded `18789` | Gateway listen port; ensures the correct port is used even before `openclaw.json` is seeded |
 | `OPENCLAW_GATEWAY_TOKEN` | Key Vault secret reference (`openclaw-gateway-token`) | Gateway authentication token; read from Key Vault by the Container App at startup via Managed Identity |
-| `OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS` | Terraform variable `openclaw_control_ui_allowed_origins_json` | JSON array of HTTPS origins allowed for the Control UI; used in gateway bootstrap config |

@@ -8,6 +8,7 @@ on:
     types: [opened, synchronize, reopened, closed]
     paths:
       - "terraform/**"
+      - "config/openclaw.json.tpl"
       - "scripts/bootstrap-tfstate.sh"
       - ".github/workflows/terraform-deploy.yml"
 
@@ -42,12 +43,8 @@ jobs:
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.2.26' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
-      TF_VAR_openclaw_control_ui_allowed_origins_json: ${{ vars.TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON || '[]' }}
-      TF_VAR_openclaw_gateway_token_enabled: ${{ vars.TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED || 'false' }}
       TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
-      TF_VAR_enable_dev_vm: ${{ vars.TF_VAR_ENABLE_DEV_VM || 'false' }}
-      TF_VAR_vm_admin_password: ${{ secrets.VM_ADMIN_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,6 +97,45 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
+      - name: Seed OpenClaw Config
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG_NAME="${TF_VAR_project}-${TF_VAR_environment}-rg"
+          APP_NAME="${TF_VAR_project}-${TF_VAR_environment}-app"
+          # Derive storage account name: matches Terraform local openclaw_state_storage_account_name
+          STORAGE_ACCOUNT="${TF_VAR_project}${TF_VAR_environment}ocstate"
+          STORAGE_ACCOUNT="${STORAGE_ACCOUNT//-/}"
+          STORAGE_ACCOUNT="${STORAGE_ACCOUNT:0:24}"
+
+          # Ensure containerapp extension is available
+          az extension add --name containerapp --only-show-errors 2>/dev/null || true
+
+          APP_FQDN=$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group "$RG_NAME" \
+            --query "properties.configuration.ingress.fqdn" \
+            -o tsv)
+
+          STORAGE_KEY=$(az storage account keys list \
+            --account-name "$STORAGE_ACCOUNT" \
+            --resource-group "$RG_NAME" \
+            --query "[0].value" \
+            -o tsv)
+
+          export APP_FQDN
+          # Restrict substitution to APP_FQDN only to prevent runner env vars from
+          # accidentally expanding other ${VAR} references in the template.
+          trap 'rm -f /tmp/openclaw-seeded.json' EXIT
+          envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+
+          az storage file upload \
+            --account-name "$STORAGE_ACCOUNT" \
+            --account-key "$STORAGE_KEY" \
+            --share-name "openclaw-state" \
+            --source /tmp/openclaw-seeded.json \
+            --path "openclaw.json"
+
   terraform-prod:
     name: Terraform Prod
     if: github.event.pull_request.merged == true && github.base_ref == 'main'
@@ -130,8 +166,6 @@ jobs:
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.2.26' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
-      TF_VAR_openclaw_control_ui_allowed_origins_json: ${{ vars.TF_VAR_OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS_JSON || '[]' }}
-      TF_VAR_openclaw_gateway_token_enabled: ${{ vars.TF_VAR_OPENCLAW_GATEWAY_TOKEN_ENABLED || 'false' }}
       TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
     steps:
@@ -195,3 +229,42 @@ jobs:
 
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
+
+      - name: Seed OpenClaw Config
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG_NAME="${TF_VAR_project}-${TF_VAR_environment}-rg"
+          APP_NAME="${TF_VAR_project}-${TF_VAR_environment}-app"
+          # Derive storage account name: matches Terraform local openclaw_state_storage_account_name
+          STORAGE_ACCOUNT="${TF_VAR_project}${TF_VAR_environment}ocstate"
+          STORAGE_ACCOUNT="${STORAGE_ACCOUNT//-/}"
+          STORAGE_ACCOUNT="${STORAGE_ACCOUNT:0:24}"
+
+          # Ensure containerapp extension is available
+          az extension add --name containerapp --only-show-errors 2>/dev/null || true
+
+          APP_FQDN=$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group "$RG_NAME" \
+            --query "properties.configuration.ingress.fqdn" \
+            -o tsv)
+
+          STORAGE_KEY=$(az storage account keys list \
+            --account-name "$STORAGE_ACCOUNT" \
+            --resource-group "$RG_NAME" \
+            --query "[0].value" \
+            -o tsv)
+
+          export APP_FQDN
+          # Restrict substitution to APP_FQDN only to prevent runner env vars from
+          # accidentally expanding other ${VAR} references in the template.
+          trap 'rm -f /tmp/openclaw-seeded.json' EXIT
+          envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+
+          az storage file upload \
+            --account-name "$STORAGE_ACCOUNT" \
+            --account-key "$STORAGE_KEY" \
+            --share-name "openclaw-state" \
+            --source /tmp/openclaw-seeded.json \
+            --path "openclaw.json"

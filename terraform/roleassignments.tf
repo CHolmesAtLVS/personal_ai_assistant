@@ -17,3 +17,13 @@ resource "azurerm_role_assignment" "mi_ai_openai_user" {
   role_definition_name = "Cognitive Services OpenAI User"
   principal_id         = module.identity.principal_id
 }
+
+# Grants the CI/CD Service Principal write access to Key Vault secrets so
+# Terraform can manage the openclaw-gateway-token secret (azurerm_key_vault_secret).
+# Bound to the object ID of the identity running Terraform (the CI SP in CI/CD;
+# a developer's identity when running locally). Scope is the environment Key Vault.
+resource "azurerm_role_assignment" "ci_sp_kv_secrets_officer" {
+  scope                = module.key_vault.resource_id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+}

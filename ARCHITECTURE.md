@@ -35,7 +35,7 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 
 - Azure Container Registry (ACR): stores built container images; lives in a dedicated shared resource group (`${project}-shared-rg`) provisioned only in the prod environment. Dev deployments use a public placeholder image and have no ACR dependency. ACR is reserved for custom-built image scenarios; standard deployment uses the pre-built GHCR image.
 - Azure Container Apps Environment: runtime environment for containerized workloads, linked to Log Analytics Workspace
-- OpenClaw Container App: running service endpoint; min replicas 0, 0.5 vCPU / 1 GiB per replica; pulls pre-built image from `ghcr.io/openclaw/openclaw` at the pinned tag
+- OpenClaw Container App: running service endpoint; min replicas 0, 2 vCPU / 4 GiB per replica; pulls pre-built image from `ghcr.io/openclaw/openclaw` at the pinned tag
 - Azure Files share mounted at `/home/node/.openclaw`: persists all long-lived OpenClaw state (config, auth profiles, skills state, workspace files) across revisions and restarts
 - Gateway token auth: the OpenClaw gateway runs with `bind=lan` and token authentication; the token is stored in Key Vault under the canonical secret name `openclaw-gateway-token` and injected into the container at startup via Managed Identity secret reference
 - HTTPS ingress with source IP restriction to the user's home public IP; insecure connections blocked
@@ -158,6 +158,14 @@ This gives a single declarative infrastructure source, a single CI/CD execution 
 - Azure AI Foundry is the selected LLM platform
 - Home public IP is stable, or ingress rules can be updated when it changes
 - Terraform remains the source of truth for Azure resource state
+
+## Operational Environment Policy
+
+The two deployed environments (`dev`, `prod`) exist specifically to separate change-risk from production traffic.
+
+- **All troubleshooting, diagnosis, and live operational work must be performed against the dev environment.** Production is only touched for authorized deployment or incident response where the issue is confirmed non-reproducible in dev.
+- This rule applies to human operators and to AI agents. An AI agent must never be provided production resource identifiers (resource group, Key Vault, storage account, Container App name) in a debugging context. If there is any ambiguity about which environment is targeted, the agent must stop and ask before executing any `az`, Terraform, or script command.
+- Production incidents are an exception, not a default. Explicitly document the authorization to work in prod before executing any live commands.
 
 ## Planned Evolution
 

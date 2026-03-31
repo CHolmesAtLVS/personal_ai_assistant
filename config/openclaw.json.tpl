@@ -1,14 +1,3 @@
-// Initial configuration seed — rendered once at deploy time by the Seed OpenClaw Config CI step.
-// ${VAR_NAME} placeholders are resolved at runtime by openclaw from container environment variables.
-// ${APP_FQDN} is the only value substituted at seed time via envsubst.
-//
-// After first deployment, manage runtime config exclusively via the openclaw CLI:
-//   source <(./scripts/openclaw-connect.sh dev --export)   # connect to remote gateway
-//   openclaw config get <key>                               # read a value
-//   openclaw config set <key> <value>                       # write in place (hot-reloads non-gateway.* changes)
-//   openclaw configure                                      # interactive wizard
-//
-// For persistent structural changes, update this template and open a PR so CI re-seeds from it.
 {
   "gateway": {
     "mode": "local",

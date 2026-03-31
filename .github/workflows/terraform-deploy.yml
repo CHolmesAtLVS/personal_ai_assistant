@@ -146,6 +146,8 @@ jobs:
           # accidentally expanding other ${VAR} references in the template.
           trap 'rm -f /tmp/openclaw-seeded.json' EXIT
           envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+          # Validate strict JSON before upload (fails fast if template drift introduced comments)
+          jq empty /tmp/openclaw-seeded.json
 
           az storage file upload \
             --account-name "$STORAGE_ACCOUNT" \
@@ -308,6 +310,8 @@ jobs:
           # accidentally expanding other ${VAR} references in the template.
           trap 'rm -f /tmp/openclaw-seeded.json' EXIT
           envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+          # Validate strict JSON before upload (fails fast if template drift introduced comments)
+          jq empty /tmp/openclaw-seeded.json
 
           az storage file upload \
             --account-name "$STORAGE_ACCOUNT" \

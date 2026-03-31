@@ -20,16 +20,6 @@
         "models": [
           { "id": "${AZURE_OPENAI_DEPLOYMENT_CHAT}", "name": "${AZURE_OPENAI_DEPLOYMENT_CHAT}", "input": ["text", "image"], "contextWindow": 128000, "maxTokens": 16384 }
         ]
-      },
-      "azure-foundry": {
-        "baseUrl": "${AZURE_AI_INFERENCE_ENDPOINT}",
-        "apiKey": "${AZURE_AI_API_KEY}",
-        "api": "openai-completions",
-        "models": [
-          { "id": "${AZURE_AI_DEPLOYMENT_GROK4FAST}", "name": "${AZURE_AI_DEPLOYMENT_GROK4FAST}", "reasoning": true, "input": ["text", "image"], "contextWindow": 128000, "maxTokens": 128000, "compat": { "supportsStore": false } },
-          { "id": "${AZURE_AI_DEPLOYMENT_GROK3}", "name": "${AZURE_AI_DEPLOYMENT_GROK3}", "reasoning": true, "input": ["text"], "contextWindow": 131072, "maxTokens": 131072, "compat": { "supportsStore": false } },
-          { "id": "${AZURE_AI_DEPLOYMENT_GROK3MINI}", "name": "${AZURE_AI_DEPLOYMENT_GROK3MINI}", "reasoning": false, "input": ["text"], "contextWindow": 131072, "maxTokens": 131072, "compat": { "supportsStore": false } }
-        ]
       }
     }
   },
@@ -41,23 +31,9 @@
   },
   "agents": {
     "defaults": {
-      "models": {
-        "azure-foundry/${AZURE_AI_DEPLOYMENT_GROK4FAST}": {
-          "alias": "grok",
-          "params": {}
-        },
-        "azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3}": {
-          "alias": "grok-3",
-          "params": {}
-        },
-        "azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3MINI}": {
-          "alias": "grok-mini",
-          "params": {}
-        }
-      },
       "model": {
         "primary": "azure-openai/${AZURE_OPENAI_DEPLOYMENT_CHAT}",
-        "fallbacks": ["azure-foundry/${AZURE_AI_DEPLOYMENT_GROK4FAST}", "azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3}"]
+        "fallbacks": []
       },
       "memorySearch": {
         "provider": "openai",

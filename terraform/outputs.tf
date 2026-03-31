@@ -10,6 +10,12 @@ output "container_app_fqdn" {
   value       = module.container_app.fqdn_url
 }
 
+output "azure_openai_endpoint" {
+  description = "Azure OpenAI Legacy API endpoint URL (openai.azure.com) for the AI Services account."
+  sensitive   = true
+  value       = local.azure_openai_endpoint
+}
+
 output "ai_services_endpoint" {
   description = "Endpoint URL for the AI Services account."
   sensitive   = true

@@ -62,21 +62,13 @@ SHARE_NAME="openclaw-state"
 
 # ── Expected values ────────────────────────────────────────────────────────────
 EXPECTED_EMBEDDING_DEPLOYMENT="text-embedding-3-large"
-EXPECTED_GROK4FAST_DEPLOYMENT="grok-4-fast-reasoning"
-EXPECTED_GROK3_DEPLOYMENT="grok-3"
-EXPECTED_GROK3MINI_DEPLOYMENT="grok-3-mini"
 EXPECTED_CHAT_DEPLOYMENT="gpt-4o"
 EXPECTED_PRIMARY_MODEL="azure-openai/gpt-4o"
-EXPECTED_FALLBACK_MODEL="azure-foundry/grok-4-fast-reasoning"
 
 EXPECTED_ENV_VARS=(
   "AZURE_OPENAI_ENDPOINT"
-  "AZURE_AI_INFERENCE_ENDPOINT"
   "AZURE_OPENAI_DEPLOYMENT_EMBEDDING"
   "AZURE_OPENAI_DEPLOYMENT_CHAT"
-  "AZURE_AI_DEPLOYMENT_GROK4FAST"
-  "AZURE_AI_DEPLOYMENT_GROK3"
-  "AZURE_AI_DEPLOYMENT_GROK3MINI"
   "OPENCLAW_GATEWAY_PORT"
   "AZURE_AI_API_KEY"
 )
@@ -254,14 +246,6 @@ else
     fail "Embedding deployment '${EXPECTED_EMBEDDING_DEPLOYMENT}': not found"
   fi
 
-  for grok_name in "${EXPECTED_GROK4FAST_DEPLOYMENT}" "${EXPECTED_GROK3_DEPLOYMENT}" "${EXPECTED_GROK3MINI_DEPLOYMENT}"; do
-    GROK_ENTRY=$(echo "${DEPLOYMENTS}" | jq -r --arg n "${grok_name}" '.[] | select(.name==$n) | .name // ""')
-    if [[ -z "${GROK_ENTRY}" ]]; then
-      pass "Grok MaaS '${grok_name}': correctly absent from account deployments"
-    else
-      fail "Grok MaaS '${grok_name}': unexpectedly present as account deployment"
-    fi
-  done
 fi
 
 ENV_JSON=$(az containerapp show \
@@ -298,9 +282,6 @@ else
   }
   check_env_value "AZURE_OPENAI_DEPLOYMENT_EMBEDDING" "${EXPECTED_EMBEDDING_DEPLOYMENT}"
   check_env_value "AZURE_OPENAI_DEPLOYMENT_CHAT"      "${EXPECTED_CHAT_DEPLOYMENT}"
-  check_env_value "AZURE_AI_DEPLOYMENT_GROK4FAST"     "${EXPECTED_GROK4FAST_DEPLOYMENT}"
-  check_env_value "AZURE_AI_DEPLOYMENT_GROK3"         "${EXPECTED_GROK3_DEPLOYMENT}"
-  check_env_value "AZURE_AI_DEPLOYMENT_GROK3MINI"     "${EXPECTED_GROK3MINI_DEPLOYMENT}"
 fi
 
 # ── Container App provisioning + revision state ───────────────────────────────
@@ -463,12 +444,7 @@ else
 # Export env vars so openclaw can resolve ${VAR} refs in the share config.
 export OPENCLAW_GATEWAY_TOKEN="${GATEWAY_TOKEN}"
 export APP_FQDN="${FQDN}"
-export AZURE_AI_DEPLOYMENT_GROK4FAST="${EXPECTED_GROK4FAST_DEPLOYMENT}"
-export AZURE_AI_DEPLOYMENT_GROK3="${EXPECTED_GROK3_DEPLOYMENT}"
-export AZURE_AI_DEPLOYMENT_GROK3MINI="${EXPECTED_GROK3MINI_DEPLOYMENT}"
 if [[ -n "${ENV_JSON:-}" && "${ENV_JSON}" != "null" ]]; then
-  _ENDPOINT=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_AI_INFERENCE_ENDPOINT") | .value // ""' 2>/dev/null || echo "")
-  [[ -n "${_ENDPOINT}" ]] && export AZURE_AI_INFERENCE_ENDPOINT="${_ENDPOINT}"
   _OAI_ENDPOINT=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_OPENAI_ENDPOINT") | .value // ""' 2>/dev/null || echo "")
   [[ -n "${_OAI_ENDPOINT}" ]] && export AZURE_OPENAI_ENDPOINT="${_OAI_ENDPOINT}"
   _CHAT_DEPLOY=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_OPENAI_DEPLOYMENT_CHAT") | .value // ""' 2>/dev/null || echo "")
@@ -526,10 +502,10 @@ else
         'azure-openai/${AZURE_OPENAI_DEPLOYMENT_CHAT}'
 
       FALLBACKS=$(jq -r '.agents.defaults.model.fallbacks // [] | join(", ")' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
-      if echo "${FALLBACKS}" | grep -qE '(azure-foundry/grok-4-fast-reasoning|azure-foundry/\$\{AZURE_AI_DEPLOYMENT_GROK4FAST\})'; then
-        pass "Fallback list: ${FALLBACKS}"
+      if [[ -z "${FALLBACKS}" ]]; then
+        pass "Fallbacks: empty (expected)"
       else
-        fail "Fallback missing grok-4-fast-reasoning: [${FALLBACKS}]"
+        fail "Fallbacks should be empty, got: [${FALLBACKS}]"
       fi
 
       # azure-openai provider checks (primary chat model).
@@ -540,31 +516,6 @@ else
         fail "azure-openai apiKey: missing or empty"
       fi
       check_json_path "azure-openai api" ".models.providers[\"azure-openai\"].api" "openai-completions" ""
-
-      # azure-foundry provider checks.
-      AK_VAL=$(jq -r '.models.providers["azure-foundry"].apiKey // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
-      if [[ -n "${AK_VAL}" ]]; then
-        pass "azure-foundry apiKey: present (${AK_VAL})"
-      else
-        fail "azure-foundry apiKey: missing or empty"
-      fi
-      check_json_path "azure-foundry baseUrl" ".models.providers[\"azure-foundry\"].baseUrl" "" ""
-      check_json_path "azure-foundry api"     ".models.providers[\"azure-foundry\"].api"     "openai-completions" ""
-
-      check_catalog_entry() {
-        local label="$1" resolved_key="$2" tpl_key="$3" entry
-        entry=$(jq -r --arg k "${resolved_key}" '.agents.defaults.models[$k] // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
-        if [[ -n "${entry}" ]]; then pass "Catalog entry: ${resolved_key}"; return; fi
-        entry=$(jq -r --arg k "${tpl_key}" '.agents.defaults.models[$k] // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
-        if [[ -n "${entry}" ]]; then pass "Catalog entry (template key): ${tpl_key}"
-        else fail "Catalog entry missing: ${resolved_key}"; fi
-      }
-      check_catalog_entry "grok-4-fast-reasoning" \
-        "azure-foundry/${EXPECTED_GROK4FAST_DEPLOYMENT}" 'azure-foundry/${AZURE_AI_DEPLOYMENT_GROK4FAST}'
-      check_catalog_entry "grok-3" \
-        "azure-foundry/${EXPECTED_GROK3_DEPLOYMENT}" 'azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3}'
-      check_catalog_entry "grok-3-mini" \
-        "azure-foundry/${EXPECTED_GROK3MINI_DEPLOYMENT}" 'azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3MINI}'
 
       # memorySearch presence check.
       MS_PROVIDER=$(jq -r '.agents.defaults.memorySearch.provider // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
@@ -626,20 +577,16 @@ else
   fi
 
   if ! echo "${MODELS_LIST_JSON}" | grep -q "OC_ERROR"; then
-    for model_key in \
-      "azure-foundry/${EXPECTED_GROK4FAST_DEPLOYMENT}" \
-      "azure-foundry/${EXPECTED_GROK3_DEPLOYMENT}" \
-      "azure-foundry/${EXPECTED_GROK3MINI_DEPLOYMENT}"; do
-      AVAILABLE=$(echo "${MODELS_LIST_JSON}" | jq -r \
-        --arg k "${model_key}" \
-        '[.[] | select(.id==$k or .key==$k)] | first | .available // false' \
-        2>/dev/null || echo "false")
-      if [[ "${AVAILABLE}" == "true" ]]; then
-        pass "Model available: ${model_key}"
-      else
-        warn "Model not available: ${model_key} (env vars may not be resolved in this context)"
-      fi
-    done
+    OAI_KEY="azure-openai/${EXPECTED_CHAT_DEPLOYMENT}"
+    AVAILABLE=$(echo "${MODELS_LIST_JSON}" | jq -r \
+      --arg k "${OAI_KEY}" \
+      '[.[] | select(.id==$k or .key==$k)] | first | .available // false' \
+      2>/dev/null || echo "false")
+    if [[ "${AVAILABLE}" == "true" ]]; then
+      pass "Model available: ${OAI_KEY}"
+    else
+      warn "Model not available: ${OAI_KEY}"
+    fi
   fi
 fi
 
@@ -713,9 +660,9 @@ fi  # end channel/agent/memory/doctor sections
 # Section J — Live inference (exec into container)
 # Runs from INSIDE the container via az containerapp exec, using the
 # AZURE_AI_API_KEY env var (injected from Key Vault at runtime) to
-# authenticate directly to the Azure AI Model Inference endpoint.
+# authenticate directly to the Azure OpenAI endpoint.
 # This validates the complete auth chain: Key Vault → Container App env →
-# Grok model, matching the auth: "api-key" strategy in openclaw.json.tpl.
+# azure-openai model, using the api-key auth strategy.
 # Uses node for JSON (jq is not in the OpenClaw container image).
 # Rate-limited by Azure (~HTTP 429 after frequent calls; wait 10 min if hit).
 # ══════════════════════════════════════════════════════════════════════════════
@@ -727,10 +674,11 @@ API_KEY="${AZURE_AI_API_KEY:-}"
 if [[ -z "${API_KEY}" ]]; then
   echo "APIKEY_FAIL: AZURE_AI_API_KEY env var is empty or not set"; exit 1
 fi
-BASE="${AZURE_AI_INFERENCE_ENDPOINT}/chat/completions"
+DEPLOYMENT="${AZURE_OPENAI_DEPLOYMENT_CHAT:-}"
+BASE="${AZURE_OPENAI_ENDPOINT}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=2024-12-01-preview"
 test_model() {
   local model="$1" label="$2"
-  local payload="{\"model\":\"${model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_tokens\":20}"
+  local payload="{\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_tokens\":20}"
   HTTP=$(curl -s -o /tmp/inf_resp.json -w "%{http_code}" --max-time 45 \
     -X POST "${BASE}" \
     -H "api-key: ${API_KEY}" \
@@ -745,9 +693,7 @@ test_model() {
     echo "FAIL:${label}:HTTP ${HTTP} ${BODY}"
   fi
 }
-test_model "${AZURE_AI_DEPLOYMENT_GROK4FAST}" "grok-4-fast-reasoning"
-test_model "${AZURE_AI_DEPLOYMENT_GROK3}"     "grok-3"
-test_model "${AZURE_AI_DEPLOYMENT_GROK3MINI}" "grok-3-mini"
+test_model "${DEPLOYMENT}" "azure-openai/${DEPLOYMENT}"
 INNEREOF
 )
 

@@ -141,11 +141,15 @@ jobs:
             --query "[0].value" \
             -o tsv)
 
-          export APP_FQDN
-          # Restrict substitution to APP_FQDN only to prevent runner env vars from
-          # accidentally expanding other ${VAR} references in the template.
+          # Resolve endpoint URL from Terraform output; deployment names come from TF_VAR_* env vars.
+          AZURE_OPENAI_ENDPOINT=$(terraform -chdir=terraform output -raw azure_openai_endpoint)
+          AZURE_OPENAI_DEPLOYMENT_CHAT="${TF_VAR_ai_model_name}"
+          AZURE_OPENAI_DEPLOYMENT_EMBEDDING="${TF_VAR_embedding_model_name}"
+          export APP_FQDN AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT_CHAT AZURE_OPENAI_DEPLOYMENT_EMBEDDING
+          # Substitute endpoint URLs and deployment names at seed time.
+          # apiKey refs (${AZURE_AI_API_KEY}, ${OPENCLAW_GATEWAY_TOKEN}) are left for runtime resolution.
           trap 'rm -f /tmp/openclaw-seeded.json' EXIT
-          envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+          envsubst '${APP_FQDN} ${AZURE_OPENAI_ENDPOINT} ${AZURE_OPENAI_DEPLOYMENT_CHAT} ${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
           # Validate strict JSON before upload (fails fast if template drift introduced comments)
           jq empty /tmp/openclaw-seeded.json
 
@@ -169,8 +173,8 @@ jobs:
       - name: Validate OpenClaw Health
         shell: bash
         # Allow post-deploy config hot-reload before probing.
-        # AZURE_AI_API_KEY is exported so openclaw can resolve ${VAR} refs in the
-        # share config during the swap-trick model availability check.
+        # AZURE_AI_API_KEY is exported so openclaw can resolve ${AZURE_AI_API_KEY} refs
+        # left in the share config (only apiKey fields remain for runtime resolution).
         env:
           CI: "true"
           AZURE_AI_API_KEY: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
@@ -305,11 +309,15 @@ jobs:
             --query "[0].value" \
             -o tsv)
 
-          export APP_FQDN
-          # Restrict substitution to APP_FQDN only to prevent runner env vars from
-          # accidentally expanding other ${VAR} references in the template.
+          # Resolve endpoint URL from Terraform output; deployment names come from TF_VAR_* env vars.
+          AZURE_OPENAI_ENDPOINT=$(terraform -chdir=terraform output -raw azure_openai_endpoint)
+          AZURE_OPENAI_DEPLOYMENT_CHAT="${TF_VAR_ai_model_name}"
+          AZURE_OPENAI_DEPLOYMENT_EMBEDDING="${TF_VAR_embedding_model_name}"
+          export APP_FQDN AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT_CHAT AZURE_OPENAI_DEPLOYMENT_EMBEDDING
+          # Substitute endpoint URLs and deployment names at seed time.
+          # apiKey refs (${AZURE_AI_API_KEY}, ${OPENCLAW_GATEWAY_TOKEN}) are left for runtime resolution.
           trap 'rm -f /tmp/openclaw-seeded.json' EXIT
-          envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+          envsubst '${APP_FQDN} ${AZURE_OPENAI_ENDPOINT} ${AZURE_OPENAI_DEPLOYMENT_CHAT} ${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
           # Validate strict JSON before upload (fails fast if template drift introduced comments)
           jq empty /tmp/openclaw-seeded.json
 
@@ -332,6 +340,8 @@ jobs:
 
       - name: Validate OpenClaw Health
         shell: bash
+        # AZURE_AI_API_KEY is exported so openclaw can resolve ${AZURE_AI_API_KEY} refs
+        # left in the share config (only apiKey fields remain for runtime resolution).
         env:
           CI: "true"
           AZURE_AI_API_KEY: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}

@@ -1,5 +1,5 @@
 ---
-description: "Setup, configure, and troubleshoot the OpenClaw gateway running on Azure Container Apps. Uses the local openclaw CLI (via scripts/openclaw-connect.sh) as the primary tool for config, diagnostics, and onboarding. Falls back to az containerapp exec or Log Analytics when the CLI is unavailable. Use when configuring OpenClaw environment variables, secrets, config file, or channels."
+description: "Setup, configure, and troubleshoot the OpenClaw gateway running on Azure Container Apps. The openclaw CLI connected to the remote gateway is the primary tool — always source scripts/openclaw-connect.sh before any CLI operation and approve the device if pending. Never download config to /tmp; edit in place via CLI. Falls back to az containerapp exec or Log Analytics only when the CLI cannot connect. Use when configuring OpenClaw environment variables, secrets, config file, or channels."
 name: "OpenClaw Operations"
 tools: [vscode, execute, read, agent, browser, edit, search, web, 'microsoft.docs.mcp/*', azure-mcp-server/acr, azure-mcp-server/applicationinsights, azure-mcp-server/cloudarchitect, azure-mcp-server/containerapps, azure-mcp-server/documentation, azure-mcp-server/foundry, azure-mcp-server/foundryextensions, azure-mcp-server/get_azure_bestpractices, azure-mcp-server/group_list, azure-mcp-server/keyvault, azure-mcp-server/monitor, azure-mcp-server/search, 'terraform-mcp-server/*', todo]
 agents: ['Azure Terraform IaC Implementation Specialist']
@@ -25,6 +25,25 @@ Key facts:
 - OpenClaw state is on an Azure Files share mounted at `/home/node/.openclaw` in the container
 - Gateway token is in Key Vault under `openclaw-gateway-token`; injected via Managed Identity
 - Health probes: `/healthz` (liveness) and `/readyz` (readiness) on port `18789`
+
+## CLI Session Prerequisites
+
+**Every CLI session must begin with:**
+
+```bash
+source <(./scripts/openclaw-connect.sh dev --export)
+```
+
+This sets `OPENCLAW_GATEWAY_URL` and `OPENCLAW_GATEWAY_TOKEN` so all `openclaw` commands target the **remote** gateway. Never run `openclaw` without loading this env first.
+
+**If the device is not yet approved:**
+
+```bash
+openclaw devices list                   # find pending requestId
+openclaw devices approve <requestId>    # approve the device
+```
+
+Do not proceed with any other operations until `openclaw status` shows the device as active. If no device is approved and the CLI cannot self-approve (first bootstrap), use the container exec fallback in the `openclaw-cli` skill to approve the first device.
 
 ## Skills
 
@@ -91,7 +110,6 @@ Follow `docs/openclaw-containerapp-operations.md` for the full flow. Key steps:
 - **Confirm before restarts** — always confirm with the user before restarting revisions, rotating tokens, or uploading config files
 - **Preserve IP-restricted ingress** — do not alter ingress or expose additional ports
 - **No credentials in config files** — use Key Vault SecretRef or `${VAR}` substitution in `openclaw.json`
-
-## Handoff
-
-Infrastructure changes (env vars, resource limits, Key Vault references, ingress rules) → hand off to the **Azure Terraform IaC Implementation Specialist** agent with a clear description of what needs to change and why.
+- **Always connect to remote gateway** — source `scripts/openclaw-connect.sh dev --export` before every CLI session; never run `openclaw` against localhost or without the gateway token
+- **Approve device if pending** — run `openclaw devices list` and approve before any other operations; do not skip this step
+- **Never download config to /tmp** — use `openclaw config set <key> <value>` or `openclaw configure` to edit config in place on the remote gateway; local file edits are not equivalent and bypass config validation and hot-reload

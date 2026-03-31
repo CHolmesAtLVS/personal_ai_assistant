@@ -7,11 +7,12 @@ data "azapi_resource" "ai_foundry" {
 }
 
 locals {
-  # Azure AI Model Inference endpoint for Grok (xAI) models.
+  # Azure AI Model Inference GA endpoint for Grok (xAI) models.
+  # The /openai/v1 path is the GA path and works without an api-version query parameter.
   # Key "Azure AI Model Inference API" is the standard name in properties.endpoints.
   # Confirm with az resource show or the Azure portal if the apply fails on this reference.
   ai_inference_endpoint = format(
-    "%s/models",
+    "%s/openai/v1",
     trimsuffix(tostring(data.azapi_resource.ai_foundry.output.properties.endpoints["Azure AI Model Inference API"]), "/")
   )
 }
@@ -123,7 +124,7 @@ module "container_app" {
         env = [
           {
             name  = "AZURE_OPENAI_ENDPOINT"
-            value = tostring(data.azapi_resource.ai_foundry.output.properties.endpoint)
+            value = format("%s/openai/v1", trimsuffix(tostring(data.azapi_resource.ai_foundry.output.properties.endpoint), "/"))
           },
           {
             name  = "AZURE_AI_INFERENCE_ENDPOINT"

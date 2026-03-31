@@ -15,22 +15,16 @@
     "providers": {
       "azure-foundry": {
         "baseUrl": "${AZURE_AI_INFERENCE_ENDPOINT}",
-        "auth": "api-key",
         "apiKey": "${AZURE_AI_API_KEY}",
+        "authHeader": false,
+        "headers": {
+          "api-key": "${AZURE_AI_API_KEY}"
+        },
         "api": "openai-completions",
         "models": [
-          { "id": "${AZURE_AI_DEPLOYMENT_GROK4FAST}", "name": "${AZURE_AI_DEPLOYMENT_GROK4FAST}" },
-          { "id": "${AZURE_AI_DEPLOYMENT_GROK3}", "name": "${AZURE_AI_DEPLOYMENT_GROK3}" },
-          { "id": "${AZURE_AI_DEPLOYMENT_GROK3MINI}", "name": "${AZURE_AI_DEPLOYMENT_GROK3MINI}" }
-        ]
-      },
-      "azure-openai": {
-        "baseUrl": "${AZURE_OPENAI_ENDPOINT}",
-        "auth": "api-key",
-        "apiKey": "${AZURE_AI_API_KEY}",
-        "api": "openai-completions",
-        "models": [
-          { "id": "${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}", "name": "${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}" }
+          { "id": "${AZURE_AI_DEPLOYMENT_GROK4FAST}", "name": "${AZURE_AI_DEPLOYMENT_GROK4FAST}", "reasoning": true, "input": ["text", "image"], "contextWindow": 128000, "maxTokens": 128000, "compat": { "supportsStore": false } },
+          { "id": "${AZURE_AI_DEPLOYMENT_GROK3}", "name": "${AZURE_AI_DEPLOYMENT_GROK3}", "reasoning": true, "input": ["text"], "contextWindow": 131072, "maxTokens": 131072, "compat": { "supportsStore": false } },
+          { "id": "${AZURE_AI_DEPLOYMENT_GROK3MINI}", "name": "${AZURE_AI_DEPLOYMENT_GROK3MINI}", "reasoning": false, "input": ["text"], "contextWindow": 131072, "maxTokens": 131072, "compat": { "supportsStore": false } }
         ]
       }
     }
@@ -60,6 +54,14 @@
       "model": {
         "primary": "azure-foundry/${AZURE_AI_DEPLOYMENT_GROK4FAST}",
         "fallbacks": ["azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3}"]
+      },
+      "memorySearch": {
+        "provider": "openai",
+        "remote": {
+          "baseUrl": "${AZURE_OPENAI_ENDPOINT}",
+          "apiKey": "${AZURE_AI_API_KEY}"
+        },
+        "model": "${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}"
       }
     }
   }

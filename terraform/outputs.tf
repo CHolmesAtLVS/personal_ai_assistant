@@ -47,7 +47,7 @@ output "grok3mini_model_name" {
 }
 
 output "ai_inference_endpoint" {
-  description = "Azure AI Model Inference endpoint URL for Grok models."
+  description = "Azure AI Model Inference GA endpoint URL for Grok models (path: /openai/v1)."
   sensitive   = true
   value       = local.ai_inference_endpoint
 }

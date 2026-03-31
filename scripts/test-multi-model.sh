@@ -67,9 +67,6 @@ EXPECTED_GROK3_DEPLOYMENT="grok-3"
 EXPECTED_GROK3MINI_DEPLOYMENT="grok-3-mini"
 EXPECTED_PRIMARY_MODEL="azure-foundry/grok-4-fast-reasoning"
 EXPECTED_FALLBACK_MODEL="azure-foundry/grok-3"
-# Matches config/openclaw.json.tpl: azure-foundry uses auth: "api-key" + AZURE_AI_API_KEY.
-# Update this constant if the auth strategy changes.
-EXPECTED_PROVIDER_AUTH="api-key"
 
 EXPECTED_ENV_VARS=(
   "AZURE_OPENAI_ENDPOINT"
@@ -469,6 +466,8 @@ export AZURE_AI_DEPLOYMENT_GROK3MINI="${EXPECTED_GROK3MINI_DEPLOYMENT}"
 if [[ -n "${ENV_JSON:-}" && "${ENV_JSON}" != "null" ]]; then
   _ENDPOINT=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_AI_INFERENCE_ENDPOINT") | .value // ""' 2>/dev/null || echo "")
   [[ -n "${_ENDPOINT}" ]] && export AZURE_AI_INFERENCE_ENDPOINT="${_ENDPOINT}"
+  _OAI_ENDPOINT=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_OPENAI_ENDPOINT") | .value // ""' 2>/dev/null || echo "")
+  [[ -n "${_OAI_ENDPOINT}" ]] && export AZURE_OPENAI_ENDPOINT="${_OAI_ENDPOINT}"
 fi
 # AZURE_AI_API_KEY: pre-exported by CI workflow env step (or caller); no-op if already set.
 
@@ -490,7 +489,15 @@ else
     fail "openclaw.json not found on share (config not seeded yet)"
   else
     pass "openclaw.json downloaded from Azure Files share"
-
+      # Endpoint suffix guard: verify AZURE_OPENAI_ENDPOINT env var carries the /openai/v1 path.
+      _OAI_ENV="${AZURE_OPENAI_ENDPOINT:-}"
+      if [[ "${_OAI_ENV}" == */openai/v1 ]]; then
+        pass "AZURE_OPENAI_ENDPOINT suffix: /openai/v1 (${_OAI_ENV})"
+      elif [[ -z "${_OAI_ENV}" ]]; then
+        warn "AZURE_OPENAI_ENDPOINT: not set in this context — cannot verify suffix"
+      else
+        fail "AZURE_OPENAI_ENDPOINT missing /openai/v1 suffix: ${_OAI_ENV}"
+      fi
     if ! jq empty "${TMP_SHARE_CONFIG}" 2>/dev/null; then
       fail "openclaw.json: invalid JSON"
     else
@@ -520,7 +527,19 @@ else
         fail "Fallback missing grok-3: [${FALLBACKS}]"
       fi
 
-      check_json_path "azure-foundry auth"    ".models.providers[\"azure-foundry\"].auth"    "${EXPECTED_PROVIDER_AUTH}" ""
+      # authHeader must be false; headers["api-key"] replaces the auth field in this config version.
+      AUTH_HDR=$(jq -r '.models.providers["azure-foundry"].authHeader // "missing"' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "missing")
+      if [[ "${AUTH_HDR}" == "false" ]]; then
+        pass "azure-foundry authHeader: false"
+      else
+        fail "azure-foundry authHeader: expected false, got '${AUTH_HDR}'"
+      fi
+      HDR_KEY=$(jq -r '.models.providers["azure-foundry"].headers["api-key"] // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
+      if [[ -n "${HDR_KEY}" ]]; then
+        pass "azure-foundry headers[api-key]: present"
+      else
+        fail "azure-foundry headers[api-key]: missing or empty"
+      fi
       # apiKey is a ${VAR} placeholder in the template; check it is present and non-empty.
       AK_VAL=$(jq -r '.models.providers["azure-foundry"].apiKey // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
       if [[ -n "${AK_VAL}" ]]; then
@@ -545,6 +564,20 @@ else
         "azure-foundry/${EXPECTED_GROK3_DEPLOYMENT}" 'azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3}'
       check_catalog_entry "grok-3-mini" \
         "azure-foundry/${EXPECTED_GROK3MINI_DEPLOYMENT}" 'azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3MINI}'
+
+      # memorySearch presence check.
+      MS_PROVIDER=$(jq -r '.agents.defaults.memorySearch.provider // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
+      if [[ "${MS_PROVIDER}" == "openai" ]]; then
+        pass "memorySearch.provider: openai"
+      else
+        fail "memorySearch.provider: expected 'openai', got '${MS_PROVIDER:-<missing>}'"
+      fi
+      MS_MODEL=$(jq -r '.agents.defaults.memorySearch.model // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
+      if [[ -n "${MS_MODEL}" ]]; then
+        pass "memorySearch.model: present (${MS_MODEL})"
+      else
+        fail "memorySearch.model: missing or empty"
+      fi
     fi
 
     # Schema validation via swap trick.
@@ -693,7 +726,7 @@ API_KEY="${AZURE_AI_API_KEY:-}"
 if [[ -z "${API_KEY}" ]]; then
   echo "APIKEY_FAIL: AZURE_AI_API_KEY env var is empty or not set"; exit 1
 fi
-BASE="${AZURE_AI_INFERENCE_ENDPOINT}/chat/completions?api-version=2024-05-01-preview"
+BASE="${AZURE_AI_INFERENCE_ENDPOINT}/chat/completions"
 test_model() {
   local model="$1" label="$2"
   local payload="{\"model\":\"${model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_tokens\":20}"

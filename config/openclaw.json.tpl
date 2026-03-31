@@ -26,8 +26,9 @@
       },
       "azure-openai": {
         "baseUrl": "${AZURE_OPENAI_ENDPOINT}",
-        "auth": "managed-identity",
-        "api": "openai-embeddings",
+        "auth": "api-key",
+        "apiKey": "${AZURE_AI_API_KEY}",
+        "api": "openai-completions",
         "models": [
           { "id": "${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}", "name": "${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}" }
         ]

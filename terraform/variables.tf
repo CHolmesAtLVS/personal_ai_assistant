@@ -64,7 +64,7 @@ variable "ai_model_capacity" {
 
   validation {
     condition     = var.ai_model_capacity > 0
-    error_message = "ai_model_capacity must be a positive integer greater than zero."
+    error_message = "ai_model_capacity must be greater than zero."
   }
 }
 

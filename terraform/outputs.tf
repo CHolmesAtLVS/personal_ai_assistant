@@ -27,7 +27,7 @@ output "openclaw_state_file_share_name" {
 }
 
 output "embedding_deployment_name" {
-  description = "Azure AI Foundry embedding model deployment name (default: text-embedding-3-large)."
+  description = "Deployment name for the text embedding model (driven by var.embedding_model_name)."
   value       = var.embedding_model_name
 }
 

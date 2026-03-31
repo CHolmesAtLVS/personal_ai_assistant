@@ -67,6 +67,8 @@ EXPECTED_GROK3_DEPLOYMENT="grok-3"
 EXPECTED_GROK3MINI_DEPLOYMENT="grok-3-mini"
 EXPECTED_PRIMARY_MODEL="azure-foundry/grok-4-fast-reasoning"
 EXPECTED_FALLBACK_MODEL="azure-foundry/grok-3"
+# Matches config/openclaw.json.tpl: azure-foundry uses auth: "api-key" + AZURE_AI_API_KEY.
+# Update this constant if the auth strategy changes.
 EXPECTED_PROVIDER_AUTH="api-key"
 
 EXPECTED_ENV_VARS=(
@@ -675,9 +677,11 @@ fi  # end channel/agent/memory/doctor sections
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Section J — Live inference (exec into container)
-# Runs from INSIDE the container via az containerapp exec, using an IMDS
-# Managed Identity token to hit the Azure AI Model Inference endpoint.
-# This validates the complete auth chain: MI → Foundry → Grok model.
+# Runs from INSIDE the container via az containerapp exec, using the
+# AZURE_AI_API_KEY env var (injected from Key Vault at runtime) to
+# authenticate directly to the Azure AI Model Inference endpoint.
+# This validates the complete auth chain: Key Vault → Container App env →
+# Grok model, matching the auth: "api-key" strategy in openclaw.json.tpl.
 # Uses node for JSON (jq is not in the OpenClaw container image).
 # Rate-limited by Azure (~HTTP 429 after frequent calls; wait 10 min if hit).
 # ══════════════════════════════════════════════════════════════════════════════
@@ -685,14 +689,9 @@ section "Live inference"
 
 INNER_SCRIPT=$(cat <<'INNEREOF'
 set -euo pipefail
-IMDS_URL="http://169.254.169.254/metadata/identity/oauth2/token"
-RESOURCE="https://cognitiveservices.azure.com/"
-IMDS_RESP=$(curl -s --max-time 10 \
-  "${IMDS_URL}?api-version=2018-02-01&resource=${RESOURCE}" \
-  -H "Metadata: true")
-TOK=$(node -pe 'JSON.parse(require("fs").readFileSync("/dev/stdin","utf8")).access_token' <<< "${IMDS_RESP}")
-if [[ -z "${TOK}" || "${TOK}" == "null" || "${TOK}" == "undefined" ]]; then
-  echo "IMDS_FAIL: could not obtain MI token"; exit 1
+API_KEY="${AZURE_AI_API_KEY:-}"
+if [[ -z "${API_KEY}" ]]; then
+  echo "APIKEY_FAIL: AZURE_AI_API_KEY env var is empty or not set"; exit 1
 fi
 BASE="${AZURE_AI_INFERENCE_ENDPOINT}/chat/completions?api-version=2024-05-01-preview"
 test_model() {
@@ -700,7 +699,7 @@ test_model() {
   local payload="{\"model\":\"${model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_tokens\":20}"
   HTTP=$(curl -s -o /tmp/inf_resp.json -w "%{http_code}" --max-time 45 \
     -X POST "${BASE}" \
-    -H "Authorization: Bearer ${TOK}" \
+    -H "api-key: ${API_KEY}" \
     -H "Content-Type: application/json" \
     -d "${payload}")
   if [[ "${HTTP}" == "200" ]]; then
@@ -753,11 +752,11 @@ else
       case "${line}" in
         PASS:*) pass "$(echo "${line}" | cut -d: -f2-)" ;;
         FAIL:*) fail "$(echo "${line}" | cut -d: -f2-)" ;;
-        IMDS_FAIL:*) fail "IMDS: ${line}" ;;
+        APIKEY_FAIL:*) fail "API key: ${line}" ;;
       esac
     done <<< "${EXEC_OUT}"
 
-    if ! echo "${EXEC_OUT}" | grep -qE "^(PASS|FAIL|IMDS_FAIL):"; then
+    if ! echo "${EXEC_OUT}" | grep -qE "^(PASS|FAIL|APIKEY_FAIL):"; then
       warn "No PASS/FAIL output from exec — raw output (first 500 chars):"
       echo "${EXEC_OUT}" | head -c 500 | sed 's/^/    /'
     fi

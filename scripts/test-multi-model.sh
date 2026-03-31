@@ -528,7 +528,8 @@ else
       fi
 
       # authHeader must be false; headers["api-key"] replaces the auth field in this config version.
-      AUTH_HDR=$(jq -r '.models.providers["azure-foundry"].authHeader // "missing"' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "missing")
+      # Use tostring (not //) because jq // treats false as falsy and returns the alternative.
+      AUTH_HDR=$(jq -r '.models.providers["azure-foundry"].authHeader | if . == null then "missing" else tostring end' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "missing")
       if [[ "${AUTH_HDR}" == "false" ]]; then
         pass "azure-foundry authHeader: false"
       else

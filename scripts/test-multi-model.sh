@@ -5,20 +5,20 @@
 # against the remote gateway, revokes the device, and restores local state.
 #
 # Sections:
-#   A — Infrastructure pre-flight  (AI account, env vars, health probes)
-#   B — Gateway health             (openclaw health, probe, RPC status)
-#   C — Full gateway status        (openclaw status --all)
-#   D — Remote config validation   (schema, auth mode, primary model, catalog)
-#   E — Model availability         (openclaw models status)
-#   F — Channel health             (openclaw channels status --probe)
-#   G — Agent health               (openclaw agents status)
-#   H — Memory health              (openclaw memory status --deep)
-#   I — Config doctor              (openclaw doctor --non-interactive)
-#   J — Live inference             (az containerapp exec — optional, rate-limited)
+#   Infrastructure pre-flight  — AI account, env vars, /healthz + /readyz  [always]
+#   Gateway health             — openclaw health, probe, RPC status         [live]
+#   Full gateway status        — openclaw status --all                      [live]
+#   Remote config validation   — schema, auth mode, primary model, catalog  [CLI only]
+#   Model availability         — openclaw models status, missing providers   [CLI only]
+#   Channel health             — openclaw channels status --probe           [live]
+#   Agent health               — openclaw agents status                     [live]
+#   Memory health              — openclaw memory status --deep              [live]
+#   Config doctor              — openclaw doctor --non-interactive          [live]
+#   Live inference             — az containerapp exec + IMDS MI token       [always]
 #
-# Sections B–C and F–I require a live gateway connection (paired device).
-# Sections D and E use the config swap trick and only require the CLI binary.
-# Section A and J use az CLI only.
+# [live]     = requires live gateway connection (paired device)
+# [CLI only] = requires openclaw CLI binary, no live connection needed
+# [always]   = runs regardless of openclaw CLI or gateway availability
 #
 # Usage:
 #   bash scripts/test-multi-model.sh [dev|prod]
@@ -115,7 +115,7 @@ if command -v openclaw &>/dev/null; then
   OC_VER=$(openclaw --version 2>/dev/null | head -1 || echo "unknown")
   pass "Tool: openclaw ${OC_VER}"
 else
-  warn "openclaw CLI not installed — Sections B–I skipped (install: npm install -g openclaw)"
+  warn "openclaw CLI not installed — gateway/config/model sections skipped (install: npm install -g openclaw)"
   OPENCLAW_UNAVAILABLE=true
 fi
 
@@ -181,7 +181,7 @@ section "Device pairing"
 if [[ "${OPENCLAW_UNAVAILABLE}" == "true" ]]; then
   echo "  SKIP  No openclaw CLI"
 elif [[ -z "${GATEWAY_TOKEN}" || -z "${FQDN}" ]]; then
-  warn "Cannot resolve gateway credentials or FQDN — live CLI sections B–C, F–I will be skipped"
+  warn "Cannot resolve gateway credentials or FQDN — live connection sections skipped"
 else
   ONBOARD_OUT=$(openclaw onboard \
     --non-interactive \
@@ -191,7 +191,7 @@ else
     --remote-token "${GATEWAY_TOKEN}" 2>&1 || echo "ONBOARD_FAILED")
 
   if echo "${ONBOARD_OUT}" | grep -q "ONBOARD_FAILED"; then
-    warn "Device self-pairing failed — live gateway sections B–C, F–I will be skipped; D + E will still run"
+    warn "Device self-pairing failed — gateway/channel/agent sections skipped; config+model checks will still run"
     echo "${ONBOARD_OUT}" | head -3 | sed 's/^/    /'
   else
     pass "Device paired to ${GATEWAY_WS_URL}"
@@ -201,7 +201,7 @@ else
     # until an admin approves the device. Probe here so failures become WARNs.
     PROBE_VERIFY=$(timeout 15 openclaw gateway probe 2>&1 || echo "OC_PROBE_FAILED")
     if echo "${PROBE_VERIFY}" | grep -qiE "pairing required|1008|OC_PROBE_FAILED|failed|error|unreachable"; then
-      warn "Gateway rejected session (${PROBE_VERIFY%%$'\n'*}) — device approval pending; live sections B–C, F–I skipped"
+      warn "Gateway rejected session (${PROBE_VERIFY%%$'\n'*}) — device approval pending; gateway/channel/agent sections skipped"
     else
       GATEWAY_CONNECTED=true
       pass "Gateway session confirmed active"
@@ -223,7 +223,7 @@ oc() { timeout 30 openclaw "$@" 2>&1 || echo "OC_TIMEOUT_OR_ERROR"; }
 # ══════════════════════════════════════════════════════════════════════════════
 # Section A — Infrastructure pre-flight
 # ══════════════════════════════════════════════════════════════════════════════
-section "A  Infrastructure pre-flight"
+section "Infrastructure pre-flight"
 
 AI_ACCOUNT_NAME=$(az cognitiveservices account list \
   --resource-group "${RG_NAME}" \
@@ -314,15 +314,15 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Sections B–C: live gateway checks (openclaw CLI + paired session required)
+# Gateway health + full status: live gateway checks (openclaw CLI + paired session required)
 # ══════════════════════════════════════════════════════════════════════════════
 if [[ "${OPENCLAW_UNAVAILABLE}" == "true" ]]; then
-  warn "Sections B–C skipped (openclaw CLI not installed)"
+  warn "Gateway health + status skipped (openclaw CLI not installed)"
 elif [[ "${GATEWAY_CONNECTED}" != "true" ]]; then
-  warn "Sections B–C skipped (pairing failed — live gateway connection unavailable)"
+  warn "Gateway health + status skipped (pairing failed — live gateway connection unavailable)"
 else
 
-section "B  Gateway health"
+section "Gateway health"
 
 HEALTH_OUT=$(oc health)
 if echo "${HEALTH_OUT}" | grep -qiE "OC_TIMEOUT_OR_ERROR|error|unreachable|failed"; then
@@ -351,7 +351,7 @@ else
   fi
 fi
 
-section "C  Full gateway status"
+section "Full gateway status"
 
 STATUS_OUT=$(oc status --all)
 if echo "${STATUS_OUT}" | grep -qiE "OC_TIMEOUT_OR_ERROR|Cannot connect|not reachable"; then
@@ -367,15 +367,15 @@ else
   [[ -n "${PROBLEM_LINES}" ]] && { warn "Status issues:"; echo "${PROBLEM_LINES}" | sed 's/^/    /'; }
 fi
 
-fi  # end GATEWAY_CONNECTED sections (B–C)
+fi  # end gateway health + status sections
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Sections D + E: run when CLI is available, even if pairing failed.
+# Remote config validation + model availability: run when CLI is available, even if pairing failed.
 # Both use the config swap trick (temporarily replace local config with the
 # one downloaded from Azure Files) — no live gateway RPC required.
 # ══════════════════════════════════════════════════════════════════════════════
 if [[ "${OPENCLAW_UNAVAILABLE}" == "true" ]]; then
-  warn "Sections D, E skipped (openclaw CLI not installed)"
+  warn "Remote config + model availability skipped (openclaw CLI not installed)"
 else
 
 # Export env vars so openclaw can resolve ${VAR} refs in the share config.
@@ -390,7 +390,7 @@ if [[ -n "${ENV_JSON:-}" && "${ENV_JSON}" != "null" ]]; then
 fi
 # AZURE_AI_API_KEY: pre-exported by CI workflow env step (or caller); no-op if already set.
 
-section "D  Remote config validation"
+section "Remote config validation"
 
 if [[ -z "${STORAGE_KEY}" ]]; then
   fail "Cannot read storage key for ${STORAGE_ACCOUNT} — skipping config checks"
@@ -479,7 +479,7 @@ else
   fi
 fi
 
-section "E  Model availability"
+section "Model availability"
 
 if [[ ! -f "${TMP_SHARE_CONFIG}" ]]; then
   warn "Share config unavailable — skipping model availability check"
@@ -524,11 +524,11 @@ fi
 fi  # end OPENCLAW_UNAVAILABLE check for D + E
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Sections F–I: live gateway checks continued (requires GATEWAY_CONNECTED)
+# Channel/agent/memory/doctor: live gateway checks (requires GATEWAY_CONNECTED)
 # ══════════════════════════════════════════════════════════════════════════════
 if [[ "${OPENCLAW_UNAVAILABLE}" != "true" && "${GATEWAY_CONNECTED}" == "true" ]]; then
 
-section "F  Channel health"
+section "Channel health"
 
 CHANNELS_OUT=$(oc channels status --probe)
 if echo "${CHANNELS_OUT}" | grep -q "OC_TIMEOUT_OR_ERROR"; then
@@ -543,7 +543,7 @@ else
   echo "${CHANNELS_OUT}" | head -8 | sed 's/^/    /'
 fi
 
-section "G  Agent health"
+section "Agent health"
 
 AGENTS_OUT=$(oc agents status)
 if echo "${AGENTS_OUT}" | grep -q "OC_TIMEOUT_OR_ERROR"; then
@@ -555,7 +555,7 @@ else
   pass "Agent health: $(echo "${AGENTS_OUT}" | head -1 | tr -s ' ')"
 fi
 
-section "H  Memory health"
+section "Memory health"
 
 MEMORY_OUT=$(oc memory status --deep)
 if echo "${MEMORY_OUT}" | grep -q "OC_TIMEOUT_OR_ERROR"; then
@@ -568,7 +568,7 @@ else
   pass "Memory health: $(echo "${MEMORY_OUT}" | head -1 | tr -s ' ')"
 fi
 
-section "I  Config doctor"
+section "Config doctor"
 
 DOCTOR_OUT=$(openclaw doctor --non-interactive 2>&1)
 DOCTOR_EXIT=$?
@@ -585,7 +585,7 @@ else
   pass "openclaw doctor: complete (${CRITICAL_COUNT} critical, ${WARN_COUNT} warnings)"
 fi
 
-fi  # end GATEWAY_CONNECTED sections (F–I)
+fi  # end channel/agent/memory/doctor sections
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Section J — Live inference (exec into container)
@@ -595,7 +595,7 @@ fi  # end GATEWAY_CONNECTED sections (F–I)
 # Uses node for JSON (jq is not in the OpenClaw container image).
 # Rate-limited by Azure (~HTTP 429 after frequent calls; wait 10 min if hit).
 # ══════════════════════════════════════════════════════════════════════════════
-section "J  Live inference [TEST-004, TEST-005]"
+section "Live inference"
 
 INNER_SCRIPT=$(cat <<'INNEREOF'
 set -euo pipefail

@@ -61,75 +61,8 @@ module "ai_foundry" {
     }
   }
 }
-
-# Grok model deployments are managed as standalone azapi_resource resources rather than
-# inside the AVM module's ai_model_deployments map. This allows depends_on chaining to
-# enforce strict serialization: Azure Cognitive Services accounts reject concurrent PUT
-# operations on model deployments with 409 RequestConflict.
-# The chain is: module.ai_foundry (embedding + gpt-4o) → grok4fast → grok3 → grok3mini.
-
-resource "azapi_resource" "grok4fast" {
-  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-10-01-preview"
-  name      = var.grok4fast_model_name
-  parent_id = module.ai_foundry.resource_id
-
-  body = {
-    sku = {
-      name     = "GlobalStandard"
-      capacity = var.grok4fast_model_capacity
-    }
-    properties = {
-      model = {
-        format  = "OpenAI"
-        name    = var.grok4fast_model_name
-        version = var.grok4fast_model_version
-      }
-    }
-  }
-
-  depends_on = [module.ai_foundry]
-}
-
-resource "azapi_resource" "grok3" {
-  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-10-01-preview"
-  name      = var.grok3_model_name
-  parent_id = module.ai_foundry.resource_id
-
-  body = {
-    sku = {
-      name     = "GlobalStandard"
-      capacity = var.grok3_model_capacity
-    }
-    properties = {
-      model = {
-        format  = "OpenAI"
-        name    = var.grok3_model_name
-        version = var.grok3_model_version
-      }
-    }
-  }
-
-  depends_on = [azapi_resource.grok4fast]
-}
-
-resource "azapi_resource" "grok3mini" {
-  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-10-01-preview"
-  name      = var.grok3mini_model_name
-  parent_id = module.ai_foundry.resource_id
-
-  body = {
-    sku = {
-      name     = "GlobalStandard"
-      capacity = var.grok3mini_model_capacity
-    }
-    properties = {
-      model = {
-        format  = "OpenAI"
-        name    = var.grok3mini_model_name
-        version = var.grok3mini_model_version
-      }
-    }
-  }
-
-  depends_on = [azapi_resource.grok3]
-}
+# Grok (xAI) models — grok-4-fast-reasoning, grok-3, grok-3-mini — are Azure AI Foundry
+# serverless/MaaS hosted models. They are NOT deployed as Cognitive Services account
+# deployments. No Terraform resource is required; the models are accessed directly via
+# the AI Model Inference endpoint (AZURE_AI_INFERENCE_ENDPOINT) using the model name
+# in each API request. OpenClaw routes to them via the azure-foundry custom provider.

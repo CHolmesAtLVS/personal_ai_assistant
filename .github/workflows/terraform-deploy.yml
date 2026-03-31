@@ -49,14 +49,8 @@ jobs:
       TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
       TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
       TF_VAR_grok4fast_model_name: ${{ vars.TF_VAR_GROK4FAST_MODEL_NAME || 'grok-4-fast-reasoning' }}
-      TF_VAR_grok4fast_model_version: ${{ vars.TF_VAR_GROK4FAST_MODEL_VERSION || '2025-04-25' }}
-      TF_VAR_grok4fast_model_capacity: ${{ vars.TF_VAR_GROK4FAST_MODEL_CAPACITY || '50' }}
       TF_VAR_grok3_model_name: ${{ vars.TF_VAR_GROK3_MODEL_NAME || 'grok-3' }}
-      TF_VAR_grok3_model_version: ${{ vars.TF_VAR_GROK3_MODEL_VERSION || '2025-04-25' }}
-      TF_VAR_grok3_model_capacity: ${{ vars.TF_VAR_GROK3_MODEL_CAPACITY || '50' }}
       TF_VAR_grok3mini_model_name: ${{ vars.TF_VAR_GROK3MINI_MODEL_NAME || 'grok-3-mini' }}
-      TF_VAR_grok3mini_model_version: ${{ vars.TF_VAR_GROK3MINI_MODEL_VERSION || '2025-04-25' }}
-      TF_VAR_grok3mini_model_capacity: ${{ vars.TF_VAR_GROK3MINI_MODEL_CAPACITY || '20' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -184,14 +178,8 @@ jobs:
       TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
       TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
       TF_VAR_grok4fast_model_name: ${{ vars.TF_VAR_GROK4FAST_MODEL_NAME || 'grok-4-fast-reasoning' }}
-      TF_VAR_grok4fast_model_version: ${{ vars.TF_VAR_GROK4FAST_MODEL_VERSION || '2025-04-25' }}
-      TF_VAR_grok4fast_model_capacity: ${{ vars.TF_VAR_GROK4FAST_MODEL_CAPACITY || '50' }}
       TF_VAR_grok3_model_name: ${{ vars.TF_VAR_GROK3_MODEL_NAME || 'grok-3' }}
-      TF_VAR_grok3_model_version: ${{ vars.TF_VAR_GROK3_MODEL_VERSION || '2025-04-25' }}
-      TF_VAR_grok3_model_capacity: ${{ vars.TF_VAR_GROK3_MODEL_CAPACITY || '50' }}
       TF_VAR_grok3mini_model_name: ${{ vars.TF_VAR_GROK3MINI_MODEL_NAME || 'grok-3-mini' }}
-      TF_VAR_grok3mini_model_version: ${{ vars.TF_VAR_GROK3MINI_MODEL_VERSION || '2025-04-25' }}
-      TF_VAR_grok3mini_model_capacity: ${{ vars.TF_VAR_GROK3MINI_MODEL_CAPACITY || '20' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

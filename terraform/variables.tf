@@ -168,7 +168,7 @@ variable "embedding_model_capacity" {
 # Grok model deployment variables (Azure AI Model Inference endpoint).
 
 variable "grok4fast_model_name" {
-  description = "Deployment name for the grok-4-fast-reasoning model."
+  description = "Model name for grok-4-fast-reasoning, passed as AZURE_AI_DEPLOYMENT_GROK4FAST env var."
   type        = string
   default     = "grok-4-fast-reasoning"
 
@@ -178,25 +178,8 @@ variable "grok4fast_model_name" {
   }
 }
 
-variable "grok4fast_model_version" {
-  description = "Version of the grok-4-fast-reasoning model to deploy. Confirm the available version in the Azure AI Foundry portal before applying."
-  type        = string
-  default     = "2025-04-25"
-}
-
-variable "grok4fast_model_capacity" {
-  description = "Tokens-per-minute capacity for the grok-4-fast-reasoning deployment (in thousands)."
-  type        = number
-  default     = 50
-
-  validation {
-    condition     = var.grok4fast_model_capacity > 0
-    error_message = "grok4fast_model_capacity must be a positive integer greater than zero."
-  }
-}
-
 variable "grok3_model_name" {
-  description = "Deployment name for the grok-3 model."
+  description = "Model name for grok-3, passed as AZURE_AI_DEPLOYMENT_GROK3 env var."
   type        = string
   default     = "grok-3"
 
@@ -206,48 +189,14 @@ variable "grok3_model_name" {
   }
 }
 
-variable "grok3_model_version" {
-  description = "Version of the grok-3 model to deploy. Confirm the available version in the Azure AI Foundry portal before applying."
-  type        = string
-  default     = "2025-04-25"
-}
-
-variable "grok3_model_capacity" {
-  description = "Tokens-per-minute capacity for the grok-3 deployment (in thousands)."
-  type        = number
-  default     = 50
-
-  validation {
-    condition     = var.grok3_model_capacity > 0
-    error_message = "grok3_model_capacity must be a positive integer greater than zero."
-  }
-}
-
 variable "grok3mini_model_name" {
-  description = "Deployment name for the grok-3-mini model."
+  description = "Model name for grok-3-mini, passed as AZURE_AI_DEPLOYMENT_GROK3MINI env var."
   type        = string
   default     = "grok-3-mini"
 
   validation {
     condition     = trim(var.grok3mini_model_name, " ") != ""
     error_message = "grok3mini_model_name must not be empty."
-  }
-}
-
-variable "grok3mini_model_version" {
-  description = "Version of the grok-3-mini model to deploy. Confirm the available version in the Azure AI Foundry portal before applying."
-  type        = string
-  default     = "2025-04-25"
-}
-
-variable "grok3mini_model_capacity" {
-  description = "Tokens-per-minute capacity for the grok-3-mini deployment (in thousands)."
-  type        = number
-  default     = 20
-
-  validation {
-    condition     = var.grok3mini_model_capacity > 0
-    error_message = "grok3mini_model_capacity must be a positive integer greater than zero."
   }
 }
 

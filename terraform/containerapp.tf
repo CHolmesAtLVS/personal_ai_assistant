@@ -135,6 +135,11 @@ module "container_app" {
             value = var.embedding_model_name
           },
           {
+            # Chat model deployed on the Azure OpenAI endpoint (gpt-4o or equivalent).
+            name  = "AZURE_OPENAI_DEPLOYMENT_CHAT"
+            value = var.ai_model_name
+          },
+          {
             name  = "AZURE_AI_DEPLOYMENT_GROK4FAST"
             value = var.grok4fast_model_name
           },

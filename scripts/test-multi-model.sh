@@ -65,13 +65,15 @@ EXPECTED_EMBEDDING_DEPLOYMENT="text-embedding-3-large"
 EXPECTED_GROK4FAST_DEPLOYMENT="grok-4-fast-reasoning"
 EXPECTED_GROK3_DEPLOYMENT="grok-3"
 EXPECTED_GROK3MINI_DEPLOYMENT="grok-3-mini"
-EXPECTED_PRIMARY_MODEL="azure-foundry/grok-4-fast-reasoning"
-EXPECTED_FALLBACK_MODEL="azure-foundry/grok-3"
+EXPECTED_CHAT_DEPLOYMENT="gpt-4o"
+EXPECTED_PRIMARY_MODEL="azure-openai/gpt-4o"
+EXPECTED_FALLBACK_MODEL="azure-foundry/grok-4-fast-reasoning"
 
 EXPECTED_ENV_VARS=(
   "AZURE_OPENAI_ENDPOINT"
   "AZURE_AI_INFERENCE_ENDPOINT"
   "AZURE_OPENAI_DEPLOYMENT_EMBEDDING"
+  "AZURE_OPENAI_DEPLOYMENT_CHAT"
   "AZURE_AI_DEPLOYMENT_GROK4FAST"
   "AZURE_AI_DEPLOYMENT_GROK3"
   "AZURE_AI_DEPLOYMENT_GROK3MINI"
@@ -295,6 +297,7 @@ else
       || fail "Env var value mismatch: ${varname} — expected '${expected}', got '${actual}'"
   }
   check_env_value "AZURE_OPENAI_DEPLOYMENT_EMBEDDING" "${EXPECTED_EMBEDDING_DEPLOYMENT}"
+  check_env_value "AZURE_OPENAI_DEPLOYMENT_CHAT"      "${EXPECTED_CHAT_DEPLOYMENT}"
   check_env_value "AZURE_AI_DEPLOYMENT_GROK4FAST"     "${EXPECTED_GROK4FAST_DEPLOYMENT}"
   check_env_value "AZURE_AI_DEPLOYMENT_GROK3"         "${EXPECTED_GROK3_DEPLOYMENT}"
   check_env_value "AZURE_AI_DEPLOYMENT_GROK3MINI"     "${EXPECTED_GROK3MINI_DEPLOYMENT}"
@@ -468,6 +471,8 @@ if [[ -n "${ENV_JSON:-}" && "${ENV_JSON}" != "null" ]]; then
   [[ -n "${_ENDPOINT}" ]] && export AZURE_AI_INFERENCE_ENDPOINT="${_ENDPOINT}"
   _OAI_ENDPOINT=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_OPENAI_ENDPOINT") | .value // ""' 2>/dev/null || echo "")
   [[ -n "${_OAI_ENDPOINT}" ]] && export AZURE_OPENAI_ENDPOINT="${_OAI_ENDPOINT}"
+  _CHAT_DEPLOY=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_OPENAI_DEPLOYMENT_CHAT") | .value // ""' 2>/dev/null || echo "")
+  [[ -n "${_CHAT_DEPLOY}" ]] && export AZURE_OPENAI_DEPLOYMENT_CHAT="${_CHAT_DEPLOY}"
 fi
 # AZURE_AI_API_KEY: pre-exported by CI workflow env step (or caller); no-op if already set.
 
@@ -518,14 +523,29 @@ else
       check_json_path "Primary model" \
         ".agents.defaults.model.primary" \
         "${EXPECTED_PRIMARY_MODEL}" \
-        'azure-foundry/${AZURE_AI_DEPLOYMENT_GROK4FAST}'
+        'azure-openai/${AZURE_OPENAI_DEPLOYMENT_CHAT}'
 
       FALLBACKS=$(jq -r '.agents.defaults.model.fallbacks // [] | join(", ")' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
-      if echo "${FALLBACKS}" | grep -qE '(azure-foundry/grok-3($|[^-])|azure-foundry/\$\{AZURE_AI_DEPLOYMENT_GROK3\})'; then
+      if echo "${FALLBACKS}" | grep -qE '(azure-foundry/grok-4-fast-reasoning|azure-foundry/\$\{AZURE_AI_DEPLOYMENT_GROK4FAST\})'; then
         pass "Fallback list: ${FALLBACKS}"
       else
-        fail "Fallback missing grok-3: [${FALLBACKS}]"
+        fail "Fallback missing grok-4-fast-reasoning: [${FALLBACKS}]"
       fi
+
+      # azure-openai provider checks (primary chat model).
+      OAI_AUTH_HDR=$(jq -r '.models.providers["azure-openai"].authHeader | if . == null then "missing" else tostring end' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "missing")
+      if [[ "${OAI_AUTH_HDR}" == "false" ]]; then
+        pass "azure-openai authHeader: false"
+      else
+        fail "azure-openai authHeader: expected false, got '${OAI_AUTH_HDR}'"
+      fi
+      OAI_HDR_KEY=$(jq -r '.models.providers["azure-openai"].headers["api-key"] // ""' "${TMP_SHARE_CONFIG}" 2>/dev/null || echo "")
+      if [[ -n "${OAI_HDR_KEY}" ]]; then
+        pass "azure-openai headers[api-key]: present"
+      else
+        fail "azure-openai headers[api-key]: missing or empty"
+      fi
+      check_json_path "azure-openai api" ".models.providers[\"azure-openai\"].api" "openai-completions" ""
 
       # authHeader must be false; headers["api-key"] replaces the auth field in this config version.
       # Use tostring (not //) because jq // treats false as falsy and returns the alternative.

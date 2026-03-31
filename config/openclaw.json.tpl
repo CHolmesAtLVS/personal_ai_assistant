@@ -13,6 +13,17 @@
   },
   "models": {
     "providers": {
+      "azure-openai": {
+        "baseUrl": "${AZURE_OPENAI_ENDPOINT}/deployments/${AZURE_OPENAI_DEPLOYMENT_CHAT}",
+        "authHeader": false,
+        "headers": {
+          "api-key": "${AZURE_AI_API_KEY}"
+        },
+        "api": "openai-completions",
+        "models": [
+          { "id": "${AZURE_OPENAI_DEPLOYMENT_CHAT}", "name": "${AZURE_OPENAI_DEPLOYMENT_CHAT}", "input": ["text", "image"], "contextWindow": 128000, "maxTokens": 16384 }
+        ]
+      },
       "azure-foundry": {
         "baseUrl": "${AZURE_AI_INFERENCE_ENDPOINT}",
         "apiKey": "${AZURE_AI_API_KEY}",
@@ -52,13 +63,13 @@
         }
       },
       "model": {
-        "primary": "azure-foundry/${AZURE_AI_DEPLOYMENT_GROK4FAST}",
-        "fallbacks": ["azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3}"]
+        "primary": "azure-openai/${AZURE_OPENAI_DEPLOYMENT_CHAT}",
+        "fallbacks": ["azure-foundry/${AZURE_AI_DEPLOYMENT_GROK4FAST}", "azure-foundry/${AZURE_AI_DEPLOYMENT_GROK3}"]
       },
       "memorySearch": {
         "provider": "openai",
         "remote": {
-          "baseUrl": "${AZURE_OPENAI_ENDPOINT}",
+          "baseUrl": "${AZURE_OPENAI_ENDPOINT}/deployments/${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}",
           "apiKey": "${AZURE_AI_API_KEY}"
         },
         "model": "${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}"

@@ -4,6 +4,15 @@ name: Terraform Deploy
 # - pull_request (opened/synchronize/reopened): plan + apply to dev environment.
 # - pull_request (closed + merged to main): plan + apply to prod environment.
 on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev only; prod deploys via PR merge)"
+        required: false
+        default: "dev"
+        type: choice
+        options:
+          - dev
   pull_request:
     types: [opened, synchronize, reopened, closed]
     paths:
@@ -19,7 +28,9 @@ permissions:
 jobs:
   terraform-dev:
     name: Terraform Dev
-    if: github.event.action != 'closed' && github.base_ref == 'main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && (inputs.environment == 'dev' || inputs.environment == '')) ||
+      (github.event_name == 'pull_request' && github.event.action != 'closed' && github.base_ref == 'main')
     runs-on: ubuntu-latest
     environment: dev
     env:

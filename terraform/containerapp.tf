@@ -15,6 +15,13 @@ locals {
     "%s/openai/v1",
     trimsuffix(tostring(data.azapi_resource.ai_foundry.output.properties.endpoints["Azure AI Model Inference API"]), "/")
   )
+
+  # Azure OpenAI legacy endpoint (openai.azure.com) — required for the
+  # /openai/deployments/<name>/chat/completions path used by the azure-openai provider.
+  azure_openai_endpoint = trimsuffix(
+    tostring(data.azapi_resource.ai_foundry.output.properties.endpoints["Azure OpenAI Legacy API - Latest moniker"]),
+    "/"
+  )
 }
 
 module "container_apps_environment" {
@@ -124,7 +131,7 @@ module "container_app" {
         env = [
           {
             name  = "AZURE_OPENAI_ENDPOINT"
-            value = format("%s/openai/v1", trimsuffix(tostring(data.azapi_resource.ai_foundry.output.properties.endpoint), "/"))
+            value = local.azure_openai_endpoint
           },
           {
             name  = "AZURE_AI_INFERENCE_ENDPOINT"

@@ -494,14 +494,14 @@ else
     fail "openclaw.json not found on share (config not seeded yet)"
   else
     pass "openclaw.json downloaded from Azure Files share"
-      # Endpoint suffix guard: verify AZURE_OPENAI_ENDPOINT env var carries the /openai/v1 path.
+      # Endpoint domain guard: verify AZURE_OPENAI_ENDPOINT env var is the openai.azure.com domain.
       _OAI_ENV="${AZURE_OPENAI_ENDPOINT:-}"
-      if [[ "${_OAI_ENV}" == */openai/v1 ]]; then
-        pass "AZURE_OPENAI_ENDPOINT suffix: /openai/v1 (${_OAI_ENV})"
+      if [[ "${_OAI_ENV}" == *openai.azure.com* ]]; then
+        pass "AZURE_OPENAI_ENDPOINT domain: openai.azure.com (${_OAI_ENV})"
       elif [[ -z "${_OAI_ENV}" ]]; then
-        warn "AZURE_OPENAI_ENDPOINT: not set in this context — cannot verify suffix"
+        warn "AZURE_OPENAI_ENDPOINT: not set in this context — cannot verify domain"
       else
-        fail "AZURE_OPENAI_ENDPOINT missing /openai/v1 suffix: ${_OAI_ENV}"
+        fail "AZURE_OPENAI_ENDPOINT wrong domain (expected openai.azure.com): ${_OAI_ENV}"
       fi
     if ! jq empty "${TMP_SHARE_CONFIG}" 2>/dev/null; then
       fail "openclaw.json: invalid JSON"

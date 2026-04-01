@@ -83,6 +83,11 @@ module "container_app" {
         name         = "openclaw-state"
         storage_type = "AzureFile"
         storage_name = azurerm_container_app_environment_storage.openclaw_state.name
+      },
+      {
+        name         = "openclaw-backup"
+        storage_type = "AzureFile"
+        storage_name = azurerm_container_app_environment_storage.openclaw_backup.name
       }
     ]
     containers = [
@@ -95,6 +100,10 @@ module "container_app" {
           {
             name = "openclaw-state"
             path = "/home/node/.openclaw"
+          },
+          {
+            name = "openclaw-backup"
+            path = "/mnt/openclaw-backup"
           }
         ]
         liveness_probes = [

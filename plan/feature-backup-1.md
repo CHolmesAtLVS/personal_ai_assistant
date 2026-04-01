@@ -3,6 +3,8 @@ goal: OpenClaw gateway backup — daily + weekly retention for dev and prod
 plan_type: standalone
 version: 1.0
 date_created: 2026-04-01
+last_updated: 2026-04-01
+owner: openclaw-core
 status: 'Planned'
 tags: [feature, backup, operations]
 ---

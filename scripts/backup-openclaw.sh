@@ -33,10 +33,22 @@ set -euo pipefail
 
 ENV="${1:-dev}"
 
+case "${ENV}" in
+  dev|prod) ;;
+  *)
+    echo "Usage: $0 [dev|prod]" >&2
+    exit 1
+    ;;
+esac
+
 PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
 APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
-STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
+# Derive storage account name using the same sanitization/truncation as Terraform:
+# substr(replace("${project}${environment}ocstate", "-", ""), 0, 24)
+RAW_STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
+STORAGE_ACCOUNT="${RAW_STORAGE_ACCOUNT//-/}"
+STORAGE_ACCOUNT="${STORAGE_ACCOUNT:0:24}"
 BACKUP_SHARE="openclaw-backup"
 BACKUP_MOUNT="/mnt/openclaw-backup"
 
@@ -71,24 +83,31 @@ echo "BACKUP: storage key retrieved"
 
 # ── Step 2: Run backup via PTY exec ──────────────────────────────────────────────
 echo "BACKUP: running backup create --verify (exec 1/1)..."
-BACKUP_OUTPUT=$(pty_exec "node /app/openclaw.mjs backup create --output ${BACKUP_MOUNT} --verify" 2>&1) || true
+BACKUP_EXIT=0
+BACKUP_OUTPUT=$(pty_exec "node /app/openclaw.mjs backup create --output ${BACKUP_MOUNT} --verify" 2>&1) || BACKUP_EXIT=$?
 
-# Check for known failure signatures
+# Print output for CI log visibility regardless of outcome
+echo "${BACKUP_OUTPUT}"
+
+# Fail on non-zero exec exit code before checking output patterns
+if (( BACKUP_EXIT != 0 )); then
+  echo "ERROR: backup exec exited with code ${BACKUP_EXIT}" >&2
+  exit "${BACKUP_EXIT}"
+fi
+
+# Check for known failure signatures in output (belt-and-suspenders)
 if echo "${BACKUP_OUTPUT}" | grep -qi "ENOTTY"; then
   echo "ERROR: ENOTTY — exec did not get a PTY; check script(1) availability" >&2
-  echo "${BACKUP_OUTPUT}" >&2
   exit 1
 fi
 
 if echo "${BACKUP_OUTPUT}" | grep -qi "429\|rate.limit\|too many requests"; then
   echo "ERROR: HTTP 429 — az containerapp exec rate-limited; wait 10 minutes and retry" >&2
-  echo "${BACKUP_OUTPUT}" >&2
   exit 1
 fi
 
 if echo "${BACKUP_OUTPUT}" | grep -qi "error\|failed\|exception"; then
   echo "ERROR: backup reported an error or failure" >&2
-  echo "${BACKUP_OUTPUT}" >&2
   exit 1
 fi
 

@@ -139,9 +139,18 @@ fi
 
 echo ""
 echo "SEED: done."
-echo "SEED: Changes to gateway.* settings require a revision restart:"
-echo "       REVISION=\$(az containerapp revision list --name ${APP_NAME} --resource-group ${RG_NAME} --query '[0].name' -o tsv)"
-echo "       az containerapp revision restart --name ${APP_NAME} --resource-group ${RG_NAME} --revision \"\${REVISION}\""
+if echo "${APPLY_OUT}" | grep -iq "Restart the gateway to apply"; then
+  echo "SEED: gateway.* settings changed — restarting revision..."
+  REVISION=$(az containerapp revision list \
+    --name "${APP_NAME}" \
+    --resource-group "${RG_NAME}" \
+    --query '[0].name' -o tsv)
+  az containerapp revision restart \
+    --name "${APP_NAME}" \
+    --resource-group "${RG_NAME}" \
+    --revision "${REVISION}"
+  echo "SEED: ✅ revision restarted"
+fi
 
 
 set -euo pipefail
@@ -346,6 +355,15 @@ fi
 
 echo ""
 echo "SEED: done. Gateway config updated on Azure Files share."
-echo "SEED: Changes to gateway.* settings require a revision restart:"
-echo "       REVISION=\$(az containerapp revision list --name ${APP_NAME} --resource-group ${RG_NAME} --query '[0].name' -o tsv)"
-echo "       az containerapp revision restart --name ${APP_NAME} --resource-group ${RG_NAME} --revision \"\${REVISION}\""
+if echo "${APPLY_OUT}" | grep -iq "Restart the gateway to apply"; then
+  echo "SEED: gateway.* settings changed — restarting revision..."
+  REVISION=$(az containerapp revision list \
+    --name "${APP_NAME}" \
+    --resource-group "${RG_NAME}" \
+    --query '[0].name' -o tsv)
+  az containerapp revision restart \
+    --name "${APP_NAME}" \
+    --resource-group "${RG_NAME}" \
+    --revision "${REVISION}"
+  echo "SEED: ✅ revision restarted"
+fi

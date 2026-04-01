@@ -112,27 +112,17 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
-      # Uploads config/openclaw.batch.json to the Azure Files share, then applies
-      # it via az containerapp exec (exec 1/1). Uses only az CLI (no openclaw CLI,
-      # no device token).
+      # Uploads config/openclaw.batch.json to Azure Files, applies and validates it
+      # inside the running container via az containerapp exec + script(1) PTY workaround.
+      # Uses node /app/openclaw.mjs directly — no openclaw CLI on the runner needed.
       # continue-on-error: seed failures are non-fatal — Terraform succeeded; config
-      # can be re-seeded manually with: bash scripts/seed-openclaw-config.sh dev
+      # can be re-seeded manually with: bash scripts/seed-openclaw-ci.sh dev
       - name: Seed OpenClaw Config
         continue-on-error: true
         shell: bash
         run: |
-          chmod +x scripts/seed-openclaw-config.sh
-          bash scripts/seed-openclaw-config.sh dev
-
-      # Downloads openclaw.json from Azure Files and runs openclaw config validate
-      # locally on the runner. No az containerapp exec, no gateway, no device pairing.
-      # continue-on-error: validation failure is non-fatal after a successful deploy.
-      - name: Validate OpenClaw Config
-        continue-on-error: true
-        shell: bash
-        run: |
-          chmod +x scripts/test-openclaw-config.sh
-          bash scripts/test-openclaw-config.sh dev
+          chmod +x scripts/seed-openclaw-ci.sh
+          bash scripts/seed-openclaw-ci.sh dev
 
   terraform-prod:
     name: Terraform Prod
@@ -232,24 +222,14 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
-      # Uploads config/openclaw.batch.json to the Azure Files share, then applies
-      # it via az containerapp exec (exec 1/1). Uses only az CLI (no openclaw CLI,
-      # no device token).
+      # Uploads config/openclaw.batch.json to Azure Files, applies and validates it
+      # inside the running container via az containerapp exec + script(1) PTY workaround.
+      # Uses node /app/openclaw.mjs directly — no openclaw CLI on the runner needed.
       # continue-on-error: seed failures are non-fatal — Terraform succeeded; config
-      # can be re-seeded manually with: bash scripts/seed-openclaw-config.sh prod
+      # can be re-seeded manually with: bash scripts/seed-openclaw-ci.sh prod
       - name: Seed OpenClaw Config
         continue-on-error: true
         shell: bash
         run: |
-          chmod +x scripts/seed-openclaw-config.sh
-          bash scripts/seed-openclaw-config.sh prod
-
-      # Downloads openclaw.json from Azure Files and runs openclaw config validate
-      # locally on the runner. No az containerapp exec, no gateway, no device pairing.
-      # continue-on-error: validation failure is non-fatal after a successful deploy.
-      - name: Validate OpenClaw Config
-        continue-on-error: true
-        shell: bash
-        run: |
-          chmod +x scripts/test-openclaw-config.sh
-          bash scripts/test-openclaw-config.sh prod
+          chmod +x scripts/seed-openclaw-ci.sh
+          bash scripts/seed-openclaw-ci.sh prod

@@ -27,17 +27,21 @@ alias ocl-dev='source <(/workspaces/personal_ai_assistant/scripts/openclaw-conne
 
 ## Device Pairing (First Time Only)
 
-New devices (browser, devcontainer CLI) require one-time gateway approval. Run:
+New devices require one-time gateway approval. Always try the local CLI first:
+
 ```bash
-# From inside the container (exec) — needed for the first approval only:
+openclaw devices list                   # find pending requestId
+openclaw devices approve <requestId>
+```
+
+**Exec fallback — only if no device is yet approved and the CLI cannot self-approve:**
+
+```bash
 az containerapp exec --name paa-dev-app --resource-group paa-dev-rg \
   --command "node /app/openclaw.mjs devices list"
 
 az containerapp exec --name paa-dev-app --resource-group paa-dev-rg \
   --command "node /app/openclaw.mjs devices approve <requestId>"
-
-# Once paired, all future approvals can use the local CLI:
-openclaw devices approve <requestId>
 ```
 
 > **Azure exec rate limit:** HTTP 429, retry-after ~600s. If you hit it, wait 10 min or use an already-paired device to approve.
@@ -108,4 +112,4 @@ az containerapp exec \
 | `node /app/openclaw.mjs devices approve <id>` | Approve first-time pairing |
 | `node /app/openclaw.mjs status --all` | Full status from inside container |
 | `node /app/openclaw.mjs doctor --non-interactive` | Config/state diagnostics |
-| `cat /home/node/.openclaw/openclaw.json` | View config on Azure Files share |
+| `node /app/openclaw.mjs config get <key>` | Read a config value (prefer over raw file access) |

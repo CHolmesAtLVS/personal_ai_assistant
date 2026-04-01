@@ -61,8 +61,3 @@ module "ai_foundry" {
     }
   }
 }
-# Grok (xAI) models — grok-4-fast-reasoning, grok-3, grok-3-mini — are Azure AI Foundry
-# serverless/MaaS hosted models. They are NOT deployed as Cognitive Services account
-# deployments. No Terraform resource is required; the models are accessed directly via
-# the AI Model Inference endpoint (AZURE_AI_INFERENCE_ENDPOINT) using the model name
-# in each API request. OpenClaw routes to them via the azure-foundry custom provider.

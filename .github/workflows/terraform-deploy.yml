@@ -4,12 +4,21 @@ name: Terraform Deploy
 # - pull_request (opened/synchronize/reopened): plan + apply to dev environment.
 # - pull_request (closed + merged to main): plan + apply to prod environment.
 on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev only; prod deploys via PR merge)"
+        required: false
+        default: "dev"
+        type: choice
+        options:
+          - dev
   pull_request:
     types: [opened, synchronize, reopened, closed]
     paths:
       - "terraform/**"
-      - "config/openclaw.json.tpl"
       - "scripts/bootstrap-tfstate.sh"
+      - "config/openclaw.batch.json"
       - ".github/workflows/terraform-deploy.yml"
 
 # Minimal permissions: only read repo contents. Secrets are passed explicitly via env.
@@ -19,7 +28,9 @@ permissions:
 jobs:
   terraform-dev:
     name: Terraform Dev
-    if: github.event.action != 'closed' && github.base_ref == 'main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && (inputs.environment == 'dev' || inputs.environment == '')) ||
+      (github.event_name == 'pull_request' && github.event.action != 'closed' && github.base_ref == 'main')
     runs-on: ubuntu-latest
     environment: dev
     env:
@@ -38,19 +49,16 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.4-mini' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2026-03-17' }}
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
-      TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.2.26' }}
+      TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
       TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
       TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
       TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
       TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
-      TF_VAR_grok4fast_model_name: ${{ vars.TF_VAR_GROK4FAST_MODEL_NAME || 'grok-4-fast-reasoning' }}
-      TF_VAR_grok3_model_name: ${{ vars.TF_VAR_GROK3_MODEL_NAME || 'grok-3' }}
-      TF_VAR_grok3mini_model_name: ${{ vars.TF_VAR_GROK3MINI_MODEL_NAME || 'grok-3-mini' }}
       TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
@@ -104,66 +112,27 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
+      # Uploads config/openclaw.batch.json to the Azure Files share, then applies
+      # it via az containerapp exec (exec 1/1). Uses only az CLI (no openclaw CLI,
+      # no device token).
+      # continue-on-error: seed failures are non-fatal — Terraform succeeded; config
+      # can be re-seeded manually with: bash scripts/seed-openclaw-config.sh dev
       - name: Seed OpenClaw Config
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          RG_NAME="${TF_VAR_project}-${TF_VAR_environment}-rg"
-          APP_NAME="${TF_VAR_project}-${TF_VAR_environment}-app"
-          # Derive storage account name: matches Terraform local openclaw_state_storage_account_name
-          STORAGE_ACCOUNT="${TF_VAR_project}${TF_VAR_environment}ocstate"
-          STORAGE_ACCOUNT="${STORAGE_ACCOUNT//-/}"
-          STORAGE_ACCOUNT="${STORAGE_ACCOUNT:0:24}"
+          chmod +x scripts/seed-openclaw-config.sh
+          bash scripts/seed-openclaw-config.sh dev
 
-          # Ensure containerapp extension is available
-          az extension add --name containerapp --only-show-errors 2>/dev/null || true
-
-          APP_FQDN=$(az containerapp show \
-            --name "$APP_NAME" \
-            --resource-group "$RG_NAME" \
-            --query "properties.configuration.ingress.fqdn" \
-            -o tsv)
-
-          STORAGE_KEY=$(az storage account keys list \
-            --account-name "$STORAGE_ACCOUNT" \
-            --resource-group "$RG_NAME" \
-            --query "[0].value" \
-            -o tsv)
-
-          export APP_FQDN
-          # Restrict substitution to APP_FQDN only to prevent runner env vars from
-          # accidentally expanding other ${VAR} references in the template.
-          trap 'rm -f /tmp/openclaw-seeded.json' EXIT
-          envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
-
-          az storage file upload \
-            --account-name "$STORAGE_ACCOUNT" \
-            --account-key "$STORAGE_KEY" \
-            --share-name "openclaw-state" \
-            --source /tmp/openclaw-seeded.json \
-            --path "openclaw.json"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Install OpenClaw CLI
-        run: |
-          npm install -g openclaw
-          openclaw --version
-
-      - name: Validate OpenClaw Health
+      # Downloads openclaw.json from Azure Files and runs openclaw config validate
+      # locally on the runner. No az containerapp exec, no gateway, no device pairing.
+      # continue-on-error: validation failure is non-fatal after a successful deploy.
+      - name: Validate OpenClaw Config
+        continue-on-error: true
         shell: bash
-        # Allow post-deploy config hot-reload before probing.
-        # AZURE_AI_API_KEY is exported so openclaw can resolve ${VAR} refs in the
-        # share config during the swap-trick model availability check.
-        env:
-          CI: "true"
-          AZURE_AI_API_KEY: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
         run: |
-          sleep 15
-          bash scripts/test-multi-model.sh dev
+          chmod +x scripts/test-openclaw-config.sh
+          bash scripts/test-openclaw-config.sh dev
 
   terraform-prod:
     name: Terraform Prod
@@ -190,19 +159,16 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.4-mini' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2026-03-17' }}
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
-      TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.2.26' }}
+      TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
       TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
       TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
       TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
       TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
-      TF_VAR_grok4fast_model_name: ${{ vars.TF_VAR_GROK4FAST_MODEL_NAME || 'grok-4-fast-reasoning' }}
-      TF_VAR_grok3_model_name: ${{ vars.TF_VAR_GROK3_MODEL_NAME || 'grok-3' }}
-      TF_VAR_grok3mini_model_name: ${{ vars.TF_VAR_GROK3MINI_MODEL_NAME || 'grok-3-mini' }}
       TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
@@ -266,60 +232,24 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
+      # Uploads config/openclaw.batch.json to the Azure Files share, then applies
+      # it via az containerapp exec (exec 1/1). Uses only az CLI (no openclaw CLI,
+      # no device token).
+      # continue-on-error: seed failures are non-fatal — Terraform succeeded; config
+      # can be re-seeded manually with: bash scripts/seed-openclaw-config.sh prod
       - name: Seed OpenClaw Config
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          RG_NAME="${TF_VAR_project}-${TF_VAR_environment}-rg"
-          APP_NAME="${TF_VAR_project}-${TF_VAR_environment}-app"
-          # Derive storage account name: matches Terraform local openclaw_state_storage_account_name
-          STORAGE_ACCOUNT="${TF_VAR_project}${TF_VAR_environment}ocstate"
-          STORAGE_ACCOUNT="${STORAGE_ACCOUNT//-/}"
-          STORAGE_ACCOUNT="${STORAGE_ACCOUNT:0:24}"
+          chmod +x scripts/seed-openclaw-config.sh
+          bash scripts/seed-openclaw-config.sh prod
 
-          # Ensure containerapp extension is available
-          az extension add --name containerapp --only-show-errors 2>/dev/null || true
-
-          APP_FQDN=$(az containerapp show \
-            --name "$APP_NAME" \
-            --resource-group "$RG_NAME" \
-            --query "properties.configuration.ingress.fqdn" \
-            -o tsv)
-
-          STORAGE_KEY=$(az storage account keys list \
-            --account-name "$STORAGE_ACCOUNT" \
-            --resource-group "$RG_NAME" \
-            --query "[0].value" \
-            -o tsv)
-
-          export APP_FQDN
-          # Restrict substitution to APP_FQDN only to prevent runner env vars from
-          # accidentally expanding other ${VAR} references in the template.
-          trap 'rm -f /tmp/openclaw-seeded.json' EXIT
-          envsubst '${APP_FQDN}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
-
-          az storage file upload \
-            --account-name "$STORAGE_ACCOUNT" \
-            --account-key "$STORAGE_KEY" \
-            --share-name "openclaw-state" \
-            --source /tmp/openclaw-seeded.json \
-            --path "openclaw.json"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Install OpenClaw CLI
-        run: |
-          npm install -g openclaw
-          openclaw --version
-
-      - name: Validate OpenClaw Health
+      # Downloads openclaw.json from Azure Files and runs openclaw config validate
+      # locally on the runner. No az containerapp exec, no gateway, no device pairing.
+      # continue-on-error: validation failure is non-fatal after a successful deploy.
+      - name: Validate OpenClaw Config
+        continue-on-error: true
         shell: bash
-        env:
-          CI: "true"
-          AZURE_AI_API_KEY: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
         run: |
-          sleep 15
-          bash scripts/test-multi-model.sh prod
+          chmod +x scripts/test-openclaw-config.sh
+          bash scripts/test-openclaw-config.sh prod

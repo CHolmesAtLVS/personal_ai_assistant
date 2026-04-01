@@ -170,10 +170,10 @@ Operational logs and telemetry are sent to Azure monitoring services for trouble
 ### First-time bootstrap
 
 1. Open a PR — CI plans and applies Terraform to dev. Terraform creates the Key Vault, generates the gateway token secret, and deploys the Container App.
-2. After `terraform apply`, the workflow's `Seed OpenClaw Config` step automatically renders `config/openclaw.json.tpl` and uploads it to the Azure Files share.
-3. The Container App starts, reads the gateway token from Key Vault via Managed Identity, and serves traffic.
+2. The Container App starts, reads the gateway token from Key Vault via Managed Identity, and serves traffic.
+3. After first deploy, seed gateway config once via CLI: `source <(./scripts/openclaw-connect.sh dev --export)` then run `openclaw config set` commands (see [`docs/openclaw-containerapp-operations.md`](docs/openclaw-containerapp-operations.md)).
 
-No manual Key Vault provisioning or config file seeding is required. See [`docs/openclaw-containerapp-operations.md`](docs/openclaw-containerapp-operations.md) for emergency recovery procedures.
+No manual Key Vault provisioning required. Config is managed exclusively via the openclaw CLI — there is no config file template or workflow seeding step.
 
 ### Image upgrades
 

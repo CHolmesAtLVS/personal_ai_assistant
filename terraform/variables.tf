@@ -48,13 +48,13 @@ variable "public_ip" {
 variable "ai_model_name" {
   description = "Name of the AI model to deploy (for example: gpt-4o)."
   type        = string
-  default     = "gpt-4o"
+  default     = "gpt-5.4-mini"
 }
 
 variable "ai_model_version" {
   description = "Version of the AI model to deploy."
   type        = string
-  default     = "2024-11-20"
+  default     = "2026-03-17"
 }
 
 variable "ai_model_capacity" {
@@ -162,41 +162,6 @@ variable "embedding_model_capacity" {
   validation {
     condition     = var.embedding_model_capacity > 0
     error_message = "embedding_model_capacity must be a number greater than zero."
-  }
-}
-
-# Grok model deployment variables (Azure AI Model Inference endpoint).
-
-variable "grok4fast_model_name" {
-  description = "Model name for grok-4-fast-reasoning, passed as AZURE_AI_DEPLOYMENT_GROK4FAST env var."
-  type        = string
-  default     = "grok-4-fast-reasoning"
-
-  validation {
-    condition     = trim(var.grok4fast_model_name, " ") != ""
-    error_message = "grok4fast_model_name must not be empty."
-  }
-}
-
-variable "grok3_model_name" {
-  description = "Model name for grok-3, passed as AZURE_AI_DEPLOYMENT_GROK3 env var."
-  type        = string
-  default     = "grok-3"
-
-  validation {
-    condition     = trim(var.grok3_model_name, " ") != ""
-    error_message = "grok3_model_name must not be empty."
-  }
-}
-
-variable "grok3mini_model_name" {
-  description = "Model name for grok-3-mini, passed as AZURE_AI_DEPLOYMENT_GROK3MINI env var."
-  type        = string
-  default     = "grok-3-mini"
-
-  validation {
-    condition     = trim(var.grok3mini_model_name, " ") != ""
-    error_message = "grok3mini_model_name must not be empty."
   }
 }
 

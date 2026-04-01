@@ -46,46 +46,25 @@ Terraform apply is triggered automatically by CI on every PR to `main` (dev) and
 ./scripts/terraform-local.sh dev apply
 ```
 
-### 1.3 Seed the Gateway Configuration File
+### 1.3 Seed the Gateway Configuration
 
-OpenClaw reads its gateway configuration from `/home/node/.openclaw/openclaw.json` on the persistent Azure Files share. The file must exist with a schema-valid baseline before the app successfully starts under strict config validation.
+OpenClaw reads its gateway configuration from `/home/node/.openclaw/openclaw.json` on the persistent Azure Files share. Config is managed exclusively via the openclaw CLI — there is no file template and no workflow seeding step.
 
-**Normal path (automated):** The `Seed OpenClaw Config` step in the `terraform-deploy.yml` workflow automatically renders `config/openclaw.json.tpl` (using `envsubst` for `${APP_FQDN}`) and uploads it to the Azure Files share after every `terraform apply`. No manual action is required for routine deployments.
-
-**Emergency recovery only:** If the automated seed step fails or the file is corrupt, use the following manual procedure to re-seed:
+**First-time seed (manual, once per environment):**
 
 ```bash
-# Replace placeholders with actual values from Terraform outputs
-STORAGE_ACCOUNT=$(terraform -chdir=terraform output -raw openclaw_state_storage_account_name)
-SHARE_NAME=$(terraform -chdir=terraform output -raw openclaw_state_file_share_name)
+# Load remote gateway credentials
+source <(./scripts/openclaw-connect.sh dev --export)
 
-# Retrieve the storage account key
-STORAGE_KEY=$(az storage account keys list \
-  --account-name "$STORAGE_ACCOUNT" \
-  --resource-group "<env-resource-group>" \
-  --query "[0].value" --output tsv)
-
-# Retrieve the Container App FQDN
-APP_FQDN=$(az containerapp show \
-  --name "<app-name>" \
-  --resource-group "<env-resource-group>" \
-  --query "properties.configuration.ingress.fqdn" -o tsv)
-
-# Render and upload (mirrors the automated workflow step)
-export APP_FQDN
-envsubst < config/openclaw.json.tpl > /tmp/openclaw.json
-
-az storage file upload \
-  --account-name "$STORAGE_ACCOUNT" \
-  --account-key "$STORAGE_KEY" \
-  --share-name "$SHARE_NAME" \
-  --source /tmp/openclaw.json \
-  --path "openclaw.json"
-
-rm /tmp/openclaw.json
+# Set required config values — gateway settings, model provider, agent defaults.
+# Use container exec for values that require remote write (see openclaw-cli skill for full command list).
+az containerapp exec --name paa-dev-app --resource-group paa-dev-rg \
+  --command "node /app/openclaw.mjs config set agents.defaults.model.primary azure-openai/gpt-5"
 ```
 
-> **Canonical source of truth:** `config/openclaw.json.tpl` in the repository is the authoritative template. The `${APP_FQDN}` placeholder is substituted at deploy time. `gateway.auth.token` is intentionally absent — the KV-injected `OPENCLAW_GATEWAY_TOKEN` env var supplies it.
+See `config/openclaw.batch.json` for the full set of config paths and values. Apply each path with `az containerapp exec` + `node /app/openclaw.mjs config set <path> <value>`.
+
+**Recovery:** If config is lost or corrupt, re-apply all paths from `config/openclaw.batch.json` using the same exec approach. Use `openclaw doctor --fix` to repair schema violations.
 
 #### Schema reference
 
@@ -100,11 +79,7 @@ All fields below are required for `bind=lan` operation. An invalid or missing `o
 | `gateway.controlUi.allowedOrigins` | Non-empty array of `https://` URIs | Required when `bind=lan`; an empty array `[]` causes a gateway startup failure. |
 | `gateway.auth.token` | string | Optional when `OPENCLAW_GATEWAY_TOKEN` env var is set (KV-injected); env var takes priority. |
 
-> **Security note:** In the canonical deployment, `gateway.auth.token` is intentionally omitted from `config/openclaw.json.tpl`. The token is supplied via the `OPENCLAW_GATEWAY_TOKEN` environment variable injected from Key Vault and never written to disk. If you explicitly add `gateway.auth.token` to `openclaw.json` (for testing or non-standard setups), be aware that this file is stored on the Azure Files share. By default, `public_network_access_enabled = true`, so the share is reachable from the public internet for callers with the storage account key or a valid SAS token. There is no anonymous access, and access is additionally constrained by the Container Apps Environment network boundary. For stronger network isolation, update the storage account Terraform configuration to disable public network access and/or use private endpoints.
-
-#### Rollback for config seed step
-
-If the config file was seeded with incorrect values, re-upload the corrected file using the same `az storage file upload` command. The Container App will pick up the new config on the next restart or revision deployment.
+> **Security note:** `gateway.auth.token` is supplied via the `OPENCLAW_GATEWAY_TOKEN` environment variable injected from Key Vault and never written to disk. If you explicitly set `gateway.auth.token` via `openclaw config set` (for testing or non-standard setups), be aware that this value is stored in `openclaw.json` on the Azure Files share.
 
 ---
 
@@ -136,39 +111,44 @@ az containerapp revision restart \
 
 ## 3. Gateway Configuration Updates
 
-To update gateway settings (for example, adding an allowed origin):
+The `openclaw` CLI is the primary interface for updating runtime config — it edits the gateway configuration in place with no file download required.
+
+### Prerequisites
+
+Load the CLI connection for your shell session:
 
 ```bash
-STORAGE_ACCOUNT=$(terraform -chdir=terraform output -raw openclaw_state_storage_account_name)
-SHARE_NAME=$(terraform -chdir=terraform output -raw openclaw_state_file_share_name)
-STORAGE_KEY=$(az storage account keys list \
-  --account-name "$STORAGE_ACCOUNT" \
-  --resource-group "<env-resource-group>" \
-  --query "[0].value" --output tsv)
-
-# Download, edit, re-upload
-az storage file download \
-  --account-name "$STORAGE_ACCOUNT" \
-  --account-key "$STORAGE_KEY" \
-  --share-name "$SHARE_NAME" \
-  --path "openclaw.json" \
-  --dest /tmp/openclaw.json
-
-# Edit /tmp/openclaw.json with desired changes, validate JSON, then re-upload
-python3 -m json.tool /tmp/openclaw.json > /dev/null && echo "JSON valid"
-
-az storage file upload \
-  --account-name "$STORAGE_ACCOUNT" \
-  --account-key "$STORAGE_KEY" \
-  --share-name "$SHARE_NAME" \
-  --source /tmp/openclaw.json \
-  --path "openclaw.json"
-rm /tmp/openclaw.json
+source <(./scripts/openclaw-connect.sh dev --export)
 ```
 
-After re-uploading the config, restart the Container App revision for the changes to take effect.
+If your device is not yet approved, approve it before proceeding:
 
-For `controlUi.allowedOrigins` updates, edit `config/openclaw.json.tpl` in the repo and open a PR — the `Seed OpenClaw Config` workflow step will render and upload the updated config automatically after `terraform apply`.
+```bash
+openclaw devices list                   # find pending requestId
+openclaw devices approve <requestId>
+```
+
+### Update Configuration
+
+```bash
+# Read the current value
+openclaw config get gateway.controlUi.allowedOrigins
+
+# Update a single setting
+openclaw config set gateway.controlUi.allowedOrigins[0] "https://new-fqdn.example.com"
+
+# Interactive wizard — use for multi-field or structured changes
+openclaw configure
+openclaw configure --section gateway    # scoped to gateway settings only
+```
+
+**Hot-reload vs. restart:** Channel, model, agent, and routing changes take effect immediately. Changes to `gateway.*` settings (port, bind, auth) require a container revision restart — confirm with the user before triggering.
+
+> **Never download `openclaw.json` to `/tmp` for manual editing.** Local file edits are not applied to the remote gateway and bypass openclaw's config validation, hot-reload, and audit trail. Use the CLI exclusively.
+
+### Keeping Config in Sync
+
+`config/openclaw.batch.json` documents the canonical config paths and values. For persistent structural changes (for example, adding a new model or updating `controlUi.allowedOrigins`), update `config/openclaw.batch.json` in the repo and re-apply the changed paths via `az containerapp exec` so the batch file stays current with the live gateway.
 
 ---
 
@@ -366,7 +346,24 @@ az rest --method GET \
 
 #### G — Config file inspection
 
-Downloads `openclaw.json` from the Azure Files share. **Redact `auth.token` before sharing output. Delete the local copy immediately.**
+Read current config values via the CLI — no file download needed.
+
+```bash
+# Load CLI connection first
+source <(./scripts/openclaw-connect.sh dev --export)
+
+# Read specific values
+openclaw config get gateway.mode
+openclaw config get gateway.port
+openclaw config get gateway.auth.mode
+
+# Full snapshot (tokens redacted — safe to share)
+openclaw status --all
+```
+
+Valid values: `gateway.mode` must be `"local"` or `"remote"` (`"server"` is **not** valid). Port must be `18789`.
+
+**Emergency fallback only (when the gateway is down and the CLI cannot connect):** Download the config directly from storage for read-only inspection, then delete immediately:
 
 ```bash
 STORAGE_KEY=$(az storage account keys list \
@@ -384,8 +381,6 @@ az storage file download \
 cat /tmp/openclaw.json   # Verify gateway.mode, port, auth.mode
 rm /tmp/openclaw.json    # Delete immediately — never leave on disk
 ```
-
-Valid values: `gateway.mode` must be `"local"` or `"remote"` (`"server"` is **not** valid). Port must be `18789`.
 
 #### H — Identity role assignments
 
@@ -427,7 +422,8 @@ All tools used during the 2026-03-30 incident.
 | `az rest GET .../detectors/containerappscontainerexitevents` | Exit code summary, backoff-restart counts, last error type | Undocumented API; time-windowed results |
 | `az rest GET .../detectors/containerappsstoragemountfailures` | Confirms whether Azure Files mount failures contributed | Undocumented API; clean result rules out storage |
 | `az containerapp env storage show` | Verify the Azure Files share binding exists and is configured | — |
-| `az storage file list / download` | Inspect `openclaw.json` on the persistent share | Requires storage account key; delete local copy after use |
+| `openclaw config get <key>` | Read live config values from the remote gateway — **primary method** | Requires CLI connected to remote gateway (`source scripts/openclaw-connect.sh dev --export`) |
+| `az storage file list / download` | Emergency fallback: inspect `openclaw.json` directly when CLI cannot connect | Requires storage account key; for read-only inspection; delete local copy immediately after use |
 | `docker inspect <image>` | Reveal `Entrypoint`, `Cmd`, and env vars baked into the image | Requires docker CLI and image pull access |
 | `docker run --rm <image> sh -c "grep -r ..."` | Search bundled JS for valid config schema values | Used to discover `gateway.mode` valid values |
 | `az monitor log-analytics query` | Full KQL queries against Container App console logs | **Blocked by prod NSP** — not usable from outside Azure |

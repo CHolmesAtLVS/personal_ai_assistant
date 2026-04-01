@@ -10,6 +10,12 @@ output "container_app_fqdn" {
   value       = module.container_app.fqdn_url
 }
 
+output "azure_openai_endpoint" {
+  description = "Azure OpenAI Legacy API endpoint URL (openai.azure.com) for the AI Services account."
+  sensitive   = true
+  value       = local.azure_openai_endpoint
+}
+
 output "ai_services_endpoint" {
   description = "Endpoint URL for the AI Services account."
   sensitive   = true
@@ -29,25 +35,4 @@ output "openclaw_state_file_share_name" {
 output "embedding_deployment_name" {
   description = "Deployment name for the text embedding model (driven by var.embedding_model_name)."
   value       = var.embedding_model_name
-}
-
-output "grok4fast_model_name" {
-  description = "Model name used when routing requests to grok-4-fast-reasoning via the Azure AI Model Inference endpoint (MaaS — not a Cognitive Services account deployment)."
-  value       = var.grok4fast_model_name
-}
-
-output "grok3_model_name" {
-  description = "Model name used when routing requests to grok-3 via the Azure AI Model Inference endpoint (MaaS — not a Cognitive Services account deployment)."
-  value       = var.grok3_model_name
-}
-
-output "grok3mini_model_name" {
-  description = "Model name used when routing requests to grok-3-mini via the Azure AI Model Inference endpoint (MaaS — not a Cognitive Services account deployment)."
-  value       = var.grok3mini_model_name
-}
-
-output "ai_inference_endpoint" {
-  description = "Azure AI Model Inference endpoint URL for Grok models."
-  sensitive   = true
-  value       = local.ai_inference_endpoint
 }

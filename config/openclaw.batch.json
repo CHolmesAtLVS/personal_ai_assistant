@@ -1,0 +1,31 @@
+[
+  { "path": "gateway.mode",           "value": "local" },
+  { "path": "gateway.port",           "value": 18789 },
+  { "path": "gateway.bind",           "value": "lan" },
+  { "path": "gateway.auth.mode",      "value": "token" },
+  { "path": "gateway.auth.token",     "value": "${OPENCLAW_GATEWAY_TOKEN}" },
+
+  { "path": "models.providers.azure-openai.baseUrl", "value": "${AZURE_OPENAI_ENDPOINT}/openai/v1/" },
+  { "path": "models.providers.azure-openai.apiKey",  "value": "${AZURE_AI_API_KEY}" },
+  { "path": "models.providers.azure-openai.api",     "value": "openai-completions" },
+  { "path": "models.providers.azure-openai.models",  "value": [
+      {
+        "id":            "gpt-5.4-mini",
+        "name":          "gpt-5.4-mini",
+        "input":         ["text", "image"],
+        "contextWindow": 128000,
+        "maxTokens":     16384
+      }
+  ]},
+
+  { "path": "tools.profile",          "value": "full" },
+  { "path": "update.checkOnStart",    "value": false },
+
+  { "path": "agents.defaults.model.primary",   "value": "azure-openai/gpt-5.4-mini" },
+  { "path": "agents.defaults.model.fallbacks", "value": [] },
+
+  { "path": "agents.defaults.memorySearch.provider",           "value": "openai" },
+  { "path": "agents.defaults.memorySearch.remote.baseUrl",     "value": "${AZURE_OPENAI_ENDPOINT}/openai/v1/" },
+  { "path": "agents.defaults.memorySearch.remote.apiKey",      "value": "${AZURE_AI_API_KEY}" },
+  { "path": "agents.defaults.memorySearch.model",              "value": "text-embedding-3-large" }
+]

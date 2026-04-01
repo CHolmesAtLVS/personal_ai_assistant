@@ -10,6 +10,20 @@ This document covers operational procedures for the OpenClaw Container App runti
 
 > **Environment safety:** Unless performing an authorized production incident response, always execute these procedures against the **dev** environment first. Validate the outcome in dev before applying to prod. AI agents must only be directed to operate against dev resources; do not supply production resource names to an AI agent during a troubleshooting or debugging session.
 
+## Terraform Outputs Reference
+
+Key outputs from `terraform output` used throughout these procedures:
+
+| Output | Description | Sensitive |
+| ------ | ----------- | --------- |
+| `container_app_fqdn` | FQDN of the deployed OpenClaw Container App | yes |
+| `ai_services_endpoint` | Endpoint URL of the AI Services account | yes |
+| `acr_login_server` | ACR login server (null in non-prod) | yes |
+| `openclaw_state_storage_account_name` | Storage account name hosting the OpenClaw state Azure Files share | no |
+| `openclaw_state_file_share_name` | Azure Files share name mounted to `/home/node/.openclaw` | no |
+
+Retrieve a value with: `terraform -chdir=terraform output -raw <output_name>`
+
 ---
 
 ## 1. First-Time Bootstrap

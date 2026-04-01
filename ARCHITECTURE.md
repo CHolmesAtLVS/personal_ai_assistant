@@ -67,7 +67,7 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 ### AI and Observability
 
 - Azure AI Services account (Cognitive Services) with an AI Foundry Hub and Project: provides the LLM model deployment endpoint consumed by OpenClaw
-- Model deployments: `text-embedding-3-large` (embeddings, Azure OpenAI endpoint); `grok-4-fast-reasoning` (primary chat), `grok-3` (fallback), `grok-3-mini` (lightweight) served via the Azure AI Model Inference endpoint (`services.ai.azure.com/models`). Legacy `gpt-4o` deployment retained until Grok is validated in dev.
+- Model deployments: `text-embedding-3-large` (embeddings, Azure OpenAI endpoint); `gpt-5.4-mini` (primary chat, version `2026-03-17`) via the Azure OpenAI endpoint.
 - Primary chat model: `grok-4-fast-reasoning` — set in `openclaw.json` via `agents.defaults.model.primary`; falls back to `grok-3`
 - Log Analytics Workspace (`${project}-${environment}-law`): 30-day retention; receives diagnostics from Key Vault, ACR (prod), and the Container Apps Environment
 

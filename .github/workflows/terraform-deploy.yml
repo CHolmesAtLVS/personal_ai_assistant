@@ -17,7 +17,6 @@ on:
     types: [opened, synchronize, reopened, closed]
     paths:
       - "terraform/**"
-      - "config/openclaw.json.tpl"
       - "scripts/bootstrap-tfstate.sh"
       - ".github/workflows/terraform-deploy.yml"
 
@@ -49,8 +48,8 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.4-mini' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2026-03-17' }}
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
@@ -112,73 +111,6 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
-      - name: Seed OpenClaw Config
-        shell: bash
-        run: |
-          set -euo pipefail
-          RG_NAME="${TF_VAR_project}-${TF_VAR_environment}-rg"
-          APP_NAME="${TF_VAR_project}-${TF_VAR_environment}-app"
-          # Derive storage account name: matches Terraform local openclaw_state_storage_account_name
-          STORAGE_ACCOUNT="${TF_VAR_project}${TF_VAR_environment}ocstate"
-          STORAGE_ACCOUNT="${STORAGE_ACCOUNT//-/}"
-          STORAGE_ACCOUNT="${STORAGE_ACCOUNT:0:24}"
-
-          # Ensure containerapp extension is available
-          az extension add --name containerapp --only-show-errors 2>/dev/null || true
-
-          APP_FQDN=$(az containerapp show \
-            --name "$APP_NAME" \
-            --resource-group "$RG_NAME" \
-            --query "properties.configuration.ingress.fqdn" \
-            -o tsv)
-
-          STORAGE_KEY=$(az storage account keys list \
-            --account-name "$STORAGE_ACCOUNT" \
-            --resource-group "$RG_NAME" \
-            --query "[0].value" \
-            -o tsv)
-
-          # Resolve endpoint URL from Terraform output; deployment names come from TF_VAR_* env vars.
-          AZURE_OPENAI_ENDPOINT=$(terraform -chdir=terraform output -raw azure_openai_endpoint)
-          AZURE_OPENAI_DEPLOYMENT_CHAT="${TF_VAR_ai_model_name}"
-          AZURE_OPENAI_DEPLOYMENT_EMBEDDING="${TF_VAR_embedding_model_name}"
-          export APP_FQDN AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT_CHAT AZURE_OPENAI_DEPLOYMENT_EMBEDDING
-          # Substitute endpoint URLs and deployment names at seed time.
-          # apiKey refs (${AZURE_AI_API_KEY}, ${OPENCLAW_GATEWAY_TOKEN}) are left for runtime resolution.
-          trap 'rm -f /tmp/openclaw-seeded.json' EXIT
-          envsubst '${APP_FQDN} ${AZURE_OPENAI_ENDPOINT} ${AZURE_OPENAI_DEPLOYMENT_CHAT} ${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
-          # Validate strict JSON before upload (fails fast if template drift introduced comments)
-          jq empty /tmp/openclaw-seeded.json
-
-          az storage file upload \
-            --account-name "$STORAGE_ACCOUNT" \
-            --account-key "$STORAGE_KEY" \
-            --share-name "openclaw-state" \
-            --source /tmp/openclaw-seeded.json \
-            --path "openclaw.json"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Install OpenClaw CLI
-        run: |
-          npm install -g openclaw
-          openclaw --version
-
-      - name: Validate OpenClaw Health
-        shell: bash
-        # Allow post-deploy config hot-reload before probing.
-        # AZURE_AI_API_KEY is exported so openclaw can resolve ${AZURE_AI_API_KEY} refs
-        # left in the share config (only apiKey fields remain for runtime resolution).
-        env:
-          CI: "true"
-          AZURE_AI_API_KEY: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
-        run: |
-          sleep 15
-          bash scripts/test-multi-model.sh dev
-
   terraform-prod:
     name: Terraform Prod
     if: github.event.pull_request.merged == true && github.base_ref == 'main'
@@ -204,8 +136,8 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.4-mini' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2026-03-17' }}
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
@@ -276,69 +208,3 @@ jobs:
 
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
-
-      - name: Seed OpenClaw Config
-        shell: bash
-        run: |
-          set -euo pipefail
-          RG_NAME="${TF_VAR_project}-${TF_VAR_environment}-rg"
-          APP_NAME="${TF_VAR_project}-${TF_VAR_environment}-app"
-          # Derive storage account name: matches Terraform local openclaw_state_storage_account_name
-          STORAGE_ACCOUNT="${TF_VAR_project}${TF_VAR_environment}ocstate"
-          STORAGE_ACCOUNT="${STORAGE_ACCOUNT//-/}"
-          STORAGE_ACCOUNT="${STORAGE_ACCOUNT:0:24}"
-
-          # Ensure containerapp extension is available
-          az extension add --name containerapp --only-show-errors 2>/dev/null || true
-
-          APP_FQDN=$(az containerapp show \
-            --name "$APP_NAME" \
-            --resource-group "$RG_NAME" \
-            --query "properties.configuration.ingress.fqdn" \
-            -o tsv)
-
-          STORAGE_KEY=$(az storage account keys list \
-            --account-name "$STORAGE_ACCOUNT" \
-            --resource-group "$RG_NAME" \
-            --query "[0].value" \
-            -o tsv)
-
-          # Resolve endpoint URL from Terraform output; deployment names come from TF_VAR_* env vars.
-          AZURE_OPENAI_ENDPOINT=$(terraform -chdir=terraform output -raw azure_openai_endpoint)
-          AZURE_OPENAI_DEPLOYMENT_CHAT="${TF_VAR_ai_model_name}"
-          AZURE_OPENAI_DEPLOYMENT_EMBEDDING="${TF_VAR_embedding_model_name}"
-          export APP_FQDN AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT_CHAT AZURE_OPENAI_DEPLOYMENT_EMBEDDING
-          # Substitute endpoint URLs and deployment names at seed time.
-          # apiKey refs (${AZURE_AI_API_KEY}, ${OPENCLAW_GATEWAY_TOKEN}) are left for runtime resolution.
-          trap 'rm -f /tmp/openclaw-seeded.json' EXIT
-          envsubst '${APP_FQDN} ${AZURE_OPENAI_ENDPOINT} ${AZURE_OPENAI_DEPLOYMENT_CHAT} ${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
-          # Validate strict JSON before upload (fails fast if template drift introduced comments)
-          jq empty /tmp/openclaw-seeded.json
-
-          az storage file upload \
-            --account-name "$STORAGE_ACCOUNT" \
-            --account-key "$STORAGE_KEY" \
-            --share-name "openclaw-state" \
-            --source /tmp/openclaw-seeded.json \
-            --path "openclaw.json"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Install OpenClaw CLI
-        run: |
-          npm install -g openclaw
-          openclaw --version
-
-      - name: Validate OpenClaw Health
-        shell: bash
-        # AZURE_AI_API_KEY is exported so openclaw can resolve ${AZURE_AI_API_KEY} refs
-        # left in the share config (only apiKey fields remain for runtime resolution).
-        env:
-          CI: "true"
-          AZURE_AI_API_KEY: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
-        run: |
-          sleep 15
-          bash scripts/test-multi-model.sh prod

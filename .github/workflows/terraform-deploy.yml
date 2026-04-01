@@ -1,7 +1,7 @@
 name: Terraform Deploy
 
 # Triggers:
-# - pull_request (opened/synchronize/reopened): plan + apply to dev environment.
+# - pull_request (opened/synchronize/reopened): plan + apply to dev; plan-only to prod (pre-merge visibility).
 # - pull_request (closed + merged to main): plan + apply to prod environment.
 on:
   workflow_dispatch:
@@ -142,6 +142,104 @@ jobs:
         run: |
           chmod +x scripts/seed-openclaw-ci.sh
           bash scripts/seed-openclaw-ci.sh dev
+
+  # Runs terraform plan against the prod environment on every PR — before merge.
+  # Surfaces prod-specific validation failures (variable errors, provider issues,
+  # state drift) while the PR is still open and can be fixed without merging.
+  # Plan-only: no apply or config seed runs until the PR is merged.
+  terraform-prod-plan:
+    name: Terraform Prod (Plan)
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      TFSTATE_RG: ${{ secrets.TFSTATE_RG }}
+      TFSTATE_LOCATION: ${{ secrets.TFSTATE_LOCATION }}
+      TFSTATE_STORAGE_ACCOUNT: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
+      TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
+      TFSTATE_KEY: terraform-prod.tfstate
+      TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
+      TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
+      TF_VAR_environment: prod
+      TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
+      TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
+      TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.4-mini' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2026-03-17' }}
+      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
+      TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
+      TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
+      TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
+      TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
+      TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
+      TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
+      TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
+      TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${TF_VAR_azure_ai_api_key:-}" ]]; then
+            echo "::error::TF_VAR_AZURE_AI_API_KEY is empty or not set in the GitHub 'prod' Environment secrets."
+            echo "  This secret must contain the Azure AI Foundry account API key."
+            echo "  It must be non-empty on every Terraform plan or apply (not just first apply)."
+            echo "  Set it at: GitHub repository → Settings → Environments → prod → Secrets"
+            echo "  See docs/secrets-inventory.md for the full secrets inventory."
+            exit 1
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.12"
+
+      - name: Azure Login (Service Principal)
+        shell: bash
+        run: |
+          set -euo pipefail
+          az login --service-principal \
+            --username "$AZURE_CLIENT_ID" \
+            --password "$AZURE_CLIENT_SECRET" \
+            --tenant "$AZURE_TENANT_ID" \
+            --output none
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
+      - name: Bootstrap Terraform Backend
+        shell: bash
+        run: |
+          chmod +x scripts/bootstrap-tfstate.sh
+          ./scripts/bootstrap-tfstate.sh
+
+      - name: Terraform Fmt
+        run: terraform -chdir=terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: |
+          terraform -chdir=terraform init \
+            -backend-config="resource_group_name=${TFSTATE_RG}" \
+            -backend-config="storage_account_name=${TFSTATE_STORAGE_ACCOUNT}" \
+            -backend-config="container_name=${TFSTATE_CONTAINER}" \
+            -backend-config="key=${TFSTATE_KEY}"
+
+      - name: Terraform Validate
+        run: terraform -chdir=terraform validate
+
+      - name: Terraform Plan
+        run: terraform -chdir=terraform plan -input=false -out=tfplan
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-prod-premerge
+          path: terraform/tfplan
 
   terraform-prod:
     name: Terraform Prod

@@ -53,7 +53,8 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 - Managed Identity: preferred authentication path to Azure services; a single User-Assigned Managed Identity is attached to the Container App
 - Azure Key Vault (RBAC mode, admin-disabled): secret values outside code; legacy access policies disabled
 - Runtime configuration injection: non-secret settings (e.g. `AZURE_OPENAI_ENDPOINT`) injected as container environment variables at deployment time by Terraform
-- AI API keys are not used or stored anywhere; the Container App authenticates to AI Services exclusively via Managed Identity
+- AI authentication: Managed Identity is used where supported (Azure OpenAI embedding endpoint via `Cognitive Services OpenAI User` role). The Azure AI Model Inference endpoint (used for Grok/xAI MaaS models) does not yet support Managed Identity in OpenClaw's `azure-foundry` provider; it uses an API key stored in Key Vault (`azure-ai-api-key`) and injected at runtime via secret reference. Managed Identity coverage for that endpoint is a planned improvement.
+- The Azure AI Foundry API key must be provided on every Terraform apply via `TF_VAR_azure_ai_api_key` (GitHub Secret: `TF_VAR_AZURE_AI_API_KEY`); the `lifecycle { ignore_changes = [value] }` rule prevents the Key Vault secret value from being overwritten, but Terraform variable validation still runs and will reject an empty value.
 
 #### Managed Identity Role Assignments
 

@@ -24,7 +24,7 @@
 #
 # Constraints:
 #   - az containerapp exec is rate-limited (~5 sessions per 10 min; HTTP 429 = wait 10 min)
-#   - This script uses 1 exec session (backup create).
+#   - This script uses 2 exec sessions (backup create + cp to share).
 #   - Backup output path /mnt/openclaw-backup is outside /home/node/.openclaw (state mount)
 #     to satisfy OpenClaw's requirement that the output path not include the source tree.
 #   - SEC-001: Storage keys retrieved at runtime are ephemeral; never logged or stored.
@@ -82,17 +82,28 @@ fi
 echo "BACKUP: storage key retrieved"
 
 # ── Step 2: Run backup via PTY exec ──────────────────────────────────────────────
-# Staging strategy: OpenClaw backup writes to /tmp/oc-backup-staging (local tmpfs)
-# rather than directly to /mnt/openclaw-backup (Azure Files SMB). This avoids an
-# EPERM from copy_file_range on CIFS: Node.js fs.copyFile() uses copy_file_range
-# which Azure Files SMB returns EPERM for, and libuv does not fall back on EPERM
-# (only ENOTSUP/ENOSYS/EXDEV). After --verify succeeds on tmp, GNU cp transfers
-# the archive to the Azure Files share using its own fallback read+write path.
-BACKUP_STAGING="/tmp/oc-backup-staging"
-BACKUP_EXEC_CMD="rm -rf ${BACKUP_STAGING} && mkdir -p ${BACKUP_STAGING} && node /app/openclaw.mjs backup create --output ${BACKUP_STAGING} --verify && cp ${BACKUP_STAGING}/*.tar.gz ${BACKUP_MOUNT}/"
-echo "BACKUP: running backup create --verify then cp to share (exec 1/1)..."
+# Two-exec strategy (mirrors seed-openclaw-ci.sh pattern):
+#
+#   Exec 1/2 — backup create to /tmp:
+#     OpenClaw writes the archive to /tmp (local tmpfs), NOT directly to
+#     /mnt/openclaw-backup (Azure Files SMB). This avoids EPERM from
+#     copy_file_range on CIFS: Node.js fs.copyFile() uses copy_file_range;
+#     Azure Files SMB returns EPERM for it; libuv does NOT fall back on EPERM
+#     (only ENOTSUP/ENOSYS/EXDEV). All output is captured for archive name
+#     extraction. This exec must be a single command — && chains in exec
+#     suppress all output past the first command.
+#
+#   Exec 2/2 — cp to backup share:
+#     After --verify succeeds on /tmp, GNU cp transfers the archive to the
+#     Azure Files share. cp falls back gracefully from copy_file_range EPERM
+#     to read+write. Runs only if exec 1 succeeded.
+#
+# Exec budget: 2 sessions per backup run. Combined with seed script (2), peak = 4/5.
+BACKUP_STAGING="/tmp"
+
+echo "BACKUP: running backup create --verify (exec 1/2)..."
 BACKUP_EXIT=0
-BACKUP_OUTPUT=$(pty_exec "${BACKUP_EXEC_CMD}" 2>&1) || BACKUP_EXIT=$?
+BACKUP_OUTPUT=$(pty_exec "node /app/openclaw.mjs backup create --output ${BACKUP_STAGING} --verify" 2>&1) || BACKUP_EXIT=$?
 
 # Print output for CI log visibility regardless of outcome
 echo "${BACKUP_OUTPUT}"
@@ -128,7 +139,18 @@ else
   echo "BACKUP: archive created: ${ARCHIVE_NAME}"
 fi
 
-# ── Step 3: Prune old archives ────────────────────────────────────────────────────
+# ── Step 2b: Copy verified archive to backup share (exec 2/2) ────────────────────
+echo "BACKUP: copying archive to backup share (exec 2/2)..."
+COPY_EXIT=0
+COPY_OUTPUT=$(pty_exec "cp ${BACKUP_STAGING}/*-openclaw-backup.tar.gz ${BACKUP_MOUNT}/ 2>&1" 2>&1) || COPY_EXIT=$?
+echo "${COPY_OUTPUT}"
+if (( COPY_EXIT != 0 )); then
+  echo "ERROR: cp of archive to backup share failed with exit code ${COPY_EXIT}" >&2
+  exit "${COPY_EXIT}"
+fi
+echo "BACKUP: archive copied to ${BACKUP_MOUNT}"
+
+
 prune_archives() {
   local today_epoch
   today_epoch=$(date -u +%s)

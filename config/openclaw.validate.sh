@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# openclaw.validate.sh — OpenClaw config validation script.
+# openclaw.validate.sh — OpenClaw config validation script (local / docker exec use).
 #
-# Uploaded to the Azure Files share and executed inside the container by
-# test-openclaw-config.sh via az containerapp exec.
+# Run this script directly inside the container via docker exec or an interactive
+# shell. Do NOT use this file via az containerapp exec — that command tries to
+# allocate a TTY via termios.tcgetattr() and raises ENOTTY (errno 25) when the
+# CI runner has no TTY. Use test-openclaw-config.sh instead, which calls
+# `node /app/openclaw.mjs` directly (no TTY required).
 #
 # Uses `node /app/openclaw.mjs` (the in-container openclaw binary) directly.
 # Do not edit paths — they are container-internal.

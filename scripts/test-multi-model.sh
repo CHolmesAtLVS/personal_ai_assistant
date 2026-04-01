@@ -62,8 +62,8 @@ SHARE_NAME="openclaw-state"
 
 # ── Expected values ────────────────────────────────────────────────────────────
 EXPECTED_EMBEDDING_DEPLOYMENT="text-embedding-3-large"
-EXPECTED_CHAT_DEPLOYMENT="gpt-4o"
-EXPECTED_PRIMARY_MODEL="azure-openai/gpt-4o"
+EXPECTED_CHAT_DEPLOYMENT="gpt-5.4-mini"
+EXPECTED_PRIMARY_MODEL="azure-openai/gpt-5.4-mini"
 
 EXPECTED_ENV_VARS=(
   "AZURE_OPENAI_ENDPOINT"
@@ -675,10 +675,10 @@ if [[ -z "${API_KEY}" ]]; then
   echo "APIKEY_FAIL: AZURE_AI_API_KEY env var is empty or not set"; exit 1
 fi
 DEPLOYMENT="${AZURE_OPENAI_DEPLOYMENT_CHAT:-}"
-BASE="${AZURE_OPENAI_ENDPOINT}/openai/v1/chat/completions"
+BASE="${AZURE_OPENAI_ENDPOINT}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=2024-06-01"
 test_model() {
   local model="$1" label="$2"
-  local payload="{\"model\":\"${model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_tokens\":20}"
+  local payload="{\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_completion_tokens\":20}"
   HTTP=$(curl -s -o /tmp/inf_resp.json -w "%{http_code}" --max-time 45 \
     -X POST "${BASE}" \
     -H "api-key: ${API_KEY}" \

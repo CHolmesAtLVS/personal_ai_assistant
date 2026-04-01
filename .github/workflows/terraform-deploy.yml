@@ -112,38 +112,17 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
-      # Downloads openclaw.json from the Azure Files share, applies config/openclaw.batch.json
-      # locally using the openclaw CLI (OPENCLAW_CONFIG_PATH=<tmp>), validates, then uploads
-      # the result back. The gateway hot-reloads from the share mount — no az containerapp
-      # exec required. No gateway connection, no device pairing.
+      # Uploads config/openclaw.batch.json to Azure Files, applies and validates it
+      # inside the running container via az containerapp exec + script(1) PTY workaround.
+      # Uses node /app/openclaw.mjs directly — no openclaw CLI on the runner needed.
       # continue-on-error: seed failures are non-fatal — Terraform succeeded; config
-      # can be re-seeded manually with: bash scripts/seed-openclaw-config.sh dev
+      # can be re-seeded manually with: bash scripts/seed-openclaw-ci.sh dev
       - name: Seed OpenClaw Config
         continue-on-error: true
         shell: bash
         run: |
-          chmod +x scripts/seed-openclaw-config.sh
-          bash scripts/seed-openclaw-config.sh dev
-
-      # Runs openclaw config validate inside the running container via az containerapp exec.
-      # Uses script(1) to allocate a pseudo-TTY, bypassing the ENOTTY (errno 25) error
-      # that az containerapp exec raises in CI when no TTY is present.
-      # script(1) is provided by the util-linux package, available on ubuntu-latest runners.
-      # continue-on-error: validate failure is informational — seed already succeeded.
-      - name: Validate OpenClaw Config
-        continue-on-error: true
-        shell: bash
-        run: |
-          PROJECT="${TF_VAR_project:-paa}"
-          APP_NAME="${PROJECT}-dev-app"
-          RG_NAME="${PROJECT}-dev-rg"
-          echo "VALIDATE: running openclaw config validate via exec+pty on ${APP_NAME}"
-          script -q -c "
-            az containerapp exec \
-              --name ${APP_NAME} \
-              --resource-group ${RG_NAME} \
-              --command 'node /app/openclaw.mjs config validate'
-          " /dev/null | tr -d '\r' || true
+          chmod +x scripts/seed-openclaw-ci.sh
+          bash scripts/seed-openclaw-ci.sh dev
 
   terraform-prod:
     name: Terraform Prod

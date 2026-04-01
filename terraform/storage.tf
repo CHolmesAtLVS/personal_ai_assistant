@@ -27,3 +27,18 @@ resource "azurerm_container_app_environment_storage" "openclaw_state" {
   share_name                   = azurerm_storage_share.openclaw_state.name
   access_mode                  = "ReadWrite"
 }
+
+resource "azurerm_storage_share" "openclaw_backup" {
+  name               = local.openclaw_backup_file_share_name
+  storage_account_id = azurerm_storage_account.openclaw_state.id
+  quota              = var.openclaw_backup_share_quota_gb
+}
+
+resource "azurerm_container_app_environment_storage" "openclaw_backup" {
+  name                         = "openclaw-backup"
+  container_app_environment_id = module.container_apps_environment.resource_id
+  account_name                 = azurerm_storage_account.openclaw_state.name
+  access_key                   = azurerm_storage_account.openclaw_state.primary_access_key
+  share_name                   = azurerm_storage_share.openclaw_backup.name
+  access_mode                  = "ReadWrite"
+}

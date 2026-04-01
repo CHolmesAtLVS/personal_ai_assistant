@@ -118,6 +118,17 @@ variable "openclaw_state_share_quota_gb" {
   }
 }
 
+variable "openclaw_backup_share_quota_gb" {
+  description = "Quota in GiB for the Azure Files share mounted at /mnt/openclaw-backup (backup output)."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.openclaw_backup_share_quota_gb >= 1 && var.openclaw_backup_share_quota_gb <= 102400
+    error_message = "openclaw_backup_share_quota_gb must be between 1 and 102400."
+  }
+}
+
 variable "monthly_budget_amount" {
   description = "Monthly USD budget cap for the OpenClaw resource group."
   type        = number

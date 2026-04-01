@@ -56,8 +56,8 @@ Configure these as environment variables (`vars`) in both `dev` and `prod` GitHu
 - `main` push events use `prod` environment secrets/vars and remain subject to prod environment protections.
 
 > **⚠️ TF_VAR_AZURE_AI_API_KEY must be set in both GitHub Environments before any Terraform apply.**
-> Although the `azure-ai-api-key` Key Vault secret uses `lifecycle { ignore_changes = [value] }` (preventing overwrite after first apply), Terraform **variable validation** still runs on every apply. An empty or missing `TF_VAR_AZURE_AI_API_KEY` secret will fail the workflow immediately with `azure_ai_api_key must not be empty`.
-> The workflow includes a preflight step that catches this early with a clear error. For local runs, set `TF_VAR_azure_ai_api_key` in `scripts/dev.tfvars` or `scripts/prod.tfvars`.
+> Although the `azure-ai-api-key` Key Vault secret uses `lifecycle { ignore_changes = [value] }` (preventing overwrite after first apply), Terraform **variable validation** still runs on every apply. The workflow's preflight step validates `TF_VAR_AZURE_AI_API_KEY` first and will fail fast with a descriptive error if it is missing or empty; if that preflight were removed, Terraform validation would then fail during `terraform apply` with `azure_ai_api_key must not be empty`.
+> For local runs, set `TF_VAR_azure_ai_api_key` in `scripts/dev.tfvars` or `scripts/prod.tfvars`.
 
 ## Key Vault-Managed Runtime Secrets
 

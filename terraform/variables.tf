@@ -177,8 +177,9 @@ variable "azure_ai_api_key" {
 
     IMPORTANT: Must be non-empty on every Terraform apply. The lifecycle { ignore_changes = [value] }
     rule on the Key Vault secret prevents overwriting an existing key, but Terraform variable
-    validation still runs and will reject an empty value. An empty secret in the GitHub Environment
-    will cause deployment to fail at the Terraform validate/plan stage.
+    validation still runs and will reject an empty value. In CI, a preflight secret check in the
+    GitHub Actions workflow will fail fast if this Environment secret is empty, before Terraform
+    validate/plan is executed.
   EOT
   type        = string
   sensitive   = true

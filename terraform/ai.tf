@@ -59,19 +59,5 @@ module "ai_foundry" {
         capacity = var.embedding_model_capacity
       }
     }
-
-    # Codex model (openai-responses API) — gpt-5.2-codex or equivalent.
-    codex = {
-      name = var.codex_model_name
-      model = {
-        format  = "OpenAI"
-        name    = var.codex_model_name
-        version = var.codex_model_version
-      }
-      scale = {
-        type     = "GlobalStandard"
-        capacity = var.codex_model_capacity
-      }
-    }
   }
 }

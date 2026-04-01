@@ -49,8 +49,8 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.2' }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2025-04-14' }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
@@ -59,9 +59,6 @@ jobs:
       TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
       TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
       TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
-      TF_VAR_codex_model_name: ${{ vars.TF_VAR_CODEX_MODEL_NAME || 'gpt-5.2-codex' }}
-      TF_VAR_codex_model_version: ${{ vars.TF_VAR_CODEX_MODEL_VERSION || '2025-04-14' }}
-      TF_VAR_codex_model_capacity: ${{ vars.TF_VAR_CODEX_MODEL_CAPACITY || '10' }}
       TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
@@ -144,13 +141,12 @@ jobs:
           # Resolve endpoint URL from Terraform output; deployment names come from TF_VAR_* env vars.
           AZURE_OPENAI_ENDPOINT=$(terraform -chdir=terraform output -raw azure_openai_endpoint)
           AZURE_OPENAI_DEPLOYMENT_CHAT="${TF_VAR_ai_model_name}"
-          AZURE_OPENAI_DEPLOYMENT_CODEX="${TF_VAR_codex_model_name}"
           AZURE_OPENAI_DEPLOYMENT_EMBEDDING="${TF_VAR_embedding_model_name}"
-          export APP_FQDN AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT_CHAT AZURE_OPENAI_DEPLOYMENT_CODEX AZURE_OPENAI_DEPLOYMENT_EMBEDDING
+          export APP_FQDN AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT_CHAT AZURE_OPENAI_DEPLOYMENT_EMBEDDING
           # Substitute endpoint URLs and deployment names at seed time.
           # apiKey refs (${AZURE_AI_API_KEY}, ${OPENCLAW_GATEWAY_TOKEN}) are left for runtime resolution.
           trap 'rm -f /tmp/openclaw-seeded.json' EXIT
-          envsubst '${APP_FQDN} ${AZURE_OPENAI_ENDPOINT} ${AZURE_OPENAI_DEPLOYMENT_CHAT} ${AZURE_OPENAI_DEPLOYMENT_CODEX} ${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+          envsubst '${APP_FQDN} ${AZURE_OPENAI_ENDPOINT} ${AZURE_OPENAI_DEPLOYMENT_CHAT} ${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
           # Validate strict JSON before upload (fails fast if template drift introduced comments)
           jq empty /tmp/openclaw-seeded.json
 
@@ -208,8 +204,8 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
       TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
       TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.2' }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2025-04-14' }}
+      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-4o' }}
+      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2024-11-20' }}
       TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
       TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
       TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
@@ -218,9 +214,6 @@ jobs:
       TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
       TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
       TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
-      TF_VAR_codex_model_name: ${{ vars.TF_VAR_CODEX_MODEL_NAME || 'gpt-5.2-codex' }}
-      TF_VAR_codex_model_version: ${{ vars.TF_VAR_CODEX_MODEL_VERSION || '2025-04-14' }}
-      TF_VAR_codex_model_capacity: ${{ vars.TF_VAR_CODEX_MODEL_CAPACITY || '10' }}
       TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
@@ -313,13 +306,12 @@ jobs:
           # Resolve endpoint URL from Terraform output; deployment names come from TF_VAR_* env vars.
           AZURE_OPENAI_ENDPOINT=$(terraform -chdir=terraform output -raw azure_openai_endpoint)
           AZURE_OPENAI_DEPLOYMENT_CHAT="${TF_VAR_ai_model_name}"
-          AZURE_OPENAI_DEPLOYMENT_CODEX="${TF_VAR_codex_model_name}"
           AZURE_OPENAI_DEPLOYMENT_EMBEDDING="${TF_VAR_embedding_model_name}"
-          export APP_FQDN AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT_CHAT AZURE_OPENAI_DEPLOYMENT_CODEX AZURE_OPENAI_DEPLOYMENT_EMBEDDING
+          export APP_FQDN AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT_CHAT AZURE_OPENAI_DEPLOYMENT_EMBEDDING
           # Substitute endpoint URLs and deployment names at seed time.
           # apiKey refs (${AZURE_AI_API_KEY}, ${OPENCLAW_GATEWAY_TOKEN}) are left for runtime resolution.
           trap 'rm -f /tmp/openclaw-seeded.json' EXIT
-          envsubst '${APP_FQDN} ${AZURE_OPENAI_ENDPOINT} ${AZURE_OPENAI_DEPLOYMENT_CHAT} ${AZURE_OPENAI_DEPLOYMENT_CODEX} ${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
+          envsubst '${APP_FQDN} ${AZURE_OPENAI_ENDPOINT} ${AZURE_OPENAI_DEPLOYMENT_CHAT} ${AZURE_OPENAI_DEPLOYMENT_EMBEDDING}' < config/openclaw.json.tpl > /tmp/openclaw-seeded.json
           # Validate strict JSON before upload (fails fast if template drift introduced comments)
           jq empty /tmp/openclaw-seeded.json
 

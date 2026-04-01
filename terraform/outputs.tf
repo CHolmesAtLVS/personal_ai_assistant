@@ -36,8 +36,3 @@ output "embedding_deployment_name" {
   description = "Deployment name for the text embedding model (driven by var.embedding_model_name)."
   value       = var.embedding_model_name
 }
-
-output "codex_deployment_name" {
-  description = "Deployment name for the codex model (driven by var.codex_model_name)."
-  value       = var.codex_model_name
-}

@@ -165,36 +165,6 @@ variable "embedding_model_capacity" {
   }
 }
 
-# Codex model deployment variables (openai-responses API).
-
-variable "codex_model_name" {
-  description = "Deployment name for the codex model (for example: gpt-5.2-codex). Passed as AZURE_OPENAI_DEPLOYMENT_CODEX env var."
-  type        = string
-  default     = "gpt-5.2-codex"
-
-  validation {
-    condition     = trim(var.codex_model_name, " ") != ""
-    error_message = "codex_model_name must not be empty."
-  }
-}
-
-variable "codex_model_version" {
-  description = "Version of the codex model to deploy."
-  type        = string
-  default     = "2025-04-14"
-}
-
-variable "codex_model_capacity" {
-  description = "Tokens-per-minute capacity for the codex model deployment (in thousands)."
-  type        = number
-  default     = 10
-
-  validation {
-    condition     = var.codex_model_capacity > 0
-    error_message = "codex_model_capacity must be greater than zero."
-  }
-}
-
 variable "azure_ai_api_key" {
   description = "API key for the Azure AI Foundry account, injected as AZURE_AI_API_KEY and used by the azure-foundry provider in openclaw.json."
   type        = string

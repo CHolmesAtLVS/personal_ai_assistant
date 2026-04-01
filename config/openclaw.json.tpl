@@ -21,27 +21,9 @@
           {
             "id": "${AZURE_OPENAI_DEPLOYMENT_CHAT}",
             "name": "${AZURE_OPENAI_DEPLOYMENT_CHAT}",
-            "reasoning": true,
             "input": ["text", "image"],
-            "contextWindow": 380000,
-            "maxTokens": 128000,
-            "compat": { "supportsReasoningEffort": true }
-          }
-        ]
-      },
-      "azure-openai-codex": {
-        "baseUrl": "${AZURE_OPENAI_ENDPOINT}/openai/v1/",
-        "apiKey": "${AZURE_AI_API_KEY}",
-        "api": "openai-responses",
-        "models": [
-          {
-            "id": "${AZURE_OPENAI_DEPLOYMENT_CODEX}",
-            "name": "${AZURE_OPENAI_DEPLOYMENT_CODEX}",
-            "reasoning": true,
-            "input": ["text", "image"],
-            "contextWindow": 380000,
-            "maxTokens": 128000,
-            "compat": { "supportsReasoningEffort": true }
+            "contextWindow": 128000,
+            "maxTokens": 16384
           }
         ]
       }
@@ -60,8 +42,7 @@
         "fallbacks": []
       },
       "models": {
-        "azure-openai/${AZURE_OPENAI_DEPLOYMENT_CHAT}": {},
-        "azure-openai-codex/${AZURE_OPENAI_DEPLOYMENT_CODEX}": {}
+        "azure-openai/${AZURE_OPENAI_DEPLOYMENT_CHAT}": {}
       },
       "memorySearch": {
         "provider": "openai",

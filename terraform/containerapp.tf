@@ -7,8 +7,8 @@ data "azapi_resource" "ai_foundry" {
 }
 
 locals {
-  # Azure OpenAI endpoint (openai.azure.com) — used as baseUrl for both the
-  # azure-openai and azure-openai-codex providers via the /openai/v1/ path.
+  # Azure OpenAI endpoint (openai.azure.com) — used as baseUrl for the
+  # azure-openai provider via the /openai/v1/ path.
   azure_openai_endpoint = trimsuffix(
     tostring(data.azapi_resource.ai_foundry.output.properties.endpoints["Azure OpenAI Legacy API - Latest moniker"]),
     "/"
@@ -131,10 +131,6 @@ module "container_app" {
           {
             name  = "AZURE_OPENAI_DEPLOYMENT_CHAT"
             value = var.ai_model_name
-          },
-          {
-            name  = "AZURE_OPENAI_DEPLOYMENT_CODEX"
-            value = var.codex_model_name
           },
           {
             # Ensures gateway starts on the correct port even before openclaw.json is seeded.

@@ -102,19 +102,13 @@ echo "BACKUP: storage key retrieved"
 BACKUP_STAGING="/tmp"
 
 echo "BACKUP: running backup create --verify (exec 1/2)..."
-BACKUP_EXIT=0
-BACKUP_OUTPUT=$(pty_exec "node /app/openclaw.mjs backup create --output ${BACKUP_STAGING} --verify" 2>&1) || BACKUP_EXIT=$?
+BACKUP_OUTPUT=$(pty_exec "node /app/openclaw.mjs backup create --output ${BACKUP_STAGING} --verify" 2>&1) || true
 
 # Print output for CI log visibility regardless of outcome
 echo "${BACKUP_OUTPUT}"
 
-# Fail on non-zero exec exit code before checking output patterns
-if (( BACKUP_EXIT != 0 )); then
-  echo "ERROR: backup exec exited with code ${BACKUP_EXIT}" >&2
-  exit "${BACKUP_EXIT}"
-fi
-
-# Check for known failure signatures in output (belt-and-suspenders)
+# Exit code from pty_exec (script|tr pipeline) is always from tr — unreliable.
+# Detect failure via output pattern matching only.
 if echo "${BACKUP_OUTPUT}" | grep -qi "ENOTTY"; then
   echo "ERROR: ENOTTY — exec did not get a PTY; check script(1) availability" >&2
   exit 1
@@ -125,8 +119,13 @@ if echo "${BACKUP_OUTPUT}" | grep -qi "429\|rate.limit\|too many requests"; then
   exit 1
 fi
 
-if echo "${BACKUP_OUTPUT}" | grep -qi "error\|failed\|exception"; then
-  echo "ERROR: backup reported an error or failure" >&2
+if echo "${BACKUP_OUTPUT}" | grep -qi "ClusterExecFailure\|ClusterExecEndpoint"; then
+  echo "ERROR: az containerapp exec returned a cluster error" >&2
+  exit 1
+fi
+
+if ! echo "${BACKUP_OUTPUT}" | grep -qi "Archive verification: passed"; then
+  echo "ERROR: backup --verify did not pass or backup did not complete" >&2
   exit 1
 fi
 
@@ -140,13 +139,16 @@ else
 fi
 
 # ── Step 2b: Copy verified archive to backup share (exec 2/2) ────────────────────
+# Uses exact archive filename (not a glob) because az containerapp exec --command
+# does not invoke a shell — wildcards are passed literally to the program.
+# Exit code detection via COPY_EXIT is unreliable: script(1) | tr pipeline always
+# exits 0 (tr's exit code). Use output pattern matching instead.
 echo "BACKUP: copying archive to backup share (exec 2/2)..."
-COPY_EXIT=0
-COPY_OUTPUT=$(pty_exec "cp /tmp/*-openclaw-backup.tar.gz ${BACKUP_MOUNT}/" 2>&1) || COPY_EXIT=$?
+COPY_OUTPUT=$(pty_exec "cp /tmp/${ARCHIVE_NAME} ${BACKUP_MOUNT}/" 2>&1) || true
 echo "${COPY_OUTPUT}"
-if (( COPY_EXIT != 0 )); then
-  echo "ERROR: cp of archive to backup share failed with exit code ${COPY_EXIT}" >&2
-  exit "${COPY_EXIT}"
+if echo "${COPY_OUTPUT}" | grep -qi "cannot stat\|no such file\|cp:.*error\|ClusterExecFailure"; then
+  echo "ERROR: cp of archive to backup share failed" >&2
+  exit 1
 fi
 echo "BACKUP: archive copied to ${BACKUP_MOUNT}"
 

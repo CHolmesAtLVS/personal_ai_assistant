@@ -153,22 +153,26 @@ az storage file delete \
   --output none 2>&1 || true
 echo "SEED: staged file removed"
 
-# ── Step 3: Verify primary model (exec 2/2) ──────────────────────────────────────
+# ── Step 3: Config validate (exec 2/2) ──────────────────────────────────────────
+# Replaces the primary-model config get: validate is more comprehensive and uses
+# the same single exec call. Avoids adding extra exec sessions (rate limit: ~5/10 min).
 echo ""
-echo "SEED: verifying primary model (reading config)..."
-VERIFY_OUT=$(az containerapp exec \
+echo "SEED: validating applied config (exec 2/2)..."
+VALIDATE_OUT=$(az containerapp exec \
   --name "${APP_NAME}" \
   --resource-group "${RG_NAME}" \
-  --command "node /app/openclaw.mjs config get agents.defaults.model.primary" \
+  --command "node /app/openclaw.mjs config validate" \
   2>&1 || true)
-# Strip Azure CLI noise lines; the value is the last non-empty line of openclaw output
-PRIMARY=$(echo "${VERIFY_OUT}" | grep -v "^INFO\|Connecting\|ctrl\|Successfully\|Disconnecting\|WARNING" | grep -Eo 'azure-openai/[^ ]+|text-embedding[^ ]+|[a-z][-a-z0-9]+/[a-z][-a-z0-9.]+' | tail -1)
-if [[ -n "${PRIMARY}" ]]; then
-  echo "SEED: ✅ agents.defaults.model.primary = ${PRIMARY}"
-else
-  echo "SEED: ⚠  Could not read back primary model — verify manually:"
+echo "${VALIDATE_OUT}" | grep -v "^INFO\|Connecting\|ctrl\|Successfully\|Disconnecting\|WARNING" || true
+
+if echo "${VALIDATE_OUT}" | grep -iq "429\|rate.limit\|Too Many"; then
+  echo "SEED: ⚠  exec rate-limited (HTTP 429) on validate — config was applied; validate manually:"
   echo "       az containerapp exec --name ${APP_NAME} --resource-group ${RG_NAME} \\"
-  echo "         --command 'node /app/openclaw.mjs config get agents.defaults.model.primary'"
+  echo "         --command 'node /app/openclaw.mjs config validate'"
+elif echo "${VALIDATE_OUT}" | grep -qi "error\|invalid\|failed"; then
+  echo "SEED: ⚠  config validate reported issues — review output above"
+else
+  echo "SEED: ✅ config validate passed"
 fi
 
 echo ""

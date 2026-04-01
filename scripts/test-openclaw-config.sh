@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # test-openclaw-config.sh — Validate OpenClaw gateway config via az containerapp exec.
 #
-# Runs openclaw commands directly inside the container using
-# `az containerapp exec --command "node /app/openclaw.mjs ..."`, the same
-# pattern used by seed-openclaw-config.sh for its verify step.
+# Intended for LOCAL use only after a standalone config change (not seeding).
+# DO NOT run this in CI immediately after seed-openclaw-config.sh — the combined
+# exec session count will exceed the az containerapp exec rate limit (~5/10 min).
+# Config validation in CI is handled by seed-openclaw-config.sh exec 2/2.
 #
-# Note: az containerapp exec calls termios.tcgetattr() to set up a TTY, which
-# raises ENOTTY (errno 25) in CI when the command interpreter is `bash`. Running
-# `node /app/openclaw.mjs` directly avoids this — node does not trigger TTY
-# detection. No file upload is required.
+# Runs openclaw config validate and doctor --non-interactive inside the container
+# using `az containerapp exec --command "node /app/openclaw.mjs ..."` (2 exec sessions).
+# Running node directly avoids the ENOTTY error that occurs when exec-ing bash in a
+# non-TTY environment.
 #
 # Usage:
 #   bash scripts/test-openclaw-config.sh [dev|prod]
@@ -19,7 +20,7 @@
 #
 # Constraints:
 #   - az containerapp exec is rate-limited (~5 sessions per 10 min; HTTP 429 = wait 10 min)
-#   - This script uses 2 exec sessions (config validate, doctor).
+#   - This script uses 2 exec sessions (config validate + doctor).
 #   - SEC-001: targets dev only unless explicitly confirmed.
 
 set -euo pipefail

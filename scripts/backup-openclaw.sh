@@ -142,7 +142,7 @@ fi
 # ── Step 2b: Copy verified archive to backup share (exec 2/2) ────────────────────
 echo "BACKUP: copying archive to backup share (exec 2/2)..."
 COPY_EXIT=0
-COPY_OUTPUT=$(pty_exec "cp ${BACKUP_STAGING}/*-openclaw-backup.tar.gz ${BACKUP_MOUNT}/ 2>&1" 2>&1) || COPY_EXIT=$?
+COPY_OUTPUT=$(pty_exec "cp /tmp/*-openclaw-backup.tar.gz ${BACKUP_MOUNT}/" 2>&1) || COPY_EXIT=$?
 echo "${COPY_OUTPUT}"
 if (( COPY_EXIT != 0 )); then
   echo "ERROR: cp of archive to backup share failed with exit code ${COPY_EXIT}" >&2

@@ -1,42 +1,148 @@
 #!/usr/bin/env bash
-# seed-openclaw-config.sh — Seed the OpenClaw gateway config via Azure Files.
+# seed-openclaw-config.sh — Seed the OpenClaw gateway config locally via az containerapp exec.
 #
-# CI METHOD (default, no exec): Downloads the current openclaw.json from the
-# Azure Files share, applies config/openclaw.batch.json locally using the
-# openclaw CLI (OPENCLAW_CONFIG_PATH=<tmp>), then uploads the result back to
-# the share. The gateway hot-reloads from the share mount automatically.
+# For LOCAL use from an interactive shell (devcontainer, laptop). Requires a TTY.
+# For CI (GitHub Actions), use scripts/seed-openclaw-ci.sh instead — it wraps
+# az containerapp exec in script(1) to allocate a pseudo-TTY and avoids the
+# ENOTTY (errno 25) error that occurs in non-interactive CI runners.
 #
-# LOCAL METHOD (--exec flag): Uploads the batch file to the share and applies
-# it via `az containerapp exec` wrapped in `script -q -c "..." /dev/null` to
-# allocate a pseudo-TTY. az containerapp exec calls termios.tcgetattr() during
-# WebSocket setup; the script(1) PTY workaround satisfies this in CI too.
-# script(1) is available on all Ubuntu GitHub Actions runners (util-linux).
+# Steps:
+#   1. Validate config/openclaw.batch.json (python3 JSON check)
+#   2. Upload batch to Azure Files share at .seed/seed.batch.json
+#   3. az containerapp exec: node /app/openclaw.mjs config set --batch-file
+#   4. Delete staged batch file from share
+#   5. az containerapp exec: node /app/openclaw.mjs config validate
 #
-# Why two methods?
-#   Local-apply (default) is simpler, has no exec rate-limit risk, and does
-#   not depend on the container being running. Exec confirms the gateway process
-#   itself sees the change, which is useful for verifying hot-reload.
-#
-# No envsubst — secret ${VAR} refs are passed as literals and resolved by the
-# gateway process at runtime.
+# No openclaw CLI needed on the local machine — uses node /app/openclaw.mjs
+# inside the running container.
 #
 # Usage:
-#   bash scripts/seed-openclaw-config.sh [dev|prod]          # CI/default (local apply)
-#   bash scripts/seed-openclaw-config.sh [dev|prod] --exec   # local only (exec apply)
+#   bash scripts/seed-openclaw-config.sh [dev|prod]
 #
-# Prerequisites (CI method):
-#   - az login with access to the environment resource group
-#   - npm available (openclaw CLI will be installed if absent)
-#   - config/openclaw.batch.json is up to date
-#
-# Prerequisites (exec method, local only):
+# Prerequisites:
 #   - az login with access to the environment resource group
 #   - Container App is running (revision active)
 #   - config/openclaw.batch.json is up to date
+#   - Interactive TTY (devcontainer shell, not CI)
 #
 # Constraints:
+#   - az containerapp exec is rate-limited (~5 sessions per 10 min; HTTP 429 = wait 10 min)
+#   - This script uses 2 exec sessions (apply + validate).
 #   - Never expand ${VAR} refs before seeding — leave them as literals in the batch file.
 #   - SEC-001: target dev only unless explicitly confirmed.
+
+set -euo pipefail
+
+ENV="${1:-dev}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+BATCH_FILE="${REPO_ROOT}/config/openclaw.batch.json"
+
+if [[ ! -f "${BATCH_FILE}" ]]; then
+  echo "ERROR: batch file not found: ${BATCH_FILE}" >&2
+  exit 1
+fi
+
+PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
+APP_NAME="${PROJECT}-${ENV}-app"
+RG_NAME="${PROJECT}-${ENV}-rg"
+STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
+SHARE_NAME="openclaw-state"
+STAGED_PATH=".seed/seed.batch.json"
+CONTAINER_PATH="/home/node/.openclaw/.seed/seed.batch.json"
+
+# ── Safety guard ────────────────────────────────────────────────────────────────
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  echo "ERROR: seed-openclaw-config.sh is for local use only." >&2
+  echo "       Use scripts/seed-openclaw-ci.sh in GitHub Actions." >&2
+  exit 1
+fi
+
+if [[ "${ENV}" == "prod" ]]; then
+  echo "⚠  WARNING: You are about to seed PRODUCTION config."
+  echo "   This modifies the live gateway config on the prod Azure Files share."
+  read -r -p "   Type 'prod' to confirm and continue: " confirmation
+  if [[ "${confirmation}" != "prod" ]]; then echo "Aborted."; exit 1; fi
+fi
+
+echo "SEED: environment=${ENV}  app=${APP_NAME}  rg=${RG_NAME}"
+echo "SEED: batch file=${BATCH_FILE}"
+
+# ── Step 1: Validate batch JSON locally ──────────────────────────────────────────
+if ! python3 -c "import json, sys; json.load(sys.stdin)" < "${BATCH_FILE}" 2>/dev/null; then
+  echo "ERROR: ${BATCH_FILE} is not valid JSON — aborting" >&2
+  exit 1
+fi
+echo "SEED: batch JSON is valid"
+
+# ── Step 2: Get storage key + upload batch to share ──────────────────────────────
+echo "SEED: fetching storage key..."
+STORAGE_KEY=$(az storage account keys list \
+  --account-name "${STORAGE_ACCOUNT}" \
+  --resource-group "${RG_NAME}" \
+  --query "[0].value" -o tsv 2>/dev/null)
+if [[ -z "${STORAGE_KEY}" ]]; then
+  echo "ERROR: could not retrieve storage key for ${STORAGE_ACCOUNT}" >&2; exit 1
+fi
+
+az storage directory create \
+  --account-name "${STORAGE_ACCOUNT}" --account-key "${STORAGE_KEY}" \
+  --share-name "${SHARE_NAME}" --name ".seed" --output none 2>&1 || true
+
+echo "SEED: uploading batch to share..."
+az storage file upload \
+  --account-name "${STORAGE_ACCOUNT}" --account-key "${STORAGE_KEY}" \
+  --share-name "${SHARE_NAME}" --source "${BATCH_FILE}" \
+  --path "${STAGED_PATH}" --no-progress --output none 2>&1
+echo "SEED: batch uploaded"
+
+# ── Step 3: Apply via exec (exec 1/2) ────────────────────────────────────────────
+echo "SEED: applying config (exec 1/2)..."
+APPLY_OUT=$(az containerapp exec \
+  --name "${APP_NAME}" \
+  --resource-group "${RG_NAME}" \
+  --command "node /app/openclaw.mjs config set --batch-file ${CONTAINER_PATH}" \
+  2>&1 || true)
+echo "${APPLY_OUT}" | grep -v "^INFO\|Connecting\|ctrl\|Successfully\|Disconnecting" || true
+
+# ── Step 4: Remove staged file ────────────────────────────────────────────────────
+az storage file delete \
+  --account-name "${STORAGE_ACCOUNT}" --account-key "${STORAGE_KEY}" \
+  --share-name "${SHARE_NAME}" --path "${STAGED_PATH}" --output none 2>&1 || true
+echo "SEED: staged file removed"
+
+if echo "${APPLY_OUT}" | grep -iq "429\|rate.limit\|Too Many"; then
+  echo "SEED: ❌ exec rate-limited (HTTP 429). Wait 10 minutes and retry." >&2; exit 1
+elif echo "${APPLY_OUT}" | grep -q "changedPaths\|Updated.*config path"; then
+  echo "SEED: ✅ config applied"
+else
+  echo "SEED: ⚠  no changedPaths in output — review above"
+fi
+
+# ── Step 5: Validate via exec (exec 2/2) ─────────────────────────────────────────
+echo ""
+echo "SEED: validating config (exec 2/2)..."
+VALIDATE_OUT=$(az containerapp exec \
+  --name "${APP_NAME}" \
+  --resource-group "${RG_NAME}" \
+  --command "node /app/openclaw.mjs config validate" \
+  2>&1 || true)
+echo "${VALIDATE_OUT}" | grep -v "^INFO\|Connecting\|ctrl\|Successfully\|Disconnecting" || true
+
+if echo "${VALIDATE_OUT}" | grep -iq "429\|rate.limit\|Too Many"; then
+  echo "SEED: ⚠  exec rate-limited on validate — config was applied; validate manually"
+elif echo "${VALIDATE_OUT}" | grep -iq "error\|invalid\|failed"; then
+  echo "SEED: ⚠  config validate reported issues — review output above"
+else
+  echo "SEED: ✅ config validate passed"
+fi
+
+echo ""
+echo "SEED: done."
+echo "SEED: Changes to gateway.* settings require a revision restart:"
+echo "       REVISION=\$(az containerapp revision list --name ${APP_NAME} --resource-group ${RG_NAME} --query '[0].name' -o tsv)"
+echo "       az containerapp revision restart --name ${APP_NAME} --resource-group ${RG_NAME} --revision \"\${REVISION}\""
+
 
 set -euo pipefail
 

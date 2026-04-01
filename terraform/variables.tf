@@ -165,38 +165,33 @@ variable "embedding_model_capacity" {
   }
 }
 
-# Grok model deployment variables (Azure AI Model Inference endpoint).
+# Codex model deployment variables (openai-responses API).
 
-variable "grok4fast_model_name" {
-  description = "Model name for grok-4-fast-reasoning, passed as AZURE_AI_DEPLOYMENT_GROK4FAST env var."
+variable "codex_model_name" {
+  description = "Deployment name for the codex model (for example: gpt-5.2-codex). Passed as AZURE_OPENAI_DEPLOYMENT_CODEX env var."
   type        = string
-  default     = "grok-4-fast-reasoning"
+  default     = "gpt-5.2-codex"
 
   validation {
-    condition     = trim(var.grok4fast_model_name, " ") != ""
-    error_message = "grok4fast_model_name must not be empty."
+    condition     = trim(var.codex_model_name, " ") != ""
+    error_message = "codex_model_name must not be empty."
   }
 }
 
-variable "grok3_model_name" {
-  description = "Model name for grok-3, passed as AZURE_AI_DEPLOYMENT_GROK3 env var."
+variable "codex_model_version" {
+  description = "Version of the codex model to deploy."
   type        = string
-  default     = "grok-3"
-
-  validation {
-    condition     = trim(var.grok3_model_name, " ") != ""
-    error_message = "grok3_model_name must not be empty."
-  }
+  default     = "2025-04-14"
 }
 
-variable "grok3mini_model_name" {
-  description = "Model name for grok-3-mini, passed as AZURE_AI_DEPLOYMENT_GROK3MINI env var."
-  type        = string
-  default     = "grok-3-mini"
+variable "codex_model_capacity" {
+  description = "Tokens-per-minute capacity for the codex model deployment (in thousands)."
+  type        = number
+  default     = 10
 
   validation {
-    condition     = trim(var.grok3mini_model_name, " ") != ""
-    error_message = "grok3mini_model_name must not be empty."
+    condition     = var.codex_model_capacity > 0
+    error_message = "codex_model_capacity must be greater than zero."
   }
 }
 

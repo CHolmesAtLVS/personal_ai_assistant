@@ -7,17 +7,8 @@ data "azapi_resource" "ai_foundry" {
 }
 
 locals {
-  # Azure AI Model Inference GA endpoint for Grok (xAI) models.
-  # The /openai/v1 path is the GA path and works without an api-version query parameter.
-  # Key "Azure AI Model Inference API" is the standard name in properties.endpoints.
-  # Confirm with az resource show or the Azure portal if the apply fails on this reference.
-  ai_inference_endpoint = format(
-    "%s/openai/v1",
-    trimsuffix(tostring(data.azapi_resource.ai_foundry.output.properties.endpoints["Azure AI Model Inference API"]), "/")
-  )
-
-  # Azure OpenAI legacy endpoint (openai.azure.com) — required for the
-  # /openai/deployments/<name>/chat/completions path used by the azure-openai provider.
+  # Azure OpenAI endpoint (openai.azure.com) — used as baseUrl for both the
+  # azure-openai and azure-openai-codex providers via the /openai/v1/ path.
   azure_openai_endpoint = trimsuffix(
     tostring(data.azapi_resource.ai_foundry.output.properties.endpoints["Azure OpenAI Legacy API - Latest moniker"]),
     "/"
@@ -134,29 +125,16 @@ module "container_app" {
             value = local.azure_openai_endpoint
           },
           {
-            name  = "AZURE_AI_INFERENCE_ENDPOINT"
-            value = local.ai_inference_endpoint
-          },
-          {
             name  = "AZURE_OPENAI_DEPLOYMENT_EMBEDDING"
             value = var.embedding_model_name
           },
           {
-            # Chat model deployed on the Azure OpenAI endpoint (gpt-4o or equivalent).
             name  = "AZURE_OPENAI_DEPLOYMENT_CHAT"
             value = var.ai_model_name
           },
           {
-            name  = "AZURE_AI_DEPLOYMENT_GROK4FAST"
-            value = var.grok4fast_model_name
-          },
-          {
-            name  = "AZURE_AI_DEPLOYMENT_GROK3"
-            value = var.grok3_model_name
-          },
-          {
-            name  = "AZURE_AI_DEPLOYMENT_GROK3MINI"
-            value = var.grok3mini_model_name
+            name  = "AZURE_OPENAI_DEPLOYMENT_CODEX"
+            value = var.codex_model_name
           },
           {
             # Ensures gateway starts on the correct port even before openclaw.json is seeded.
@@ -168,7 +146,7 @@ module "container_app" {
             secret_name = "openclaw-gateway-token"
           },
           {
-            # AZURE_AI_API_KEY is required for the Azure AI Model Inference endpoint (Grok/MaaS).
+            # AZURE_AI_API_KEY authenticates to the Azure OpenAI endpoint.
             # Managed Identity is not supported for this endpoint; the key is stored in
             # Key Vault and injected via secret reference (same pattern as OPENCLAW_GATEWAY_TOKEN).
             name        = "AZURE_AI_API_KEY"

@@ -59,10 +59,19 @@ module "ai_foundry" {
         capacity = var.embedding_model_capacity
       }
     }
+
+    # Codex model (openai-responses API) — gpt-5.2-codex or equivalent.
+    codex = {
+      name = var.codex_model_name
+      model = {
+        format  = "OpenAI"
+        name    = var.codex_model_name
+        version = var.codex_model_version
+      }
+      scale = {
+        type     = "GlobalStandard"
+        capacity = var.codex_model_capacity
+      }
+    }
   }
 }
-# Grok (xAI) models — grok-4-fast-reasoning, grok-3, grok-3-mini — are Azure AI Foundry
-# serverless/MaaS hosted models. They are NOT deployed as Cognitive Services account
-# deployments. No Terraform resource is required; the models are accessed directly via
-# the AI Model Inference endpoint (AZURE_AI_INFERENCE_ENDPOINT) using the model name
-# in each API request. OpenClaw routes to them via the azure-foundry custom provider.

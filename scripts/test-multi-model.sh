@@ -62,13 +62,15 @@ SHARE_NAME="openclaw-state"
 
 # ── Expected values ────────────────────────────────────────────────────────────
 EXPECTED_EMBEDDING_DEPLOYMENT="text-embedding-3-large"
-EXPECTED_CHAT_DEPLOYMENT="gpt-4o"
-EXPECTED_PRIMARY_MODEL="azure-openai/gpt-4o"
+EXPECTED_CHAT_DEPLOYMENT="gpt-5.2"
+EXPECTED_CODEX_DEPLOYMENT="gpt-5.2-codex"
+EXPECTED_PRIMARY_MODEL="azure-openai/gpt-5.2"
 
 EXPECTED_ENV_VARS=(
   "AZURE_OPENAI_ENDPOINT"
   "AZURE_OPENAI_DEPLOYMENT_EMBEDDING"
   "AZURE_OPENAI_DEPLOYMENT_CHAT"
+  "AZURE_OPENAI_DEPLOYMENT_CODEX"
   "OPENCLAW_GATEWAY_PORT"
   "AZURE_AI_API_KEY"
 )
@@ -282,6 +284,7 @@ else
   }
   check_env_value "AZURE_OPENAI_DEPLOYMENT_EMBEDDING" "${EXPECTED_EMBEDDING_DEPLOYMENT}"
   check_env_value "AZURE_OPENAI_DEPLOYMENT_CHAT"      "${EXPECTED_CHAT_DEPLOYMENT}"
+  check_env_value "AZURE_OPENAI_DEPLOYMENT_CODEX"     "${EXPECTED_CODEX_DEPLOYMENT}"
 fi
 
 # ── Container App provisioning + revision state ───────────────────────────────
@@ -449,6 +452,8 @@ if [[ -n "${ENV_JSON:-}" && "${ENV_JSON}" != "null" ]]; then
   [[ -n "${_OAI_ENDPOINT}" ]] && export AZURE_OPENAI_ENDPOINT="${_OAI_ENDPOINT}"
   _CHAT_DEPLOY=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_OPENAI_DEPLOYMENT_CHAT") | .value // ""' 2>/dev/null || echo "")
   [[ -n "${_CHAT_DEPLOY}" ]] && export AZURE_OPENAI_DEPLOYMENT_CHAT="${_CHAT_DEPLOY}"
+  _CODEX_DEPLOY=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_OPENAI_DEPLOYMENT_CODEX") | .value // ""' 2>/dev/null || echo "")
+  [[ -n "${_CODEX_DEPLOY}" ]] && export AZURE_OPENAI_DEPLOYMENT_CODEX="${_CODEX_DEPLOY}"
 fi
 # AZURE_AI_API_KEY: pre-exported by CI workflow env step (or caller); no-op if already set.
 
@@ -577,16 +582,19 @@ else
   fi
 
   if ! echo "${MODELS_LIST_JSON}" | grep -q "OC_ERROR"; then
-    OAI_KEY="azure-openai/${EXPECTED_CHAT_DEPLOYMENT}"
-    AVAILABLE=$(echo "${MODELS_LIST_JSON}" | jq -r \
-      --arg k "${OAI_KEY}" \
-      '[.[] | select(.id==$k or .key==$k)] | first | .available // false' \
-      2>/dev/null || echo "false")
-    if [[ "${AVAILABLE}" == "true" ]]; then
-      pass "Model available: ${OAI_KEY}"
-    else
-      warn "Model not available: ${OAI_KEY}"
-    fi
+    for model_key in \
+      "azure-openai/${EXPECTED_CHAT_DEPLOYMENT}" \
+      "azure-openai-codex/${EXPECTED_CODEX_DEPLOYMENT}"; do
+      AVAILABLE=$(echo "${MODELS_LIST_JSON}" | jq -r \
+        --arg k "${model_key}" \
+        '[.[] | select(.id==$k or .key==$k)] | first | .available // false' \
+        2>/dev/null || echo "false")
+      if [[ "${AVAILABLE}" == "true" ]]; then
+        pass "Model available: ${model_key}"
+      else
+        warn "Model not available: ${model_key}"
+      fi
+    done
   fi
 fi
 
@@ -675,10 +683,10 @@ if [[ -z "${API_KEY}" ]]; then
   echo "APIKEY_FAIL: AZURE_AI_API_KEY env var is empty or not set"; exit 1
 fi
 DEPLOYMENT="${AZURE_OPENAI_DEPLOYMENT_CHAT:-}"
-BASE="${AZURE_OPENAI_ENDPOINT}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=2024-12-01-preview"
+BASE="${AZURE_OPENAI_ENDPOINT}/openai/v1/chat/completions"
 test_model() {
   local model="$1" label="$2"
-  local payload="{\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_tokens\":20}"
+  local payload="{\"model\":\"${model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly one word: OK\"}],\"max_tokens\":20}"
   HTTP=$(curl -s -o /tmp/inf_resp.json -w "%{http_code}" --max-time 45 \
     -X POST "${BASE}" \
     -H "api-key: ${API_KEY}" \

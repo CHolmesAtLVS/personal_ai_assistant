@@ -18,6 +18,7 @@ on:
     paths:
       - "terraform/**"
       - "scripts/bootstrap-tfstate.sh"
+      - "config/openclaw.batch.json"
       - ".github/workflows/terraform-deploy.yml"
 
 # Minimal permissions: only read repo contents. Secrets are passed explicitly via env.
@@ -110,6 +111,17 @@ jobs:
 
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
+
+      # Uploads config/openclaw.batch.json to the Azure Files share, then applies
+      # it via az containerapp exec. Uses only az CLI (no openclaw CLI, no device token).
+      # continue-on-error: seed failures are non-fatal — Terraform succeeded; config
+      # can be re-seeded manually with: bash scripts/seed-openclaw-config.sh dev
+      - name: Seed OpenClaw Config
+        continue-on-error: true
+        shell: bash
+        run: |
+          chmod +x scripts/seed-openclaw-config.sh
+          bash scripts/seed-openclaw-config.sh dev
 
   terraform-prod:
     name: Terraform Prod
@@ -208,3 +220,14 @@ jobs:
 
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
+
+      # Uploads config/openclaw.batch.json to the Azure Files share, then applies
+      # it via az containerapp exec. Uses only az CLI (no openclaw CLI, no device token).
+      # continue-on-error: seed failures are non-fatal — Terraform succeeded; config
+      # can be re-seeded manually with: bash scripts/seed-openclaw-config.sh prod
+      - name: Seed OpenClaw Config
+        continue-on-error: true
+        shell: bash
+        run: |
+          chmod +x scripts/seed-openclaw-config.sh
+          bash scripts/seed-openclaw-config.sh prod

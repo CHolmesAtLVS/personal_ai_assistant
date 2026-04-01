@@ -1,5 +1,5 @@
 ---
-description: "Setup, configure, and troubleshoot the OpenClaw gateway running on Azure Container Apps. The openclaw CLI is not installed locally — always source scripts/openclaw-connect.sh and verify OPENCLAW_GATEWAY_URL is set before any CLI operation. All config changes are made exclusively via the remote CLI. Falls back to az containerapp exec or Log Analytics only when the CLI cannot connect. Use when configuring OpenClaw environment variables, secrets, config file, or channels."
+description: "Setup, configure, and troubleshoot the OpenClaw AI gateway on Azure Container Apps. Use when configuring OpenClaw environment variables, secrets, config file, channels, agents, or devices."
 name: "OpenClaw Operations"
 tools: [vscode, execute, read, agent, browser, edit, search, web, 'microsoft.docs.mcp/*', azure-mcp-server/acr, azure-mcp-server/applicationinsights, azure-mcp-server/cloudarchitect, azure-mcp-server/containerapps, azure-mcp-server/documentation, azure-mcp-server/foundry, azure-mcp-server/foundryextensions, azure-mcp-server/get_azure_bestpractices, azure-mcp-server/group_list, azure-mcp-server/keyvault, azure-mcp-server/monitor, azure-mcp-server/search, 'terraform-mcp-server/*', todo]
 agents: ['Azure Terraform IaC Implementation Specialist']
@@ -62,7 +62,10 @@ Load these skills when the task falls within their domain:
 
 | Concern | Tool |
 |---|---|
-| openclaw config, diagnostics, discovery, onboarding | `openclaw` CLI via `execute` (see `openclaw-cli` skill) |
+| openclaw diagnostics, discovery, onboarding, device management | `openclaw` CLI via `execute` (see `openclaw-cli` skill) |
+| Gateway config read | `az containerapp exec` + `node /app/openclaw.mjs config get <key>` — remote CLI `openclaw config get` reads local `~/.openclaw`, not the gateway |
+| Gateway config write (individual key) | `az containerapp exec` + `node /app/openclaw.mjs config set <key> <value>` — remote CLI `openclaw config set` writes locally, not to the gateway |
+| Gateway config write (bulk) | `bash scripts/seed-openclaw-config.sh dev` |
 | Container replica state, exec fallback | `azure-mcp-server/containerapps` |
 | Key Vault secret read / rotation | `azure-mcp-server/keyvault` |
 | Log Analytics queries (KQL) | `azure-mcp-server/monitor` |
@@ -78,18 +81,19 @@ Resource names: read `terraform/outputs.tf`, then run `terraform -chdir=terrafor
 1. Identify symptoms (gateway unreachable, channel disconnected, no agent responses, restart loop)
 2. Load CLI env and run `openclaw status --all` — share the snapshot with the user first
 3. Run `openclaw doctor --non-interactive` — auto-repair safe issues with `--fix`
-4. Drill into the affected area: channels → `openclaw channels status --probe`; agents → `openclaw agents status`; config → `openclaw config get <key>`
+4. Drill into the affected area: channels → `openclaw channels status --probe`; agents → `openclaw agents status`; config → `az containerapp exec --name <app> --resource-group <rg> --command "node /app/openclaw.mjs config get <key>"` (do not use `openclaw config get` — it reads local `~/.openclaw`, not the gateway)
 5. If the CLI cannot connect, escalate to Azure infra: check replica state via `azure-mcp-server/containerapps`, then query Log Analytics via `azure-mcp-server/monitor`
 6. Check Key Vault access if token injection is suspect: `azure-mcp-server/keyvault`
 7. Propose fix: config correction, secret rotation, revision restart, or Terraform change
 
 ### Configuration Change
 
-1. Discover current state: `openclaw status --all` + `openclaw config get <key>`
+1. Discover current state: `openclaw status --all` + `az containerapp exec --name <app> --resource-group <rg> --command "node /app/openclaw.mjs config get <key>"` (do not use `openclaw config get` — it reads local state)
 2. Validate before changing: `openclaw doctor --non-interactive`
-3. Apply via remote CLI: `openclaw config set <key> <value>` or `openclaw configure`
-   - For bulk initial setup, use `openclaw config set --batch-file` via container exec
-   - Never write or upload config files directly to Azure Files; always go through the CLI config layer
+3. Apply config changes — `openclaw config set` and `openclaw configure` write to the local `~/.openclaw` directory, **not** the remote gateway:
+   - **Bulk updates (primary):** `bash scripts/seed-openclaw-config.sh dev` — validates JSON, stages to Azure Files, applies via exec, cleans up, then verifies. Uses 2 exec sessions.
+   - **Individual key:** `az containerapp exec --name <app> --resource-group <rg> --command "node /app/openclaw.mjs config set <key> <value>"` — runs inside the container where the config file lives.
+   - Never edit `openclaw.json` directly on the Azure Files share; always apply through `seed-openclaw-config.sh` or container exec.
 4. Confirm the change: re-read the value and re-run `openclaw status --all`
 5. Restart only if `gateway.*` was modified — confirm with user before triggering
 
@@ -104,7 +108,7 @@ Follow `docs/openclaw-containerapp-operations.md` for the full flow. Key steps:
 1. Terraform applied — Key Vault, secret, Container App all provisioned
 2. Health probes passing (`/healthz`, `/readyz`)
 3. Load remote credentials: `source <(./scripts/openclaw-connect.sh dev --export)` — verify `OPENCLAW_GATEWAY_URL` is set
-4. Seed gateway config via container exec + `openclaw config set --batch-file`
+4. Seed gateway config: `bash scripts/seed-openclaw-config.sh dev` (validates JSON, stages to Azure Files, applies via container exec, cleans up)
 5. Device pairing approved via `openclaw devices approve`
 6. `openclaw status --all` healthy; `openclaw doctor` clean
 7. Channels configured via `openclaw configure`
@@ -118,5 +122,8 @@ Follow `docs/openclaw-containerapp-operations.md` for the full flow. Key steps:
 - **No credentials in config files** — use Key Vault SecretRef or `${VAR}` substitution in `openclaw.json`
 - **Verify remote target before every session** — source `scripts/openclaw-connect.sh dev --export` and confirm `OPENCLAW_GATEWAY_URL` is set to the Container App URL; openclaw is not installed locally and will not function without it
 - **Approve device if pending** — run `openclaw devices list` and approve before any other operations; do not skip this step
-- **CLI config only** — all config changes go through `openclaw config set` or `openclaw configure` on the remote gateway; never write files directly to Azure Files or use storage upload commands to seed config
-- **Never download config to /tmp** — use `openclaw config get <key>` to inspect values; do not copy `openclaw.json` locally
+- **Bulk updates via seed script** — for bulk config updates, run `bash scripts/seed-openclaw-config.sh dev`; it stages the batch file to Azure Files, applies via container exec, and cleans up automatically. Do not write or edit `openclaw.json` directly on the share.
+- **`openclaw config get/set` reads/writes local state only** — these commands operate on `~/.openclaw/openclaw.json` locally, not the gateway. Always use `az containerapp exec` + `node /app/openclaw.mjs config get|set` to inspect or change gateway config.
+- **`openclaw models list` hangs via remote CLI** — run via exec instead: `az containerapp exec ... --command "node /app/openclaw.mjs models list"`
+- **No `&&` chains in exec commands** — only the first command in an exec `&&` chain produces output; run each command in a separate exec call.
+- **exec rate limit: ~5 sessions per 10 minutes** — HTTP 429 means wait 10 minutes. `seed-openclaw-config.sh` uses 2 exec sessions per run; plan accordingly.

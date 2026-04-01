@@ -1,27 +1,101 @@
 #!/usr/bin/env bash
-# test-openclaw-config.sh — Validate OpenClaw gateway config via az containerapp exec.
+# test-openclaw-config.sh — Validate the live OpenClaw gateway config locally.
 #
-# Intended for LOCAL use only after a standalone config change (not seeding).
-# DO NOT run this in CI immediately after seed-openclaw-config.sh — the combined
-# exec session count will exceed the az containerapp exec rate limit (~5/10 min).
-# Config validation in CI is handled by seed-openclaw-config.sh exec 2/2.
+# Downloads openclaw.json from the Azure Files share (the live gateway config)
+# to a temp file, then runs `openclaw config validate` locally on the runner.
 #
-# Runs openclaw config validate and doctor --non-interactive inside the container
-# using `az containerapp exec --command "node /app/openclaw.mjs ..."` (2 exec sessions).
-# Running node directly avoids the ENOTTY error that occurs when exec-ing bash in a
-# non-TTY environment.
+# No az containerapp exec, no gateway connection, no device pairing needed.
+# az containerapp exec is broken in CI (ENOTTY) and rate-limited (429). This
+# approach validates the actual live config without any of those constraints.
 #
 # Usage:
 #   bash scripts/test-openclaw-config.sh [dev|prod]
 #
 # Prerequisites:
 #   - az login with access to the environment resource group
-#   - Container App is running (revision active)
+#   - npm available on PATH (for one-off openclaw CLI install)
+#   - config/openclaw.json exists on the Azure Files share (seeded at least once)
 #
-# Constraints:
-#   - az containerapp exec is rate-limited (~5 sessions per 10 min; HTTP 429 = wait 10 min)
-#   - This script uses 2 exec sessions (config validate + doctor).
-#   - SEC-001: targets dev only unless explicitly confirmed.
+# SEC-001: targets dev only unless explicitly confirmed.
+
+set -euo pipefail
+
+ENV="${1:-dev}"
+
+PROJECT="paa"
+APP_NAME="${PROJECT}-${ENV}-app"
+RG_NAME="${PROJECT}-${ENV}-rg"
+STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
+SHARE_NAME="openclaw-state"
+# Live gateway config path on the share (mounted at /home/node/.openclaw in the container)
+CONFIG_ON_SHARE="openclaw.json"
+TMP_CONFIG="$(mktemp /tmp/openclaw-validate-XXXXXX.json)"
+
+# ── Safety guard ────────────────────────────────────────────────────────────────
+if [[ "${ENV}" == "prod" ]]; then
+  echo "⚠  WARNING: You are about to validate PRODUCTION config."
+  if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+    read -r -p "   Type 'prod' to confirm and continue: " confirmation
+    if [[ "${confirmation}" != "prod" ]]; then
+      echo "Aborted."
+      exit 1
+    fi
+  else
+    echo "   Running in CI — skipping interactive prompt."
+  fi
+fi
+
+echo "VALIDATE: environment=${ENV}  app=${APP_NAME}  rg=${RG_NAME}"
+
+cleanup() { rm -f "${TMP_CONFIG}" 2>/dev/null || true; }
+trap cleanup EXIT
+
+# ── Step 1: Fetch storage key ────────────────────────────────────────────────────────
+STORAGE_KEY=$(az storage account keys list \
+  --account-name "${STORAGE_ACCOUNT}" \
+  --resource-group "${RG_NAME}" \
+  --query "[0].value" -o tsv 2>/dev/null)
+if [[ -z "${STORAGE_KEY}" ]]; then
+  echo "ERROR: could not retrieve storage key for ${STORAGE_ACCOUNT}" >&2
+  exit 1
+fi
+echo "VALIDATE: storage key retrieved"
+
+# ── Step 2: Download live openclaw.json from Azure Files ──────────────────────────
+echo "VALIDATE: downloading ${CONFIG_ON_SHARE} from share..."
+if ! az storage file download \
+  --account-name "${STORAGE_ACCOUNT}" \
+  --account-key "${STORAGE_KEY}" \
+  --share-name "${SHARE_NAME}" \
+  --path "${CONFIG_ON_SHARE}" \
+  --dest "${TMP_CONFIG}" \
+  --no-progress \
+  --output none 2>&1; then
+  echo "VALIDATE: ⚠  ${CONFIG_ON_SHARE} not found on share — config not yet seeded; skipping validate"
+  exit 0
+fi
+echo "VALIDATE: config downloaded to ${TMP_CONFIG}"
+
+# ── Step 3: Install openclaw CLI ────────────────────────────────────────────────────────
+if ! command -v openclaw &>/dev/null; then
+  echo "VALIDATE: installing openclaw CLI..."
+  npm install -g openclaw --silent
+fi
+echo "VALIDATE: openclaw $(openclaw --version 2>/dev/null | head -1 || echo 'unknown')"
+
+# ── Step 4: Run config validate locally ───────────────────────────────────────────────
+echo "VALIDATE: running openclaw config validate..."
+VALIDATE_OUT=$(OPENCLAW_CONFIG_PATH="${TMP_CONFIG}" openclaw config validate 2>&1 || echo "OC_VALIDATE_FAILED")
+echo "${VALIDATE_OUT}"
+
+if echo "${VALIDATE_OUT}" | grep -q "OC_VALIDATE_FAILED"; then
+  echo ""
+  echo "VALIDATE: ❌ config validate failed — review output above"
+  exit 1
+else
+  echo ""
+  echo "VALIDATE: ✅ config validate passed"
+fi
 
 set -euo pipefail
 

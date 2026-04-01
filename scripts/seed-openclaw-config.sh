@@ -153,30 +153,9 @@ az storage file delete \
   --output none 2>&1 || true
 echo "SEED: staged file removed"
 
-# ── Step 3: Config validate (exec 2/2) ──────────────────────────────────────────
-# Replaces the primary-model config get: validate is more comprehensive and uses
-# the same single exec call. Avoids adding extra exec sessions (rate limit: ~5/10 min).
-echo ""
-echo "SEED: validating applied config (exec 2/2)..."
-VALIDATE_OUT=$(az containerapp exec \
-  --name "${APP_NAME}" \
-  --resource-group "${RG_NAME}" \
-  --command "node /app/openclaw.mjs config validate" \
-  2>&1 || true)
-echo "${VALIDATE_OUT}" | grep -v "^INFO\|Connecting\|ctrl\|Successfully\|Disconnecting\|WARNING" || true
-
-if echo "${VALIDATE_OUT}" | grep -iq "429\|rate.limit\|Too Many"; then
-  echo "SEED: ⚠  exec rate-limited (HTTP 429) on validate — config was applied; validate manually:"
-  echo "       az containerapp exec --name ${APP_NAME} --resource-group ${RG_NAME} \\"
-  echo "         --command 'node /app/openclaw.mjs config validate'"
-elif echo "${VALIDATE_OUT}" | grep -qi "error\|invalid\|failed"; then
-  echo "SEED: ⚠  config validate reported issues — review output above"
-else
-  echo "SEED: ✅ config validate passed"
-fi
-
 echo ""
 echo "SEED: done. Gateway config updated on Azure Files share."
+echo "SEED: Run 'bash scripts/test-openclaw-config.sh ${ENV}' to validate the applied config."
 echo "SEED: Changes to gateway.* settings require a revision restart:"
 echo "       REVISION=\$(az containerapp revision list --name ${APP_NAME} --resource-group ${RG_NAME} --query '[0].name' -o tsv)"
 echo "       az containerapp revision restart --name ${APP_NAME} --resource-group ${RG_NAME} --revision \"\${REVISION}\""

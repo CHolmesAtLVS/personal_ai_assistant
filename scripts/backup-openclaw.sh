@@ -82,9 +82,17 @@ fi
 echo "BACKUP: storage key retrieved"
 
 # ── Step 2: Run backup via PTY exec ──────────────────────────────────────────────
-echo "BACKUP: running backup create --verify (exec 1/1)..."
+# Staging strategy: OpenClaw backup writes to /tmp/oc-backup-staging (local tmpfs)
+# rather than directly to /mnt/openclaw-backup (Azure Files SMB). This avoids an
+# EPERM from copy_file_range on CIFS: Node.js fs.copyFile() uses copy_file_range
+# which Azure Files SMB returns EPERM for, and libuv does not fall back on EPERM
+# (only ENOTSUP/ENOSYS/EXDEV). After --verify succeeds on tmp, GNU cp transfers
+# the archive to the Azure Files share using its own fallback read+write path.
+BACKUP_STAGING="/tmp/oc-backup-staging"
+BACKUP_EXEC_CMD="rm -rf ${BACKUP_STAGING} && mkdir -p ${BACKUP_STAGING} && node /app/openclaw.mjs backup create --output ${BACKUP_STAGING} --verify && cp ${BACKUP_STAGING}/*.tar.gz ${BACKUP_MOUNT}/"
+echo "BACKUP: running backup create --verify then cp to share (exec 1/1)..."
 BACKUP_EXIT=0
-BACKUP_OUTPUT=$(pty_exec "node /app/openclaw.mjs backup create --output ${BACKUP_MOUNT} --verify" 2>&1) || BACKUP_EXIT=$?
+BACKUP_OUTPUT=$(pty_exec "${BACKUP_EXEC_CMD}" 2>&1) || BACKUP_EXIT=$?
 
 # Print output for CI log visibility regardless of outcome
 echo "${BACKUP_OUTPUT}"

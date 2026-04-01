@@ -5,13 +5,13 @@ version: 1.0
 date_created: 2026-04-01
 last_updated: 2026-04-01
 owner: openclaw-core
-status: 'In progress'
+status: 'Completed'
 tags: [feature, backup, operations]
 ---
 
 # Introduction
 
-![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
+![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
 
 Implement automated, daily OpenClaw gateway backup for both dev and prod environments. Backups use `openclaw backup create --verify` (the supported CLI command), are stored on a dedicated Azure Files share mounted into the container, and are pruned automatically to retain daily archives for 7 days and one archive per week for 10 weeks.
 
@@ -81,9 +81,9 @@ Azure infrastructure is excluded from backup scope — Terraform + the repo cons
 
 | Task     | Description                                                                                                                                                                                                                                                | Completed | Date |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---- |
-| TASK-019 | After merging TASK-001 through TASK-018: run `terraform-deploy.yml` via `workflow_dispatch` targeting dev to apply the new share + volume mount. Confirm Container App revision is updated with the `/mnt/openclaw-backup` mount.                           |           |      |
-| TASK-020 | Trigger `backup.yml` via `workflow_dispatch` with `environment: dev`. Confirm: archive `.tar.gz` appears in `openclaw-backup` share, archive name logged in workflow output, `--verify` passes (no error in output), retention summary shows 1 kept, 0 deleted. |           |      |
-| TASK-021 | Run `backup.yml` via `workflow_dispatch` with `environment: both` (or wait for schedule) to confirm prod backup also completes cleanly.                                                                                                                     |           |      |
+| TASK-019 | After merging TASK-001 through TASK-018: run `terraform-deploy.yml` via `workflow_dispatch` targeting dev to apply the new share + volume mount. Confirm Container App revision is updated with the `/mnt/openclaw-backup` mount.                           | ✅        | 2026-04-01 |
+| TASK-020 | Trigger `backup.yml` via `workflow_dispatch` with `environment: dev`. Confirm: archive `.tar.gz` appears in `openclaw-backup` share, archive name logged in workflow output, `--verify` passes (no error in output), retention summary shows 1 kept, 0 deleted. | ✅        | 2026-04-01 |
+| TASK-021 | Run `backup.yml` via `workflow_dispatch` with `environment: both` (or wait for schedule) to confirm prod backup also completes cleanly.                                                                                                                     | ✅        | 2026-04-01 |
 
 ## 3. Alternatives
 

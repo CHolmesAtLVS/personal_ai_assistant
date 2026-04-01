@@ -22,7 +22,7 @@
 #
 # Constraints:
 #   - az containerapp exec is rate-limited (~5 sessions per 10 min; HTTP 429 = wait 10 min)
-#   - Each run uses 2 exec sessions (apply, verify). Budget accordingly.
+#   - Each run uses 1 exec session (apply only). Budget accordingly.
 #   - Never expand ${VAR} refs before seeding — leave them as literals in the batch file.
 #   - SEC-001: target dev only unless explicitly confirmed.
 
@@ -38,7 +38,7 @@ if [[ ! -f "${BATCH_FILE}" ]]; then
   exit 1
 fi
 
-PROJECT="paa"
+PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
 APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
@@ -52,15 +52,20 @@ CONTAINER_PATH="/home/node/.openclaw/.seed/seed.batch.json"
 if [[ "${ENV}" == "prod" ]]; then
   echo "⚠  WARNING: You are about to seed PRODUCTION config."
   echo "   This modifies the live gateway config on the prod Azure Files share."
-  # Skip interactive prompt when running in CI (GitHub Actions sets GITHUB_ACTIONS=true).
-  if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+  # In CI, hard-fail for prod unless ALLOW_PROD_SEED=true is explicitly set.
+  # This prevents automated runs from silently modifying live production config.
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    if [[ "${ALLOW_PROD_SEED:-}" != "true" ]]; then
+      echo "ERROR: ENV=prod in CI but ALLOW_PROD_SEED=true is not set — refusing to seed production config." >&2
+      exit 1
+    fi
+    echo "   Running in CI with ALLOW_PROD_SEED=true — skipping interactive prompt."
+  else
     read -r -p "   Type 'prod' to confirm and continue: " confirmation
     if [[ "${confirmation}" != "prod" ]]; then
       echo "Aborted."
       exit 1
     fi
-  else
-    echo "   Running in CI — skipping interactive prompt."
   fi
 fi
 

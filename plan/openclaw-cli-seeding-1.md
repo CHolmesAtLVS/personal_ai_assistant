@@ -15,7 +15,7 @@ tags: [openclaw, config, seed, cli, container-exec]
 
 The previous config seeding approach (`az storage file upload` + `envsubst`) was fragile and unsupported — it bypassed the OpenClaw config layer by writing directly to the Azure Files share, which could be overwritten by the gateway on reload. This plan documents the replacement: **CLI-only seeding via `openclaw config set --batch-file` executed inside the container**.
 
-The approach has been validated in dev (revision `paa-dev-app--0000007`, model `gpt-5.4-mini`). A dedicated seed script (`scripts/seed-openclaw-config.sh`) exists. Outstanding work: agents/skills config seeding and CI workflow integration.
+The approach has been validated in the dev environment (model `gpt-5.4-mini`). A dedicated seed script (`scripts/seed-openclaw-config.sh`) exists. Outstanding work: agents/skills config seeding and CI workflow integration.
 
 ---
 
@@ -40,20 +40,20 @@ The CLI exec approach fixes all of these:
 
 - **REQ-001**: Config must be applied exclusively via `openclaw config set` (or `--batch-file`) running inside the container process.
 - **REQ-002**: Secret values (`AZURE_AI_API_KEY`, `OPENCLAW_GATEWAY_TOKEN`) must be stored as `${VAR}` literals in the batch file — never expanded before exec.
-- **REQ-003**: No files must be left on the Azure Files share after seeding — `/tmp` inside the container is used instead (ephemeral, not persisted).
+- **REQ-003**: Config seeding must not leave batch or staging files persisted on the Azure Files share after completion. The batch file is staged under `.seed/seed.batch.json` (a transient path) and deleted via `az storage file delete` after the exec apply completes.
 - **REQ-004**: After seeding `gateway.*` settings, restart the gateway revision and verify via `gateway probe`.
 - **REQ-005**: Agents and skills config must be seeded as part of initial bootstrap, not left at defaults.
 - **SEC-001**: All commands must target the **dev** environment. Never run against production without explicit confirmation.
 - **CON-001**: `config/openclaw.batch.json` is the authoritative source for gateway config structure.
 - **CON-002**: The batch file format is a JSON array of `{ "path": "...", "value": ... }` objects — see Section 4 for schema.
-- **CON-003**: `az containerapp exec` is rate-limited to approximately 5 sessions per 10 minutes. HTTP 429 means wait 10 minutes. Plan exec calls carefully — each `seed-openclaw-config.sh` run uses 3 exec sessions.
+- **CON-003**: `az containerapp exec` is rate-limited to approximately 5 sessions per 10 minutes. HTTP 429 means wait 10 minutes. Plan exec calls carefully — each `seed-openclaw-config.sh` run uses 1 exec session (apply only).
 
 ---
 
 ## 3. Prerequisites
 
-1. `az login` with access to the dev resource group (`paa-dev-rg`) and Key Vault (`paa-dev-kv`).
-2. Container app `paa-dev-app` is running (check with `az containerapp show`).
+1. `az login` with access to the dev resource group and Key Vault.
+2. Container app is running (check with `az containerapp show --name <app-name> --resource-group <rg-name>`).
 3. `openclaw` CLI installed locally (`npm install -g openclaw`).
 4. `config/openclaw.batch.json` is up to date and valid JSON.
 5. `scripts/seed-openclaw-config.sh` is present and executable.
@@ -86,11 +86,10 @@ This avoids the exec command-length limit. The `az containerapp exec` WebSocket 
 bash scripts/seed-openclaw-config.sh dev
 ```
 
-This uses 2 exec sessions:
+This uses 1 exec session:
 1. Apply: `node /app/openclaw.mjs config set --batch-file /home/node/.openclaw/.seed/seed.batch.json`
-2. Verify: `node /app/openclaw.mjs config get agents.defaults.model.primary`
 
-Upload and cleanup happen outside exec (via `az storage file upload` / `az storage file delete`).
+Upload, cleanup, and post-seed validation happen outside exec (via `az storage file upload`, `az storage file delete`, and local `openclaw config validate`).
 
 If you hit HTTP 429, wait 10 minutes and retry.
 
@@ -98,27 +97,26 @@ If you hit HTTP 429, wait 10 minutes and retry.
 
 ```bash
 STORAGE_KEY=$(az storage account keys list \
-  --account-name paadevocstate --resource-group paa-dev-rg \
+  --account-name <storage-account> --resource-group <rg-name> \
   --query "[0].value" -o tsv)
 
 # Stage batch file on the Azure Files share
-az storage directory create --account-name paadevocstate --account-key "$STORAGE_KEY" \
+az storage directory create --account-name <storage-account> --account-key "$STORAGE_KEY" \
   --share-name openclaw-state --name .seed --output none || true
-az storage file upload --account-name paadevocstate --account-key "$STORAGE_KEY" \
+az storage file upload --account-name <storage-account> --account-key "$STORAGE_KEY" \
   --share-name openclaw-state --source config/openclaw.batch.json \
   --path .seed/seed.batch.json --no-progress --output none
 
 # Apply via exec (file is visible at the mount path)
-az containerapp exec --name paa-dev-app --resource-group paa-dev-rg \
+az containerapp exec --name <app-name> --resource-group <rg-name> \
   --command "node /app/openclaw.mjs config set --batch-file /home/node/.openclaw/.seed/seed.batch.json"
 
 # Clean up
-az storage file delete --account-name paadevocstate --account-key "$STORAGE_KEY" \
+az storage file delete --account-name <storage-account> --account-key "$STORAGE_KEY" \
   --share-name openclaw-state --path .seed/seed.batch.json --output none
 
-# Verify
-az containerapp exec --name paa-dev-app --resource-group paa-dev-rg \
-  --command "node /app/openclaw.mjs config get agents.defaults.model.primary"
+# Validate locally (download + openclaw config validate)
+bash scripts/test-openclaw-config.sh dev
 ```
 
 ### Previously attempted: base64 + /tmp via `node -e`
@@ -175,13 +173,13 @@ The `main` agent is running with `gpt-5.4-mini` as primary model. The workspace 
 **Next steps:**
 - Seed `agents.main.systemPrompt` or custom BOOTSTRAP.md via `openclaw config set` or exec
 - Add routing rules to `agents.defaults.routing` if multi-agent is needed
-- Audit skills: `az containerapp exec --name paa-dev-app --resource-group paa-dev-rg --command "node /app/openclaw.mjs skills list"`
+- Audit skills: `az containerapp exec --name <app-name> --resource-group <rg-name> --command "node /app/openclaw.mjs skills list"`
 - Confirm memory (SQLite) is healthy: `node /app/openclaw.mjs memory status --deep` via exec
 
 **Stale config to clean up:**
 - `agents.defaults.models` block still contains `azure-openai/gpt-4o: {}` — a leftover entry from the old config. Remove with:
   ```bash
-  az containerapp exec --name paa-dev-app --resource-group paa-dev-rg \
+  az containerapp exec --name <app-name> --resource-group <rg-name> \
     --command "node /app/openclaw.mjs config unset agents.defaults.models"
   ```
 
@@ -239,7 +237,7 @@ openclaw configure (interactive)           (manual — channels, agents, skills 
 ## 11. Known Limitations
 
 - **`openclaw models list` remote hang**: Hangs when `OPENCLAW_GATEWAY_URL` is set. Use `az containerapp exec` + `node /app/openclaw.mjs models list` instead.
-- **exec rate limit**: ~5 sessions per 10 minutes. `seed-openclaw-config.sh` uses 3 exec sessions per run.
+- **exec rate limit**: ~5 sessions per 10 minutes. `seed-openclaw-config.sh` uses 1 exec session (apply only) per run.
 - **`&&` chain silence**: Only the first command in an exec `&&` chain produces output. Subsequent commands succeed but print nothing — verified by checking config values separately.
 - **No idempotency guard**: Re-running the batch writes the same values; sha256 changes only when values actually differ.
 - **Agents/skills not seeded**: `BOOTSTRAP.md` is the default template. Agent persona, routing rules, and skills require separate configuration.

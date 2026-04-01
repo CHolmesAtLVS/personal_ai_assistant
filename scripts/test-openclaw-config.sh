@@ -22,7 +22,7 @@ set -euo pipefail
 
 ENV="${1:-dev}"
 
-PROJECT="paa"
+PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
 APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
@@ -34,14 +34,19 @@ TMP_CONFIG="$(mktemp /tmp/openclaw-validate-XXXXXX.json)"
 # ── Safety guard ────────────────────────────────────────────────────────────────
 if [[ "${ENV}" == "prod" ]]; then
   echo "⚠  WARNING: You are about to validate PRODUCTION config."
-  if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+  # In CI, hard-fail for prod unless ALLOW_PROD_SEED=true is explicitly set.
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    if [[ "${ALLOW_PROD_SEED:-}" != "true" ]]; then
+      echo "ERROR: ENV=prod in CI but ALLOW_PROD_SEED=true is not set — refusing to validate production config." >&2
+      exit 1
+    fi
+    echo "   Running in CI with ALLOW_PROD_SEED=true — skipping interactive prompt."
+  else
     read -r -p "   Type 'prod' to confirm and continue: " confirmation
     if [[ "${confirmation}" != "prod" ]]; then
       echo "Aborted."
       exit 1
     fi
-  else
-    echo "   Running in CI — skipping interactive prompt."
   fi
 fi
 

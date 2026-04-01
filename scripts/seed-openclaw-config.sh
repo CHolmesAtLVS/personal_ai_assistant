@@ -196,7 +196,16 @@ else
 
   if ! command -v openclaw &>/dev/null; then
     echo "SEED: installing openclaw CLI..."
-    npm install -g openclaw --silent
+    npm install -g openclaw 2>&1
+    # npm install -g puts binaries in $(npm prefix -g)/bin which may not be on PATH in CI.
+    NPM_BIN="$(npm prefix -g)/bin"
+    export PATH="${NPM_BIN}:${PATH}"
+  fi
+  if ! command -v openclaw &>/dev/null; then
+    echo "ERROR: openclaw not found after npm install — check npm global bin path" >&2
+    echo "SEED: npm prefix -g = $(npm prefix -g)" >&2
+    echo "SEED: PATH = ${PATH}" >&2
+    exit 1
   fi
   echo "SEED: openclaw $(openclaw --version 2>/dev/null | head -1 || echo 'unknown')"
 

@@ -84,7 +84,13 @@ echo "VALIDATE: config downloaded to ${TMP_CONFIG}"
 # ── Step 3: Install openclaw CLI ────────────────────────────────────────────────────────
 if ! command -v openclaw &>/dev/null; then
   echo "VALIDATE: installing openclaw CLI..."
-  npm install -g openclaw --silent
+  npm install -g openclaw 2>&1
+  NPM_BIN="$(npm prefix -g)/bin"
+  export PATH="${NPM_BIN}:${PATH}"
+fi
+if ! command -v openclaw &>/dev/null; then
+  echo "ERROR: openclaw not found after npm install — npm prefix -g = $(npm prefix -g)" >&2
+  exit 1
 fi
 echo "VALIDATE: openclaw $(openclaw --version 2>/dev/null | head -1 || echo 'unknown')"
 

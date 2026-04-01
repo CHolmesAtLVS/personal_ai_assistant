@@ -39,6 +39,10 @@ az containerapp revision restart \
 
 ### 1.2 Run Terraform Apply
 
+> **Pre-flight: `TF_VAR_AZURE_AI_API_KEY` must be set in the GitHub Environment secrets before any apply.**
+> This secret provides the Azure AI Foundry API key used by the `azure-foundry` provider for Grok/xAI MaaS models. Terraform variable validation rejects empty values on every run (not just first apply). Retrieve the key from the Azure AI Foundry portal (AI Services account → Keys and Endpoint) and set it in: GitHub repository → Settings → Environments → `dev` (or `prod`) → Secrets.
+> For local runs, add `TF_VAR_azure_ai_api_key = "<key>"` to `scripts/dev.tfvars`.
+
 Terraform apply is triggered automatically by CI on every PR to `main` (dev) and on merge to `main` (prod). No manual steps are required.
 
 ```bash

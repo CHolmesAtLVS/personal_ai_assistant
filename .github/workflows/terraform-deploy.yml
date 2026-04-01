@@ -64,6 +64,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Fail fast if TF_VAR_AZURE_AI_API_KEY is not set in the GitHub Environment secrets.
+      # This variable must be non-empty on every Terraform apply — the Terraform variable
+      # validation rejects empty values before any plan or apply can proceed.
+      # lifecycle { ignore_changes = [value] } on the KV secret prevents overwriting an
+      # existing key, but Terraform still validates the variable on every run.
+      # Fix: GitHub repository → Settings → Environments → dev → Secrets → TF_VAR_AZURE_AI_API_KEY
+      - name: Check required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${TF_VAR_azure_ai_api_key:-}" ]]; then
+            echo "::error::TF_VAR_AZURE_AI_API_KEY is empty or not set in the GitHub 'dev' Environment secrets."
+            echo "  This secret must contain the Azure AI Foundry account API key."
+            echo "  It must be non-empty on every Terraform apply (not just first apply)."
+            echo "  Set it at: GitHub repository → Settings → Environments → dev → Secrets"
+            echo "  See docs/secrets-inventory.md for the full secrets inventory."
+            exit 1
+          fi
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -163,6 +182,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Fail fast if TF_VAR_AZURE_AI_API_KEY is not set in the GitHub Environment secrets.
+      # This variable must be non-empty on every Terraform apply — the Terraform variable
+      # validation rejects empty values before any plan or apply can proceed.
+      # lifecycle { ignore_changes = [value] } on the KV secret prevents overwriting an
+      # existing key, but Terraform still validates the variable on every run.
+      # Fix: GitHub repository → Settings → Environments → prod → Secrets → TF_VAR_AZURE_AI_API_KEY
+      - name: Check required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${TF_VAR_azure_ai_api_key:-}" ]]; then
+            echo "::error::TF_VAR_AZURE_AI_API_KEY is empty or not set in the GitHub 'prod' Environment secrets."
+            echo "  This secret must contain the Azure AI Foundry account API key."
+            echo "  It must be non-empty on every Terraform apply (not just first apply)."
+            echo "  Set it at: GitHub repository → Settings → Environments → prod → Secrets"
+            echo "  See docs/secrets-inventory.md for the full secrets inventory."
+            exit 1
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3

@@ -112,9 +112,10 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
-      # Uploads config/openclaw.batch.json to the Azure Files share, then applies
-      # it via az containerapp exec (exec 1/1). Uses only az CLI (no openclaw CLI,
-      # no device token).
+      # Downloads openclaw.json from the Azure Files share, applies config/openclaw.batch.json
+      # locally using the openclaw CLI (OPENCLAW_CONFIG_PATH=<tmp>), validates, then uploads
+      # the result back. The gateway hot-reloads from the share mount — no az containerapp
+      # exec required. No gateway connection, no device pairing.
       # continue-on-error: seed failures are non-fatal — Terraform succeeded; config
       # can be re-seeded manually with: bash scripts/seed-openclaw-config.sh dev
       - name: Seed OpenClaw Config
@@ -124,15 +125,25 @@ jobs:
           chmod +x scripts/seed-openclaw-config.sh
           bash scripts/seed-openclaw-config.sh dev
 
-      # Downloads openclaw.json from Azure Files and runs openclaw config validate
-      # locally on the runner. No az containerapp exec, no gateway, no device pairing.
-      # continue-on-error: validation failure is non-fatal after a successful deploy.
+      # Runs openclaw config validate inside the running container via az containerapp exec.
+      # Uses script(1) to allocate a pseudo-TTY, bypassing the ENOTTY (errno 25) error
+      # that az containerapp exec raises in CI when no TTY is present.
+      # script(1) is provided by the util-linux package, available on ubuntu-latest runners.
+      # continue-on-error: validate failure is informational — seed already succeeded.
       - name: Validate OpenClaw Config
         continue-on-error: true
         shell: bash
         run: |
-          chmod +x scripts/test-openclaw-config.sh
-          bash scripts/test-openclaw-config.sh dev
+          PROJECT="${TF_VAR_project:-paa}"
+          APP_NAME="${PROJECT}-dev-app"
+          RG_NAME="${PROJECT}-dev-rg"
+          echo "VALIDATE: running openclaw config validate via exec+pty on ${APP_NAME}"
+          script -q -c "
+            az containerapp exec \
+              --name ${APP_NAME} \
+              --resource-group ${RG_NAME} \
+              --command 'node /app/openclaw.mjs config validate'
+          " /dev/null | tr -d '\r' || true
 
   terraform-prod:
     name: Terraform Prod
@@ -232,9 +243,10 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
-      # Uploads config/openclaw.batch.json to the Azure Files share, then applies
-      # it via az containerapp exec (exec 1/1). Uses only az CLI (no openclaw CLI,
-      # no device token).
+      # Downloads openclaw.json from the Azure Files share, applies config/openclaw.batch.json
+      # locally using the openclaw CLI (OPENCLAW_CONFIG_PATH=<tmp>), validates, then uploads
+      # the result back. The gateway hot-reloads from the share mount — no az containerapp
+      # exec required. No gateway connection, no device pairing.
       # continue-on-error: seed failures are non-fatal — Terraform succeeded; config
       # can be re-seeded manually with: bash scripts/seed-openclaw-config.sh prod
       - name: Seed OpenClaw Config
@@ -244,12 +256,21 @@ jobs:
           chmod +x scripts/seed-openclaw-config.sh
           bash scripts/seed-openclaw-config.sh prod
 
-      # Downloads openclaw.json from Azure Files and runs openclaw config validate
-      # locally on the runner. No az containerapp exec, no gateway, no device pairing.
-      # continue-on-error: validation failure is non-fatal after a successful deploy.
+      # Runs openclaw config validate inside the running container via az containerapp exec.
+      # Uses script(1) to allocate a pseudo-TTY, bypassing the ENOTTY (errno 25) error
+      # that az containerapp exec raises in CI when no TTY is present.
+      # continue-on-error: validate failure is informational — seed already succeeded.
       - name: Validate OpenClaw Config
         continue-on-error: true
         shell: bash
         run: |
-          chmod +x scripts/test-openclaw-config.sh
-          bash scripts/test-openclaw-config.sh prod
+          PROJECT="${TF_VAR_project:-paa}"
+          APP_NAME="${PROJECT}-prod-app"
+          RG_NAME="${PROJECT}-prod-rg"
+          echo "VALIDATE: running openclaw config validate via exec+pty on ${APP_NAME}"
+          script -q -c "
+            az containerapp exec \
+              --name ${APP_NAME} \
+              --resource-group ${RG_NAME} \
+              --command 'node /app/openclaw.mjs config validate'
+          " /dev/null | tr -d '\r' || true

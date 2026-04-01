@@ -13,9 +13,13 @@ tags: [openclaw, config, seed, cli, container-exec]
 
 ![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow)
 
-The previous config seeding approach (`az storage file upload` + `envsubst`) was fragile and unsupported — it bypassed the OpenClaw config layer by writing directly to the Azure Files share, which could be overwritten by the gateway on reload. This plan documents the replacement: **CLI-only seeding via `openclaw config set --batch-file` executed inside the container**.
+The previous config seeding approach (`az storage file upload` + `envsubst`) was fragile and unsupported — it bypassed the OpenClaw config layer by writing directly to the Azure Files share, which could be overwritten by the gateway on reload. This plan documents the replacement and the operating model for CI-reliable seeding.
 
-The approach has been validated in the dev environment (model `gpt-5.4-mini`). A dedicated seed script (`scripts/seed-openclaw-config.sh`) exists. Outstanding work: agents/skills config seeding and CI workflow integration.
+**Current canonical approach (CI-compatible):** Download `openclaw.json` from the Azure Files share, apply `config/openclaw.batch.json` locally on the runner using the openclaw CLI (`OPENCLAW_CONFIG_PATH=<tmp> openclaw config set --batch-file`), validate, then upload the result back. The gateway hot-reloads from the share mount automatically. No `az containerapp exec`, no gateway connection, no device pairing needed.
+
+**`az containerapp exec` status:** Works locally (devcontainer has a TTY). Fails in GitHub Actions with `ENOTTY` (errno 25) — the Azure CLI calls `termios.tcgetattr()` during WebSocket setup regardless of the command, and CI runners have no TTY. This is a platform constraint with no workaround short of a self-hosted runner. All exec-based approaches were abandoned.
+
+The approach has been validated in the dev environment (model `gpt-5.4-mini`). Outstanding work: agents/skills config seeding and CI workflow integration.
 
 ---
 
@@ -38,15 +42,15 @@ The CLI exec approach fixes all of these:
 
 ## 2. Requirements & Constraints
 
-- **REQ-001**: Config must be applied exclusively via `openclaw config set` (or `--batch-file`) running inside the container process.
-- **REQ-002**: Secret values (`AZURE_AI_API_KEY`, `OPENCLAW_GATEWAY_TOKEN`) must be stored as `${VAR}` literals in the batch file — never expanded before exec.
-- **REQ-003**: Config seeding must not leave batch or staging files persisted on the Azure Files share after completion. The batch file is staged under `.seed/seed.batch.json` (a transient path) and deleted via `az storage file delete` after the exec apply completes.
+- **REQ-001**: Config must be applied via `openclaw config set --batch-file`. In CI, this runs locally on the runner with `OPENCLAW_CONFIG_PATH` pointing to a file downloaded from Azure Files; locally it can also run inside the container via exec.
+- **REQ-002**: Secret values (`AZURE_AI_API_KEY`, `OPENCLAW_GATEWAY_TOKEN`) must be stored as `${VAR}` literals in the batch file — never expanded before the gateway process resolves them at runtime.
+- **REQ-003**: Config seeding must not leave batch or staging files persisted on the Azure Files share after completion. The batch file is staged under `.seed/seed.batch.json` (a transient path) and deleted via `az storage file delete` after the exec apply completes (exec method only). The local-apply method never writes to the share except to upload the final `openclaw.json`.
 - **REQ-004**: After seeding `gateway.*` settings, restart the gateway revision and verify via `gateway probe`.
 - **REQ-005**: Agents and skills config must be seeded as part of initial bootstrap, not left at defaults.
 - **SEC-001**: All commands must target the **dev** environment. Never run against production without explicit confirmation.
 - **CON-001**: `config/openclaw.batch.json` is the authoritative source for gateway config structure.
 - **CON-002**: The batch file format is a JSON array of `{ "path": "...", "value": ... }` objects — see Section 4 for schema.
-- **CON-003**: `az containerapp exec` is rate-limited to approximately 5 sessions per 10 minutes. HTTP 429 means wait 10 minutes. Plan exec calls carefully — each `seed-openclaw-config.sh` run uses 1 exec session (apply only).
+- **CON-003**: `az containerapp exec` fails in GitHub Actions with ENOTTY (errno 25) — the Azure CLI calls `termios.tcgetattr()` during WebSocket setup and CI runners have no TTY. **Workaround:** wrap with `script -q -c "az containerapp exec ..." /dev/null` to allocate a pseudo-TTY. `script(1)` is available on `ubuntu-latest` runners via util-linux. Strip carriage returns from output with `tr -d '\r'`.
 
 ---
 
@@ -74,26 +78,41 @@ The CLI exec approach fixes all of these:
 
 ---
 
-## 5. Canonical Seeding Method (Azure Files upload + exec)
+## 5. Seeding Methods
 
-**Approach:** Upload `config/openclaw.batch.json` directly to the Azure Files share (mounted at `/home/node/.openclaw` in the container) using `az storage file upload`, then apply via `az containerapp exec`. The file is staged under `.seed/seed.batch.json` and removed after apply.
+### Method A: Local-apply + upload (CI-compatible, default)
 
-This avoids the exec command-length limit. The `az containerapp exec` WebSocket endpoint URL-encodes the command argument — embedding ~2 KB of base64 inline causes HTTP 404 (URL too long). Uploading via the storage API has no such constraint.
+**How it works:** Download `openclaw.json` from the Azure Files share → apply batch locally using `OPENCLAW_CONFIG_PATH=<tmp> openclaw config set --batch-file` → validate with `openclaw config validate` → upload the result back to the share. The gateway hot-reloads from the Azure Files mount — no exec required.
 
-### Run the seed script (preferred)
+**Why:** `az containerapp exec` fails in CI with ENOTTY. This approach works in any environment with `az` and `npm` (including GitHub Actions runners).
 
 ```bash
 bash scripts/seed-openclaw-config.sh dev
 ```
 
-This uses 1 exec session:
-1. Apply: `node /app/openclaw.mjs config set --batch-file /home/node/.openclaw/.seed/seed.batch.json`
-
-Upload, cleanup, and post-seed validation happen outside exec (via `az storage file upload`, `az storage file delete`, and local `openclaw config validate`).
+Steps performed by the script:
+1. Fetch storage key via `az storage account keys list`
+2. Download `openclaw.json` from share (or start from `{}` if not yet seeded)
+3. Install openclaw CLI if absent (`npm install -g openclaw`)
+4. `OPENCLAW_CONFIG_PATH=<tmp> openclaw config set --batch-file config/openclaw.batch.json`
+5. `OPENCLAW_CONFIG_PATH=<tmp> openclaw config validate`
+6. Upload <tmp> back to share as `openclaw.json`
 
 If you hit HTTP 429, wait 10 minutes and retry.
 
-### Manual equivalent (for debugging)
+### Method B: Azure Files upload + exec (local/interactive only)
+
+**How it works:** Upload the batch file to the share, apply via `az containerapp exec --command "node /app/openclaw.mjs config set --batch-file <mount-path>"`, clean up.
+
+**When to use:** From an interactive devcontainer shell when you need to confirm `changedPaths` output directly from the container process, or audit the container's in-memory config state.
+
+**Constraint:** Requires a TTY. Fails in GitHub Actions with ENOTTY. Never use this as the CI method.
+
+```bash
+bash scripts/seed-openclaw-config.sh dev --exec
+```
+
+### Manual equivalent (for debugging, Method B)
 
 ```bash
 STORAGE_KEY=$(az storage account keys list \
@@ -115,13 +134,14 @@ az containerapp exec --name <app-name> --resource-group <rg-name> \
 az storage file delete --account-name <storage-account> --account-key "$STORAGE_KEY" \
   --share-name openclaw-state --path .seed/seed.batch.json --output none
 
-# Validate locally (download + openclaw config validate)
+# Validate locally
 bash scripts/test-openclaw-config.sh dev
 ```
 
-### Previously attempted: base64 + /tmp via `node -e`
+### Previously attempted (abandoned)
 
-Encode batch as base64 and embed in a `node -e` exec command to write to `/tmp`. **Does not work** — the command string (≥2100 chars with 2 KB of base64) exceeds the exec WebSocket URL limit, causing HTTP 404. Abandoned in favour of the Azure Files upload approach above.
+- **base64 + `/tmp` via `node -e`**: Command string ≥20 KB after base64 encoding exceeds exec WebSocket URL limit → HTTP 404.
+- **exec in GitHub Actions**: ENOTTY (errno 25) on every call — `az containerapp exec` calls `termios.tcgetattr()` during WebSocket setup regardless of command. `continue-on-error: true` masked the failure, making CI appear green while config was never applied.
 
 ---
 
@@ -143,6 +163,7 @@ Encode batch as base64 and embed in a `node -e` exec command to write to `/tmp`.
 
 | Technique | Problem |
 |---|---|
+| `az containerapp exec` (any command) in GitHub Actions | ENOTTY (errno 25) on every call — Azure CLI calls `termios.tcgetattr()` during WebSocket setup; CI runners have no TTY. `continue-on-error: true` masked this, making CI appear green while config was never applied. **Abandoned for CI.** |
 | `node -e` + base64 inline in exec command | Exec command URL-encodes the argument; ≥2 KB base64 causes HTTP 404 (URL too long) |
 | `openclaw config set` from outside container | Writes to local `~/.openclaw/openclaw.json`, not the remote gateway |
 | `az storage file upload` to seed `openclaw.json` directly | Bypasses config layer; gateway may ignore or overwrite on reload |
@@ -185,27 +206,59 @@ The `main` agent is running with `gpt-5.4-mini` as primary model. The workspace 
 
 ---
 
-## 9. Workflow Plan
+## 9. Operating Model
 
-The CI workflow (`terraform-deploy.yml`) is now **Terraform-only** — the seeding and health-check steps were removed. Config seeding is a manual one-time operation per environment.
+### Infrastructure (Terraform + GitHub)
 
-### Proposed workflow after first Terraform apply
+Terraform is the authoritative mechanism for all Azure infrastructure. Changes are applied via the `terraform-deploy.yml` workflow — PR → dev, merge to main → prod.
+
+### OpenClaw Configuration (batch + local-apply)
+
+Gateway configuration is managed by `config/openclaw.batch.json`. The batch is applied by `scripts/seed-openclaw-config.sh`, which:
+1. Downloads the current `openclaw.json` from Azure Files
+2. Applies the batch locally (`OPENCLAW_CONFIG_PATH=<tmp> openclaw config set --batch-file`)
+3. Validates (`openclaw config validate`)
+4. Uploads the result back to Azure Files
+
+The gateway hot-reloads from the Azure Files mount for most config changes. `gateway.*` changes require a revision restart.
+
+### CI workflow after each deploy
 
 ```
-terraform apply        (CI — provisions Container App, Key Vault, Azure AI Foundry)
+Terraform Plan + Apply   (infra changes only)
        ↓
-bash scripts/seed-openclaw-config.sh dev   (manual — applies openclaw.batch.json)
+Seed OpenClaw Config     (local-apply: download → batch apply → validate → upload)
        ↓
-az containerapp revision restart ...       (manual — if gateway.* paths changed)
-       ↓
-bash scripts/test-multi-model.sh dev       (manual — validate all config + live inference)
-       ↓
-openclaw configure (interactive)           (manual — channels, agents, skills via CLI)
+Gateway hot-reloads from Azure Files mount
 ```
 
-**Config drift:** If `openclaw.batch.json` is updated (e.g. new model), re-run `seed-openclaw-config.sh dev`. The apply is idempotent — unchanged paths produce no effect.
+**Config drift:** If `openclaw.batch.json` changes (e.g. new model), the next CI run re-seeds. The batch apply is idempotent — unchanged paths produce no effect.
 
-**CI integration (future):** The seed script could be added back to the workflow as a conditional step (only on first deploy or drift detection), but this requires a paired device token in CI secrets and is deferred.
+### Manual operations (local devcontainer)
+
+```bash
+# Apply batch (CI method, works locally)
+bash scripts/seed-openclaw-config.sh dev
+
+# Apply batch (exec method, confirms changedPaths from container)
+bash scripts/seed-openclaw-config.sh dev --exec
+
+# Validate downloaded config
+bash scripts/test-openclaw-config.sh dev
+
+# Full health validation + live inference
+bash scripts/test-multi-model.sh dev
+
+# Interactive CLI (channels, agents, skills)
+source <(./scripts/openclaw-connect.sh dev --export)
+openclaw configure
+```
+
+**Revision restart (after gateway.* changes):**
+```bash
+REVISION=$(az containerapp revision list --name <app-name> --resource-group <rg-name> --query '[0].name' -o tsv)
+az containerapp revision restart --name <app-name> --resource-group <rg-name> --revision "${REVISION}"
+```
 
 ---
 
@@ -236,8 +289,9 @@ openclaw configure (interactive)           (manual — channels, agents, skills 
 
 ## 11. Known Limitations
 
-- **`openclaw models list` remote hang**: Hangs when `OPENCLAW_GATEWAY_URL` is set. Use `az containerapp exec` + `node /app/openclaw.mjs models list` instead.
-- **exec rate limit**: ~5 sessions per 10 minutes. `seed-openclaw-config.sh` uses 1 exec session (apply only) per run.
+- **`openclaw models list` remote hang**: Hangs when `OPENCLAW_GATEWAY_URL` is set. Use `az containerapp exec` + `node /app/openclaw.mjs models list` instead (local/interactive only).
+- **exec in GitHub Actions**: ENOTTY on every call — not usable in CI regardless of command. `continue-on-error: true` masked this historically.
+- **exec rate limit**: ~5 sessions per 10 minutes when using exec locally.
 - **`&&` chain silence**: Only the first command in an exec `&&` chain produces output. Subsequent commands succeed but print nothing — verified by checking config values separately.
 - **No idempotency guard**: Re-running the batch writes the same values; sha256 changes only when values actually differ.
 - **Agents/skills not seeded**: `BOOTSTRAP.md` is the default template. Agent persona, routing rules, and skills require separate configuration.

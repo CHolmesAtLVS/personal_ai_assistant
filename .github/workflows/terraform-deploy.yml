@@ -19,6 +19,7 @@ on:
       - "terraform/**"
       - "scripts/bootstrap-tfstate.sh"
       - "config/openclaw.batch.json"
+      - "config/openclaw.validate.sh"
       - ".github/workflows/terraform-deploy.yml"
 
 # Minimal permissions: only read repo contents. Secrets are passed explicitly via env.
@@ -122,6 +123,17 @@ jobs:
         run: |
           chmod +x scripts/seed-openclaw-config.sh
           bash scripts/seed-openclaw-config.sh dev
+
+      # Uploads config/openclaw.validate.sh to Azure Files, runs it inside the container
+      # via az containerapp exec. Runs openclaw config validate, status, and doctor.
+      # continue-on-error: validation failures are non-fatal after a successful deploy.
+      # Re-run manually with: bash scripts/test-openclaw-config.sh dev
+      - name: Test OpenClaw Config
+        continue-on-error: true
+        shell: bash
+        run: |
+          chmod +x scripts/test-openclaw-config.sh
+          bash scripts/test-openclaw-config.sh dev
 
   terraform-prod:
     name: Terraform Prod
@@ -231,3 +243,14 @@ jobs:
         run: |
           chmod +x scripts/seed-openclaw-config.sh
           bash scripts/seed-openclaw-config.sh prod
+
+      # Uploads config/openclaw.validate.sh to Azure Files, runs it inside the container
+      # via az containerapp exec. Runs openclaw config validate, status, and doctor.
+      # continue-on-error: validation failures are non-fatal after a successful deploy.
+      # Re-run manually with: bash scripts/test-openclaw-config.sh prod
+      - name: Test OpenClaw Config
+        continue-on-error: true
+        shell: bash
+        run: |
+          chmod +x scripts/test-openclaw-config.sh
+          bash scripts/test-openclaw-config.sh prod

@@ -113,17 +113,17 @@ module "container_app" {
     init_containers = [
       {
         name    = "state-restore"
-        image   = "mcr.microsoft.com/azure-storage/azcopy:10.32.2"
+        image   = "mcr.microsoft.com/azure-cli:2.69.0"
         cpu     = 0.25
         memory  = "0.5Gi"
         command = ["/bin/sh", "-c"]
         args = [
-          "set -e; azcopy sync \"$BLOB_URL\" /data/ --recursive --account-key \"$STORAGE_ACCOUNT_KEY\" || echo 'Restore failed — starting with empty state'; chmod -R 700 /data; chown -R 1000:1000 /data; echo 'State restore complete.'"
+          "set -e; az storage blob download-batch --source openclaw-state --destination /data --account-name \"$STORAGE_ACCOUNT_NAME\" --account-key \"$STORAGE_ACCOUNT_KEY\" --overwrite --only-show-errors || echo 'Restore failed \u2014 starting with empty state'; chmod -R 700 /data; chown -R 1000:1000 /data; echo 'State restore complete.'"
         ]
         env = [
           {
-            name  = "BLOB_URL"
-            value = local.openclaw_state_blob_url
+            name  = "STORAGE_ACCOUNT_NAME"
+            value = local.openclaw_state_storage_account_name
           },
           {
             name        = "STORAGE_ACCOUNT_KEY"
@@ -217,26 +217,21 @@ module "container_app" {
       # 60-minute reconciliation sync as a belt-and-suspenders backstop (CON-006).
       {
         name    = "state-sync"
-        image   = "mcr.microsoft.com/azure-storage/azcopy:10.32.2"
+        image   = "mcr.microsoft.com/azure-cli:2.69.0"
         cpu     = 0.25
         memory  = "0.5Gi"
         command = ["/bin/sh", "-c"]
         args = [
-          "set -e; MARKER=/tmp/.last_sync; RECON_INTERVAL=3600; POLL_INTERVAL=5; touch \"$MARKER\"; echo \"Sync sidecar started (event-driven; reconciliation every $RECON_INTERVAL s).\"; last_recon=$(date +%s); _sigterm() { echo 'SIGTERM: running final sync...'; azcopy sync /data/ \"$BLOB_URL\" --recursive --delete-destination=true; exit 0; }; trap '_sigterm' TERM; while true; do now=$(date +%s); if find /data -newer \"$MARKER\" -not -path '/data/.azcopy/*' -type f | grep -q .; then echo 'Changes detected - syncing...'; azcopy sync /data/ \"$BLOB_URL\" --recursive --delete-destination=true; touch \"$MARKER\"; last_recon=$now; elif [ $(( now - last_recon )) -ge $RECON_INTERVAL ]; then echo 'Reconciliation sync...'; azcopy sync /data/ \"$BLOB_URL\" --recursive --delete-destination=true; touch \"$MARKER\"; last_recon=$now; fi; sleep $POLL_INTERVAL & wait $!; done"
+          "set -e; az login --identity --username \"$MI_CLIENT_ID\" --output none; MARKER=/tmp/.last_sync; RECON_INTERVAL=3600; POLL_INTERVAL=5; touch \"$MARKER\"; echo \"Sync sidecar started (event-driven; reconciliation every $RECON_INTERVAL s).\"; last_recon=$(date +%s); _sigterm() { echo 'SIGTERM: running final sync...'; az storage blob sync --source /data --container openclaw-state --account-name \"$STORAGE_ACCOUNT_NAME\" --delete-destination true --auth-mode login --only-show-errors 2>/dev/null || true; exit 0; }; trap '_sigterm' TERM; while true; do now=$(date +%s); if find /data -newer \"$MARKER\" -not -path '/data/.azure/*' -type f | grep -q .; then echo 'Changes detected - syncing...'; az storage blob sync --source /data --container openclaw-state --account-name \"$STORAGE_ACCOUNT_NAME\" --delete-destination true --auth-mode login --only-show-errors; touch \"$MARKER\"; last_recon=$now; elif [ $(( now - last_recon )) -ge $RECON_INTERVAL ]; then echo 'Reconciliation sync...'; az storage blob sync --source /data --container openclaw-state --account-name \"$STORAGE_ACCOUNT_NAME\" --delete-destination true --auth-mode login --only-show-errors; touch \"$MARKER\"; last_recon=$now; fi; sleep $POLL_INTERVAL & wait $!; done"
         ]
         env = [
           {
-            # MSI auth for azcopy — works for regular sidecar containers in Consumption-only ACA.
-            name  = "AZCOPY_AUTO_LOGIN_TYPE"
-            value = "MSI"
-          },
-          {
-            name  = "AZCOPY_MSI_CLIENT_ID"
+            name  = "MI_CLIENT_ID"
             value = module.identity.client_id
           },
           {
-            name  = "BLOB_URL"
-            value = local.openclaw_state_blob_url
+            name  = "STORAGE_ACCOUNT_NAME"
+            value = local.openclaw_state_storage_account_name
           },
         ]
         volume_mounts = [

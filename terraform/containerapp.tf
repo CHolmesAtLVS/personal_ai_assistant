@@ -208,6 +208,17 @@ module "container_app" {
             name        = "AZURE_AI_API_KEY"
             secret_name = "azure-ai-api-key"
           },
+          {
+            # Suppress self-respawn overhead on startup (TASK-011).
+            name  = "OPENCLAW_NO_RESPAWN"
+            value = "1"
+          },
+          {
+            # V8 compile cache persisted in ephemeral EmptyDir — rebuilds on cold start
+            # but speeds up repeated CLI invocations within a running container (TASK-011).
+            name  = "NODE_COMPILE_CACHE"
+            value = "/var/tmp/openclaw-compile-cache"
+          },
         ]
       },
       # REQ-003: azcopy sidecar — event-driven sync EmptyDir → Blob Storage.

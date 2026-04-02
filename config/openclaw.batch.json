@@ -22,8 +22,6 @@
   { "path": "update.checkOnStart",    "value": false },
 
   { "path": "gateway.trustedProxies", "value": ["100.100.0.0/16"] },
-  { "path": "discovery.mdns.enabled", "value": false },
-  { "path": "gateway.modelPricing.enabled", "value": false },
 
   { "path": "agents.defaults.model.primary",   "value": "azure-openai/gpt-5.4-mini" },
   { "path": "agents.defaults.model.fallbacks", "value": [] },

@@ -69,7 +69,7 @@ fi
 
 if [[ "${ENV}" == "prod" ]]; then
   echo "⚠  WARNING: You are about to seed PRODUCTION config."
-  echo "   This modifies the live gateway config on the prod Azure Files share."
+  echo "   This applies config to the prod gateway via container exec."
   read -r -p "   Type 'prod' to confirm and continue: " confirmation
   if [[ "${confirmation}" != "prod" ]]; then echo "Aborted."; exit 1; fi
 fi
@@ -197,7 +197,7 @@ CONFIG_PATH="openclaw.json"
 # ── Safety guard ────────────────────────────────────────────────────────────────
 if [[ "${ENV}" == "prod" ]]; then
   echo "⚠  WARNING: You are about to seed PRODUCTION config."
-  echo "   This modifies the live gateway config on the prod Azure Files share."
+  echo "   This applies config to the prod gateway via container exec."
   # In CI, hard-fail for prod unless ALLOW_PROD_SEED=true is explicitly set.
   # This prevents automated runs from silently modifying live production config.
   if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
@@ -304,7 +304,7 @@ else
   # ── LOCAL-APPLY METHOD (CI-compatible, default) ────────────────────────────────
   # Download openclaw.json from the share, apply the batch locally using the
   # openclaw CLI, validate, then upload the result back to the share.
-  # The gateway hot-reloads from the Azure Files mount — no exec required.
+  # The gateway hot-reloads from the config applied via exec.
   TMP_CONFIG="$(mktemp /tmp/openclaw-seed-XXXXXX.json)"
   cleanup() { rm -f "${TMP_CONFIG}" 2>/dev/null || true; }
   trap cleanup EXIT
@@ -363,11 +363,11 @@ else
     --path "${CONFIG_PATH}" \
     --no-progress \
     --output none 2>&1
-  echo "SEED: ✅ Config applied and uploaded (gateway hot-reloads from share)"
+  echo "SEED: ✅ Config applied and uploaded"
 fi
 
 echo ""
-echo "SEED: done. Gateway config updated on Azure Files share."
+echo "SEED: done. Gateway config applied."
 if echo "${APPLY_OUT}" | grep -iq "Restart the gateway to apply"; then
   echo "SEED: gateway.* settings changed — restarting revision..."
   REVISION=$(az containerapp revision list \

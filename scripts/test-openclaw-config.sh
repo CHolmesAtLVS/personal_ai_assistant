@@ -80,6 +80,7 @@ APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
 # SHARE_NAME is set to the backup share — the state share (openclaw-state) was
+# removed in the EmptyDir migration and is no longer accessible via REST API.
 # removed in the EmptyDir migration and is no longer accessible via the REST API.
 SHARE_NAME="openclaw-backup"
 # Live gateway config path — read via exec (state is on EmptyDir, not an SMB share)
@@ -110,18 +111,7 @@ echo "VALIDATE: environment=${ENV}  app=${APP_NAME}  rg=${RG_NAME}"
 cleanup() { rm -f "${TMP_CONFIG}" 2>/dev/null || true; }
 trap cleanup EXIT
 
-# ── Step 1: Fetch storage key ────────────────────────────────────────────────────────
-STORAGE_KEY=$(az storage account keys list \
-  --account-name "${STORAGE_ACCOUNT}" \
-  --resource-group "${RG_NAME}" \
-  --query "[0].value" -o tsv 2>/dev/null)
-if [[ -z "${STORAGE_KEY}" ]]; then
-  echo "ERROR: could not retrieve storage key for ${STORAGE_ACCOUNT}" >&2
-  exit 1
-fi
-echo "VALIDATE: storage key retrieved"
-
-# ── Step 2: Read live openclaw.json from container via exec ───────────────────────────
+# ── Step 1: Read live openclaw.json from container via exec ───────────────────────────
 # The state share (openclaw-state) was removed in the EmptyDir migration.
 # State is now on disk-backed EmptyDir inside the container and is not accessible
 # via the Azure Files REST API. Reading config requires exec + config get.

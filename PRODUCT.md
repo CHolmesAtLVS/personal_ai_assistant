@@ -2,7 +2,7 @@
 
 ## What It Is
 
-OpenClaw is a personal AI assistant that runs as a secure, private cloud service — always on, always yours. It connects to state-of-the-art AI models and gives you a capable, extensible assistant accessible from anywhere on your approved devices.
+OpenClaw is a personal AI assistant that runs as a secure, private cloud service — always available on demand, always yours. It connects to state-of-the-art AI models and gives you a capable, extensible assistant accessible from anywhere on your approved devices.
 
 The guiding design principle is **deploy first, use immediately**: a fresh deployment boots into a fully functional assistant without any manual setup. From there, users personalize the experience — adding channels, agent personas, tool integrations, and automations — while the assistant builds up context and history over time.
 

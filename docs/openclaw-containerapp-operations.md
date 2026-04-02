@@ -20,7 +20,7 @@ Key outputs from `terraform output` used throughout these procedures:
 | `ai_services_endpoint` | Endpoint URL of the AI Services account | yes |
 | `acr_login_server` | ACR login server (null in non-prod) | yes |
 | `openclaw_state_storage_account_name` | Storage account name hosting the OpenClaw state Azure Files share | no |
-| `openclaw_state_file_share_name` | Azure Files share name mounted to `/home/node/.openclaw` | no |
+| `openclaw_state_file_share_name` | Azure Files share name (backup share; state is now EmptyDir + Blob). | no |
 
 Retrieve a value with: `terraform -chdir=terraform output -raw <output_name>`
 

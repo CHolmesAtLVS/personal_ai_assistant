@@ -11,7 +11,7 @@ tags: [feature, infrastructure, terraform, azure-container-apps, storage, sideca
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
 OpenClaw's task registry emits `EPERM chmod` errors on every start because the Azure Files SMB share at `/home/node/.openclaw` does not support POSIX `chmod()`. This plan fixes that by replacing the SMB volume with a **disk-backed EmptyDir** (full POSIX semantics, node-local ephemeral disk storage) and adding a lightweight **azcopy sidecar** that uploads changes **event-driven** (within seconds of a detected write) with a full **60-minute reconciliation sync** as a belt-and-suspenders backstop. On cold start, an **init container** restores state from Blob → EmptyDir before OpenClaw starts.
 

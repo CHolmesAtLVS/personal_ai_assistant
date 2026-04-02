@@ -32,5 +32,6 @@ locals {
   openclaw_backup_file_share_name     = "openclaw-backup"
 
   # Blob URL for azcopy sidecar → used as BLOB_URL env var in init and sidecar containers.
-  openclaw_state_blob_url = "https://${local.openclaw_state_storage_account_name}.blob.core.windows.net/openclaw-state/"
+  # openclaw_state_blob_url is intentionally not wired into container args;
+  # containers reference the container name directly ("openclaw-state") for clarity.
 }

@@ -222,12 +222,13 @@ module "container_app" {
         memory  = "0.5Gi"
         command = ["/bin/sh", "-c"]
         args = [
-          "set -e; az login --identity --username \"$MI_CLIENT_ID\" --output none; MARKER=/tmp/.last_sync; RECON_INTERVAL=3600; POLL_INTERVAL=5; touch \"$MARKER\"; echo \"Sync sidecar started (event-driven; reconciliation every $RECON_INTERVAL s).\"; last_recon=$(date +%s); _sigterm() { echo 'SIGTERM: running final sync...'; az storage blob sync --source /data --container openclaw-state --account-name \"$STORAGE_ACCOUNT_NAME\" --delete-destination true --auth-mode login --only-show-errors 2>/dev/null || true; exit 0; }; trap '_sigterm' TERM; while true; do now=$(date +%s); if find /data -newer \"$MARKER\" -not -path '/data/.azure/*' -type f | grep -q .; then echo 'Changes detected - syncing...'; az storage blob sync --source /data --container openclaw-state --account-name \"$STORAGE_ACCOUNT_NAME\" --delete-destination true --auth-mode login --only-show-errors; touch \"$MARKER\"; last_recon=$now; elif [ $(( now - last_recon )) -ge $RECON_INTERVAL ]; then echo 'Reconciliation sync...'; az storage blob sync --source /data --container openclaw-state --account-name \"$STORAGE_ACCOUNT_NAME\" --delete-destination true --auth-mode login --only-show-errors; touch \"$MARKER\"; last_recon=$now; fi; sleep $POLL_INTERVAL & wait $!; done"
+          "set -e; MARKER=/tmp/.last_sync; RECON_INTERVAL=3600; POLL_INTERVAL=5; touch \"$MARKER\"; echo \"Sync sidecar started (event-driven; reconciliation every $RECON_INTERVAL s).\"; last_recon=$(date +%s); _sigterm() { echo 'SIGTERM: running final sync...'; az storage blob sync --source /data --container openclaw-state --account-name \"$STORAGE_ACCOUNT_NAME\" --delete-destination true --account-key \"$STORAGE_ACCOUNT_KEY\" --only-show-errors 2>/dev/null || true; exit 0; }; trap '_sigterm' TERM; while true; do now=$(date +%s); if find /data -newer \"$MARKER\" -not -path '/data/.azure/*' -type f | grep -q .; then echo 'Changes detected - syncing...'; az storage blob sync --source /data --container openclaw-state --account-name \"$STORAGE_ACCOUNT_NAME\" --delete-destination true --account-key \"$STORAGE_ACCOUNT_KEY\" --only-show-errors; touch \"$MARKER\"; last_recon=$now; elif [ $(( now - last_recon )) -ge $RECON_INTERVAL ]; then echo 'Reconciliation sync...'; az storage blob sync --source /data --container openclaw-state --account-name \"$STORAGE_ACCOUNT_NAME\" --delete-destination true --account-key \"$STORAGE_ACCOUNT_KEY\" --only-show-errors; touch \"$MARKER\"; last_recon=$now; fi; sleep $POLL_INTERVAL & wait $!; done"
         ]
         env = [
           {
-            name  = "MI_CLIENT_ID"
-            value = module.identity.client_id
+            # Storage account key injected from Key Vault — used for az storage blob sync auth.
+            name        = "STORAGE_ACCOUNT_KEY"
+            secret_name = "openclaw-state-storage-key"
           },
           {
             name  = "STORAGE_ACCOUNT_NAME"

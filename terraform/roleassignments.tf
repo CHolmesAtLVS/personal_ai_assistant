@@ -37,3 +37,13 @@ resource "azurerm_role_assignment" "ci_sp_kv_secrets_officer" {
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = data.azurerm_client_config.current.object_id
 }
+
+# Grants the Managed Identity Storage Blob Data Contributor on the openclaw-state blob
+# container only (least-privilege — not on the entire storage account).
+# Required by the azcopy sidecar container for outbound sync (EmptyDir → Blob).
+# SEC-001: scoped to the blob container resource, not the storage account.
+resource "azurerm_role_assignment" "mi_state_blob_contributor" {
+  scope                = azurerm_storage_container.openclaw_state_blob.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.identity.principal_id
+}

@@ -79,8 +79,11 @@ PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
 APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
-SHARE_NAME="openclaw-state"
-# Live gateway config path on the share (mounted at /home/node/.openclaw in the container)
+# SHARE_NAME is set to the backup share — the state share (openclaw-state) was
+# removed in the EmptyDir migration and is no longer accessible via REST API.
+# removed in the EmptyDir migration and is no longer accessible via the REST API.
+SHARE_NAME="openclaw-backup"
+# Live gateway config path — read via exec (state is on EmptyDir, not an SMB share)
 CONFIG_ON_SHARE="openclaw.json"
 TMP_CONFIG="$(mktemp /tmp/openclaw-validate-XXXXXX.json)"
 
@@ -108,31 +111,25 @@ echo "VALIDATE: environment=${ENV}  app=${APP_NAME}  rg=${RG_NAME}"
 cleanup() { rm -f "${TMP_CONFIG}" 2>/dev/null || true; }
 trap cleanup EXIT
 
-# ── Step 1: Fetch storage key ────────────────────────────────────────────────────────
-STORAGE_KEY=$(az storage account keys list \
-  --account-name "${STORAGE_ACCOUNT}" \
-  --resource-group "${RG_NAME}" \
-  --query "[0].value" -o tsv 2>/dev/null)
-if [[ -z "${STORAGE_KEY}" ]]; then
-  echo "ERROR: could not retrieve storage key for ${STORAGE_ACCOUNT}" >&2
-  exit 1
-fi
-echo "VALIDATE: storage key retrieved"
-
-# ── Step 2: Download live openclaw.json from Azure Files ──────────────────────────
-echo "VALIDATE: downloading ${CONFIG_ON_SHARE} from share..."
-if ! az storage file download \
-  --account-name "${STORAGE_ACCOUNT}" \
-  --account-key "${STORAGE_KEY}" \
-  --share-name "${SHARE_NAME}" \
-  --path "${CONFIG_ON_SHARE}" \
-  --dest "${TMP_CONFIG}" \
-  --no-progress \
-  --output none 2>&1; then
-  echo "VALIDATE: ⚠  ${CONFIG_ON_SHARE} not found on share — config not yet seeded; skipping validate"
+# ── Step 1: Read live openclaw.json from container via exec ───────────────────────────
+# The state share (openclaw-state) was removed in the EmptyDir migration.
+# State is now on disk-backed EmptyDir inside the container and is not accessible
+# via the Azure Files REST API. Reading config requires exec + config get.
+echo "VALIDATE: reading live config via exec (node /app/openclaw.mjs config get)..."
+CONFIG_EXEC_OUT=$(script -q -c "az containerapp exec \
+  --name ${APP_NAME} \
+  --resource-group ${RG_NAME} \
+  --command 'node /app/openclaw.mjs config get --output json'" /dev/null \
+  | tr -d '\r' 2>/dev/null || echo "")
+CONFIG_JSON=$(echo "${CONFIG_EXEC_OUT}" | grep -m1 '^{' || echo "")
+if [[ -n "${CONFIG_JSON}" ]]; then
+  echo "${CONFIG_JSON}" > "${TMP_CONFIG}"
+  echo "VALIDATE: config read from container"
+else
+  echo "VALIDATE: ⚠  config not readable from container — config not yet seeded, or exec rate-limited; skipping validate"
   exit 0
 fi
-echo "VALIDATE: config downloaded to ${TMP_CONFIG}"
+echo "VALIDATE: config read to ${TMP_CONFIG}"
 
 # ── Step 3: Install openclaw CLI ────────────────────────────────────────────────────────
 if ! command -v openclaw &>/dev/null; then

@@ -24,12 +24,9 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 
 ### Terraform Delivery Path
 
-- GitHub Actions authenticates to Azure with a Service Principal provided through GitHub environment secrets
-- Terraform deploy workflow is split into explicit `dev` and `prod` jobs mapped to GitHub Environments with independent approvals and secret scopes
-- The `terraform-dev` job triggers on pull request events (opened, synchronize, reopened) targeting `main`; the `terraform-prod` job triggers on pull request merged to `main`
-- Azure CLI bootstraps Terraform remote state infrastructure (Resource Group, Storage Account, Blob Container) before Terraform backend initialization
-- Terraform uses Azure Blob remote state for shared, auditable infrastructure state
-- Resource naming and required tags are centralized in Terraform locals for consistent policy enforcement
+- GitHub Actions applies Terraform on every PR (dev) and on merge to `main` (prod), using environment-scoped secrets and independent approval gates
+- Azure CLI bootstraps remote state infrastructure before Terraform initializes
+- Terraform uses Azure Blob remote state; resource naming and tags are centralized in locals for consistent policy enforcement
 
 ### Azure Runtime Platform
 
@@ -50,11 +47,11 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 
 ### Security and Configuration
 
-- Managed Identity: preferred authentication path to Azure services; a single User-Assigned Managed Identity is attached to the Container App
-- Azure Key Vault (RBAC mode, admin-disabled): secret values outside code; legacy access policies disabled
-- Runtime configuration injection: non-secret settings (e.g. `AZURE_OPENAI_ENDPOINT`) injected as container environment variables at deployment time by Terraform
-- AI authentication: Managed Identity is used where supported (Azure OpenAI embedding endpoint via `Cognitive Services OpenAI User` role). The Azure AI Model Inference endpoint (used for Grok/xAI MaaS models) does not yet support Managed Identity in OpenClaw's `azure-foundry` provider; it uses an API key stored in Key Vault (`azure-ai-api-key`) and injected at runtime via secret reference. Managed Identity coverage for that endpoint is a planned improvement.
-- The Azure AI Foundry API key must be provided on every Terraform apply via `TF_VAR_azure_ai_api_key` (GitHub Secret: `TF_VAR_AZURE_AI_API_KEY`); the `lifecycle { ignore_changes = [value] }` rule prevents the Key Vault secret value from being overwritten, but Terraform variable validation still runs and will reject an empty value.
+- A single User-Assigned Managed Identity is attached to the Container App and is the preferred authentication path to all Azure services
+- Azure Key Vault (RBAC mode): stores all runtime secrets; legacy access policies disabled
+- Non-secret settings are injected as container environment variables by Terraform at deploy time
+- Secrets are injected via Managed Identity secret references — no credentials are hardcoded or committed to source control
+- Where Managed Identity is not yet supported by the AI provider, an API key is stored in Key Vault and injected at runtime; Managed Identity coverage is a planned improvement
 
 #### Managed Identity Role Assignments
 
@@ -67,45 +64,34 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 
 ### AI and Observability
 
-- Azure AI Services account (Cognitive Services) with an AI Foundry Hub and Project: provides the LLM model deployment endpoint consumed by OpenClaw
-- Model deployments: `text-embedding-3-large` (embeddings, Azure OpenAI endpoint); `gpt-5.4-mini` (primary chat, version `2026-03-17`) via the Azure OpenAI endpoint.
-- Primary chat model: `gpt-5.4-mini` — set via `agents.defaults.model.primary` in openclaw config; no fallback configured
-- Log Analytics Workspace (`${project}-${environment}-law`): 30-day retention; receives diagnostics from Key Vault, ACR (prod), and the Container Apps Environment
+- Azure AI Services account with an AI Foundry Hub and Project provides the LLM endpoint consumed by OpenClaw
+- Multiple model deployments are configured: an embeddings model and one or more chat models; see [docs/baseline-configuration.md](docs/baseline-configuration.md) for current model assignments
+- Log Analytics Workspace: 30-day retention; receives diagnostics from Key Vault, ACR (prod), and the Container Apps Environment
 
 ### Resource Inventory
 
 #### Environment resource group (`${project}-${environment}-rg`) — all environments
 
-| Resource | AVM Module | Notes |
-| -------- | ---------- | ----- |
-| Resource Group | `avm-res-resources-resourcegroup` | |
-| Log Analytics Workspace | `avm-res-operationalinsights-workspace` | 30-day retention |
-| User-Assigned Managed Identity | `avm-res-managedidentity-userassignedidentity` | |
-| Key Vault (standard, RBAC mode) | `avm-res-keyvault-vault` | Diagnostics → LAW; holds `openclaw-gateway-token` |
-| AI Services / AI Foundry Hub + Project + model deployment | `avm-ptn-aiml-ai-foundry` | Uses existing Key Vault |
-| Container Apps Environment | `avm-res-app-managedenvironment` | Linked to LAW |
-| Container App (OpenClaw) | `avm-res-app-containerapp` | HTTPS, IP-restricted ingress; KV secret ref for gateway token |
-| Azure Storage Account + Files share | `azurerm_storage_account` / `azurerm_storage_share` | Persists `/home/node/.openclaw` |
-| Container Apps Environment Storage binding | `azurerm_container_app_environment_storage` | Mounts Azure Files share into Container App |
-| Monitor Action Group | `azurerm_monitor_action_group` | Budget email alerts |
-| Consumption Budget | `azurerm_consumption_budget_resource_group` | Monthly cap on env RG |
+| Resource | Notes |
+| -------- | ----- |
+| Resource Group | |
+| Log Analytics Workspace | 30-day retention; telemetry sink for all environment resources |
+| User-Assigned Managed Identity | Attached to the Container App; used for Key Vault and AI Services access |
+| Key Vault (standard, RBAC mode) | Holds gateway token and AI API key secrets |
+| AI Services / AI Foundry Hub + Project | LLM endpoint and model deployments |
+| Container Apps Environment | Linked to Log Analytics Workspace |
+| Container App (OpenClaw) | HTTPS, IP-restricted ingress; gateway token injected via Key Vault secret ref |
+| Azure Storage Account + Files share | Persists `/home/node/.openclaw`; also hosts backup Blob exports |
+| Container Apps Environment Storage binding | Mounts the Files share into the Container App |
+| Monitor Action Group | Budget alert notifications |
+| Consumption Budget | Monthly spend cap on the environment resource group |
 
 #### Shared resource group (`${project}-shared-rg`) — prod only
 
-| Resource | AVM Module | Notes |
-| -------- | ---------- | ----- |
-| Shared Resource Group | `avm-res-resources-resourcegroup` | |
-| Azure Container Registry (Standard) | `avm-res-containerregistry-registry` | Admin disabled; Diagnostics → LAW |
-
-### Terraform Outputs
-
-| Output | Description | Sensitive |
-| ------ | ----------- | --------- |
-| `container_app_fqdn` | FQDN of the deployed OpenClaw Container App | yes |
-| `ai_services_endpoint` | Endpoint URL of the AI Services account | yes |
-| `acr_login_server` | ACR login server (null in non-prod) | yes |
-| `openclaw_state_storage_account_name` | Storage account name hosting the OpenClaw state Azure Files share | no |
-| `openclaw_state_file_share_name` | Azure Files share name mounted to `/home/node/.openclaw` | no |
+| Resource | Notes |
+| -------- | ----- |
+| Shared Resource Group | |
+| Azure Container Registry (Standard) | Admin disabled; diagnostics → Log Analytics Workspace |
 
 ## End-to-End Deployment and Runtime Flow
 
@@ -119,14 +105,7 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 8. OpenClaw calls Azure AI Foundry's configured LLM deployment endpoint.
 9. Operational telemetry and diagnostics flow to Azure monitoring.
 
-Terraform workflow details:
-
-1. CI selects the environment job: `terraform-dev` on PR opened/synchronize/reopened targeting `main`; `terraform-prod` on PR merged to `main`.
-2. CI runs an idempotent Azure CLI bootstrap script for backend state resources.
-3. CI runs `terraform fmt -check`, `terraform init`, `terraform validate`, `terraform plan`.
-4. CI uploads the environment-specific plan artifact (both jobs).
-5. CI auto-applies in the `terraform-dev` job after plan succeeds.
-6. CI applies in the `terraform-prod` job only on merge to `main`, subject to GitHub Environment protection controls.
+See [docs/openclaw-containerapp-operations.md](docs/openclaw-containerapp-operations.md) for detailed Terraform CI workflow steps and bootstrap procedures.
 
 ## Trust Boundaries and Access Model
 

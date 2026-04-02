@@ -65,3 +65,23 @@ resource "azurerm_key_vault_secret" "azure_ai_api_key" {
 
   depends_on = [azurerm_role_assignment.ci_sp_kv_secrets_officer]
 }
+
+# Storage account primary key for the openclaw-state account.
+# Injected into the init container (state-restore) as STORAGE_ACCOUNT_KEY for
+# azcopy authentication. MSI cannot be used in init containers in Consumption-only
+# Azure Container Apps environments (ACA platform restriction), so the account key
+# is the required fallback (ASSUMPTION-001 in feature-sidecar-sync-1.md).
+# The sidecar (state-sync) uses MSI and does not require this key.
+resource "azurerm_key_vault_secret" "openclaw_state_storage_key" {
+  name         = "openclaw-state-storage-key"
+  value        = azurerm_storage_account.openclaw_state.primary_access_key
+  key_vault_id = module.key_vault.resource_id
+  content_type = "text/plain"
+
+  # Rotate this secret after rotating the storage account key.
+  # lifecycle.ignore_changes is intentionally omitted so that Terraform keeps this
+  # secret in sync with the storage account primary key (unlike the gateway token
+  # which is manually rotated).
+
+  depends_on = [azurerm_role_assignment.ci_sp_kv_secrets_officer]
+}

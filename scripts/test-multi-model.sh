@@ -58,7 +58,10 @@ APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 KV_NAME="${PROJECT}-${ENV}-kv"
 STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
-SHARE_NAME="openclaw-state"
+# Staging share: backup share (openclaw-backup, mounted at /mnt/openclaw-backup in the container).
+# The state share (openclaw-state) was removed in the EmptyDir migration; state is on
+# disk-backed EmptyDir and is not accessible via the Azure Files REST API.
+SHARE_NAME="openclaw-backup"
 
 # ── Expected values ────────────────────────────────────────────────────────────
 EXPECTED_EMBEDDING_DEPLOYMENT="text-embedding-3-large"
@@ -458,18 +461,22 @@ if [[ -z "${STORAGE_KEY}" ]]; then
   fail "Cannot read storage key for ${STORAGE_ACCOUNT} — skipping config checks"
 else
   DOWNLOAD_OK=false
-  az storage file download \
-    --account-name "${STORAGE_ACCOUNT}" \
-    --account-key "${STORAGE_KEY}" \
-    --share-name "${SHARE_NAME}" \
-    --path "openclaw.json" \
-    --dest "${TMP_SHARE_CONFIG}" \
-    --output none 2>/dev/null && DOWNLOAD_OK=true || true
+  # State share (openclaw-state) was removed in the EmptyDir migration; state is on
+  # disk-backed EmptyDir and cannot be read via az storage file. Use exec instead.
+  CONFIG_EXEC_OUT=$(script -q -c "az containerapp exec \
+    --name ${APP_NAME} --resource-group ${RG_NAME} \
+    --command 'node /app/openclaw.mjs config get --output json'" /dev/null \
+    | tr -d '\r' 2>/dev/null || echo "")
+  CONFIG_JSON=$(echo "${CONFIG_EXEC_OUT}" | grep -m1 '^{' || echo "")
+  if [[ -n "${CONFIG_JSON}" ]]; then
+    echo "${CONFIG_JSON}" > "${TMP_SHARE_CONFIG}"
+    DOWNLOAD_OK=true
+  fi
 
   if [[ "${DOWNLOAD_OK}" != "true" || ! -f "${TMP_SHARE_CONFIG}" ]]; then
-    fail "openclaw.json not found on share (config not seeded yet)"
+    fail "openclaw.json not readable from container (config not seeded yet, or exec rate-limited)"
   else
-    pass "openclaw.json downloaded from Azure Files share"
+    pass "openclaw.json read from container via exec"
       # Endpoint domain guard: verify AZURE_OPENAI_ENDPOINT env var is the openai.azure.com domain.
       _OAI_ENV="${AZURE_OPENAI_ENDPOINT:-}"
       if [[ "${_OAI_ENV}" == *openai.azure.com* ]]; then
@@ -705,7 +712,7 @@ else
   az storage file upload \
     --account-name "${STORAGE_ACCOUNT}" \
     --account-key "${STORAGE_KEY}" \
-    --share-name "${SHARE_NAME}" \
+    --share-name "openclaw-backup" \
     --source "/tmp/${INNER_SCRIPT_FILE}" \
     --path "${INNER_SCRIPT_FILE}" \
     --output none 2>/dev/null
@@ -715,13 +722,13 @@ else
   EXEC_OUT=$(az containerapp exec \
     --name "${APP_NAME}" \
     --resource-group "${RG_NAME}" \
-    --command "bash /home/node/.openclaw/${INNER_SCRIPT_FILE}" \
+    --command "bash /mnt/openclaw-backup/${INNER_SCRIPT_FILE}" \
     2>&1 || echo "EXEC_ERROR:$?")
 
   az storage file delete \
     --account-name "${STORAGE_ACCOUNT}" \
     --account-key "${STORAGE_KEY}" \
-    --share-name "${SHARE_NAME}" \
+    --share-name "openclaw-backup" \
     --path "${INNER_SCRIPT_FILE}" \
     --output none 2>/dev/null || true
 

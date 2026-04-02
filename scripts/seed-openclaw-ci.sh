@@ -8,11 +8,17 @@
 # Does NOT require the openclaw CLI on the runner — uses node /app/openclaw.mjs
 # inside the running container directly.
 #
+# Staging share: config/openclaw.batch.json is staged on the BACKUP share
+# (openclaw-backup, mounted at /mnt/openclaw-backup in the container). The
+# state share (openclaw-state) was removed in the EmptyDir migration; state is
+# no longer accessible via the Azure Files REST API. The backup share remains
+# SMB-mounted and is used as the staging surface.
+#
 # Steps:
 #   1. Validate config/openclaw.batch.json locally (python3 JSON check)
-#   2. Upload batch to Azure Files share at .seed/seed.batch.json
+#   2. Upload batch to BACKUP Azure Files share at .seed/seed.batch.json
 #   3. exec+PTY: node /app/openclaw.mjs config set --batch-file <path>  (apply)
-#   4. Delete staged batch file from share
+#   4. Delete staged batch file from backup share
 #   5. exec+PTY: node /app/openclaw.mjs config validate                   (verify)
 #
 # script(1) PTY workaround:
@@ -52,9 +58,12 @@ PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
 APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
-SHARE_NAME="openclaw-state"
+# Staging share: backup share (openclaw-backup, mounted at /mnt/openclaw-backup in the container).
+# The state share (openclaw-state) was removed in the EmptyDir migration; the backup share
+# is the only Azure Files share still accessible via the REST API for staging purposes.
+SHARE_NAME="openclaw-backup"
 STAGED_PATH=".seed/seed.batch.json"
-CONTAINER_PATH="/home/node/.openclaw/.seed/seed.batch.json"
+CONTAINER_PATH="/mnt/openclaw-backup/.seed/seed.batch.json"
 
 # ── Safety guard ────────────────────────────────────────────────────────────────
 if [[ "${ENV}" == "prod" ]]; then

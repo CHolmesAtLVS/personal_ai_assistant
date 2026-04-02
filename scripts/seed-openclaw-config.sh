@@ -6,11 +6,17 @@
 # az containerapp exec in script(1) to allocate a pseudo-TTY and avoids the
 # ENOTTY (errno 25) error that occurs in non-interactive CI runners.
 #
+# Staging share: config/openclaw.batch.json is staged on the BACKUP share
+# (openclaw-backup, mounted at /mnt/openclaw-backup in the container). The
+# state share (openclaw-state) was removed in the EmptyDir migration; state is
+# no longer accessible via the Azure Files REST API. The backup share remains
+# SMB-mounted and is used as the staging surface for seeding.
+#
 # Steps:
 #   1. Validate config/openclaw.batch.json (python3 JSON check)
-#   2. Upload batch to Azure Files share at .seed/seed.batch.json
+#   2. Upload batch to backup Azure Files share at .seed/seed.batch.json
 #   3. az containerapp exec: node /app/openclaw.mjs config set --batch-file
-#   4. Delete staged batch file from share
+#   4. Delete staged batch file from backup share
 #   5. az containerapp exec: node /app/openclaw.mjs config validate
 #
 # No openclaw CLI needed on the local machine — uses node /app/openclaw.mjs
@@ -47,9 +53,12 @@ PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
 APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
-SHARE_NAME="openclaw-state"
+# Staging share: backup share (openclaw-backup, mounted at /mnt/openclaw-backup in the container).
+# The state share (openclaw-state) was removed in the EmptyDir migration; the backup share
+# is the only Azure Files share still accessible via the REST API for staging purposes.
+SHARE_NAME="openclaw-backup"
 STAGED_PATH=".seed/seed.batch.json"
-CONTAINER_PATH="/home/node/.openclaw/.seed/seed.batch.json"
+CONTAINER_PATH="/mnt/openclaw-backup/.seed/seed.batch.json"
 
 # ── Safety guard ────────────────────────────────────────────────────────────────
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
@@ -173,12 +182,16 @@ PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
 APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
-SHARE_NAME="openclaw-state"
+# Staging share: backup share (openclaw-backup, mounted at /mnt/openclaw-backup in the container).
+# The state share (openclaw-state) was removed in the EmptyDir migration; the backup share
+# is the only Azure Files share still accessible via the REST API for staging purposes.
+SHARE_NAME="openclaw-backup"
 # Staged under a hidden prefix so it is not mistaken for persistent config
 STAGED_PATH=".seed/seed.batch.json"
-# Path inside the container (share mounted at /home/node/.openclaw)
-CONTAINER_PATH="/home/node/.openclaw/.seed/seed.batch.json"
-# Live config path on the share
+# Path inside the container (backup share mounted at /mnt/openclaw-backup)
+CONTAINER_PATH="/mnt/openclaw-backup/.seed/seed.batch.json"
+# Live config path on the share (used only by the legacy local-apply method below;
+# the exec method — the default used in CI — does not require this path)
 CONFIG_PATH="openclaw.json"
 
 # ── Safety guard ────────────────────────────────────────────────────────────────

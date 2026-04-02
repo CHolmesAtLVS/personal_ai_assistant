@@ -48,6 +48,7 @@ module "container_app" {
     azurerm_role_assignment.mi_kv_secrets_user,
     azurerm_role_assignment.mi_ai_openai_user,
     azurerm_role_assignment.mi_ai_inference_user,
+    azurerm_role_assignment.mi_state_blob_contributor,
   ]
 
   enable_telemetry = true
@@ -67,6 +68,14 @@ module "container_app" {
       identity            = module.identity.resource_id
       key_vault_secret_id = azurerm_key_vault_secret.azure_ai_api_key.versionless_id
     }
+    # Storage account primary key for azcopy in the init container (state-restore).
+    # MSI cannot be used in init containers in Consumption-only ACA environments;
+    # the account key is the required auth fallback (ASSUMPTION-001, feature-sidecar-sync-1.md).
+    "openclaw-state-storage-key" = {
+      name                = "openclaw-state-storage-key"
+      identity            = module.identity.resource_id
+      key_vault_secret_id = azurerm_key_vault_secret.openclaw_state_storage_key.versionless_id
+    }
   }
 
   registries = var.container_image_acr_server != null ? [
@@ -78,11 +87,15 @@ module "container_app" {
 
   template = {
     min_replicas = 0
+    # Allow 30 s for the azcopy sidecar to complete its final sync on SIGTERM
+    # before the pod is forcefully terminated (RISK-001, feature-sidecar-sync-1.md).
+    termination_grace_period_seconds = 30
     volumes = [
+      # REQ-001: disk-backed EmptyDir for state — full POSIX semantics, no EPERM on chmod.
+      # Backed by the node's local ephemeral disk in ACA Consumption plan (up to 21 GiB).
       {
-        name         = "openclaw-state"
-        storage_type = "AzureFile"
-        storage_name = azurerm_container_app_environment_storage.openclaw_state.name
+        name         = "openclaw-data"
+        storage_type = "EmptyDir"
       },
       {
         name         = "openclaw-backup"
@@ -90,15 +103,53 @@ module "container_app" {
         storage_name = azurerm_container_app_environment_storage.openclaw_backup.name
       }
     ]
-    containers = [
+    # REQ-002: init container restores Blob → EmptyDir before main containers start.
+    # ACA guarantees init containers complete before main containers are started.
+    # AUTH NOTE: MSI cannot be used in init containers in Consumption-only ACA environments
+    # (ACA platform restriction). STORAGE_ACCOUNT_KEY (from Key Vault secret ref) is used
+    # for azcopy auth instead (ASSUMPTION-001, feature-sidecar-sync-1.md).
+    # The || echo pattern ensures exit 0 on a failed restore (RISK-003): the gateway
+    # starts with empty state rather than blocking indefinitely on an azcopy error.
+    init_containers = [
       {
-        name   = "openclaw"
-        image  = local.openclaw_image
-        cpu    = 2
-        memory = "4Gi"
+        name    = "state-restore"
+        image   = "mcr.microsoft.com/azure-storage/azcopy:10.32.2"
+        cpu     = 0.25
+        memory  = "0.5Gi"
+        command = ["/bin/sh", "-c"]
+        args = [
+          "set -e; azcopy sync \"$BLOB_URL\" /data/ --recursive --account-key \"$STORAGE_ACCOUNT_KEY\" || echo 'Restore failed — starting with empty state'; chmod -R 700 /data; chown -R 1000:1000 /data; echo 'State restore complete.'"
+        ]
+        env = [
+          {
+            name  = "BLOB_URL"
+            value = local.openclaw_state_blob_url
+          },
+          {
+            name        = "STORAGE_ACCOUNT_KEY"
+            secret_name = "openclaw-state-storage-key"
+          },
+        ]
         volume_mounts = [
           {
-            name = "openclaw-state"
+            name = "openclaw-data"
+            path = "/data"
+          }
+        ]
+      }
+    ]
+    containers = [
+      {
+        name  = "openclaw"
+        image = local.openclaw_image
+        # CON-001: reduced from 2.0/4.0Gi to accommodate sidecar + init container
+        # within the ACA Consumption plan 2.0 CPU / 4.0 GiB pod maximum.
+        # openclaw 1.5/3.0Gi + sidecar 0.25/0.5Gi + init 0.25/0.5Gi = 2.0/4.0Gi (valid).
+        cpu    = 1.5
+        memory = "3Gi"
+        volume_mounts = [
+          {
+            name = "openclaw-data"
             path = "/home/node/.openclaw"
           },
           {
@@ -157,6 +208,42 @@ module "container_app" {
             name        = "AZURE_AI_API_KEY"
             secret_name = "azure-ai-api-key"
           },
+        ]
+      },
+      # REQ-003: azcopy sidecar — event-driven sync EmptyDir → Blob Storage.
+      # Authenticates via Managed Identity (MSI works for regular sidecar containers;
+      # restriction only applies to init containers in Consumption-only environments).
+      # Design: 5-second poll with find -newer marker; SIGTERM triggers a final sync;
+      # 60-minute reconciliation sync as a belt-and-suspenders backstop (CON-006).
+      {
+        name    = "state-sync"
+        image   = "mcr.microsoft.com/azure-storage/azcopy:10.32.2"
+        cpu     = 0.25
+        memory  = "0.5Gi"
+        command = ["/bin/sh", "-c"]
+        args = [
+          "set -e; MARKER=/tmp/.last_sync; RECON_INTERVAL=3600; POLL_INTERVAL=5; touch \"$MARKER\"; echo \"Sync sidecar started (event-driven; reconciliation every $RECON_INTERVAL s).\"; last_recon=$(date +%s); _sigterm() { echo 'SIGTERM: running final sync...'; azcopy sync /data/ \"$BLOB_URL\" --recursive --delete-destination=true; exit 0; }; trap '_sigterm' TERM; while true; do now=$(date +%s); if find /data -newer \"$MARKER\" -not -path '/data/.azcopy/*' -type f | grep -q .; then echo 'Changes detected - syncing...'; azcopy sync /data/ \"$BLOB_URL\" --recursive --delete-destination=true; touch \"$MARKER\"; last_recon=$now; elif [ $(( now - last_recon )) -ge $RECON_INTERVAL ]; then echo 'Reconciliation sync...'; azcopy sync /data/ \"$BLOB_URL\" --recursive --delete-destination=true; touch \"$MARKER\"; last_recon=$now; fi; sleep $POLL_INTERVAL & wait $!; done"
+        ]
+        env = [
+          {
+            # MSI auth for azcopy — works for regular sidecar containers in Consumption-only ACA.
+            name  = "AZCOPY_AUTO_LOGIN_TYPE"
+            value = "MSI"
+          },
+          {
+            name  = "AZCOPY_MSI_CLIENT_ID"
+            value = module.identity.client_id
+          },
+          {
+            name  = "BLOB_URL"
+            value = local.openclaw_state_blob_url
+          },
+        ]
+        volume_mounts = [
+          {
+            name = "openclaw-data"
+            path = "/data"
+          }
         ]
       }
     ]

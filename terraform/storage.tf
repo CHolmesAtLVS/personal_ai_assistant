@@ -17,6 +17,29 @@ resource "azurerm_storage_share" "openclaw_state" {
   name               = local.openclaw_state_file_share_name
   storage_account_id = azurerm_storage_account.openclaw_state.id
   quota              = var.openclaw_state_share_quota_gb
+
+  # CON-003: protect the SMB state share from accidental destruction during the
+  # EmptyDir + azcopy sidecar migration transition. Remove in Phase 7 cleanup
+  # after state has been confirmed in Blob Storage and the new revision is healthy.
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Blob container for azcopy sidecar state persistence (EmptyDir → Blob sync).
+# Replaces the SMB state share as the durable backing store for OpenClaw state.
+# SEC-002: private access only — no anonymous access.
+resource "azurerm_storage_container" "openclaw_state_blob" {
+  name                  = "openclaw-state"
+  storage_account_id    = azurerm_storage_account.openclaw_state.id
+  container_access_type = "private"
+
+  # Protect the blob container from accidental destruction.
+  # Data loss risk: if the container is destroyed before EmptyDir is drained,
+  # state written since the last azcopy sync would be permanently lost.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "azurerm_container_app_environment_storage" "openclaw_state" {

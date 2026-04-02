@@ -30,4 +30,7 @@ locals {
   openclaw_state_storage_account_name = substr(replace("${var.project}${var.environment}ocstate", "-", ""), 0, 24)
   openclaw_state_file_share_name      = "openclaw-state"
   openclaw_backup_file_share_name     = "openclaw-backup"
+
+  # Blob URL for azcopy sidecar → used as BLOB_URL env var in init and sidecar containers.
+  openclaw_state_blob_url = "https://${local.openclaw_state_storage_account_name}.blob.core.windows.net/openclaw-state/"
 }

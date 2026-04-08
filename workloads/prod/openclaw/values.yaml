@@ -65,17 +65,16 @@ openclaw:
     # Service account (TASK-012, REQ-008)
     # SA is pre-created by crds/serviceaccount.yaml (applied via seed-openclaw-aks.sh)
     # with the azure.workload.identity/client-id annotation.
-    # NOTE: The ArgoCD Application (argocd/apps/prod-openclaw.yaml) must set
-    #   spec.source.helm.releaseName: openclaw
-    # so that app-template's generated resources match system:serviceaccount:openclaw:openclaw
-    # which is the OIDC federation subject in aks-workload-identity.tf.
+    # app-template v4: serviceAccount is a named map keyed by SA identifier.
     # --------------------------------------------------------------------------
     serviceAccount:
-      create: false
-      name: openclaw
+      main:
+        create: false
+        name: openclaw
 
     # Workload Identity pod label — required by the Azure WI mutating webhook (REQ-008).
     defaultPodOptions:
+      serviceAccountName: openclaw
       labels:
         azure.workload.identity/use: "true"
 
@@ -116,7 +115,9 @@ openclaw:
     persistence:
       # Static NFS Azure Files share (REQ-007, 10Gi).
       # PV and PVC are defined in crds/pv.yaml and crds/pvc.yaml.
+      # app-template v4: type: persistentVolumeClaim required for existingClaim to pass schema.
       data:
+        type: persistentVolumeClaim
         existingClaim: openclaw-state-nfs
 
       # CSI secrets-store volume mount (REQ-002).

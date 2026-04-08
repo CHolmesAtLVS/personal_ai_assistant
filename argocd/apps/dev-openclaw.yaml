@@ -7,9 +7,10 @@ spec:
   project: default
   source:
     repoURL: https://github.com/CHolmesAtLVS/personal_ai_assistant.git
-    targetRevision: HEAD
+    targetRevision: feat/plan-updates-aks-platform
     path: workloads/dev/openclaw
     helm:
+      releaseName: openclaw
       valueFiles:
         - values.yaml
   destination:

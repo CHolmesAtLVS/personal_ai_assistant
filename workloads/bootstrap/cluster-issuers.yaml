@@ -1,0 +1,53 @@
+---
+# Let's Encrypt ClusterIssuers — staging and production.
+# Applied by the bootstrap CI job after cert-manager is ready.
+#
+# The LETSENCRYPT_EMAIL placeholder is replaced at apply time via envsubst:
+#   envsubst '${LETSENCRYPT_EMAIL}' < workloads/bootstrap/cluster-issuers.yaml \
+#     | kubectl apply -f -
+#
+# NEVER commit this file with a real email address in place of the placeholder.
+#
+# CON-002: issuer names letsencrypt-staging and letsencrypt-prod are fixed;
+#          these names are referenced by certificate annotations in workload charts.
+# CON-003: Validate ACME challenge with letsencrypt-staging before switching to
+#          letsencrypt-prod to avoid Let's Encrypt rate limiting.
+#
+# The http01 solver uses the gatewayHTTPRoute method so that cert-manager
+# creates HTTPRoute resources against the shared Gateway (REQ-007).
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: ${LETSENCRYPT_EMAIL}
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: main-gateway
+                namespace: gateway-system
+                kind: Gateway
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ${LETSENCRYPT_EMAIL}
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: main-gateway
+                namespace: gateway-system
+                kind: Gateway

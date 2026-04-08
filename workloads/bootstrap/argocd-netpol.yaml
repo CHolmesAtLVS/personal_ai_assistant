@@ -1,0 +1,37 @@
+---
+# NetworkPolicy for the argocd namespace.
+# ArgoCD is NOT exposed via the Gateway; access is via kubectl port-forward only.
+# This policy allows only the egress traffic ArgoCD needs to function:
+#   - HTTPS outbound (GitHub sync, ACME, Kubernetes API, container registries)
+#   - HTTP outbound (ACME HTTP-01 challenge validation)
+#   - kube-dns (UDP/TCP 53)
+#
+# The CI step labels the argocd namespace before applying (idempotent):
+#   kubectl label ns argocd kubernetes.io/metadata.name=argocd --overwrite
+#
+# Pods in the argocd namespace are selected by podSelector: {} (all pods).
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argocd-egress
+  namespace: argocd
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Outbound HTTPS (GitHub, ACME Let's Encrypt, Kubernetes API, registries)
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Outbound HTTP (ACME HTTP-01 challenge validation)
+    - ports:
+        - protocol: TCP
+          port: 80
+    # kube-dns
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

@@ -20,7 +20,7 @@ These procedures apply to the AKS deployment of OpenClaw (post-migration from AC
 
 - `kubectl` and `argocd` CLI installed
 - Kubeconfig obtained: `az aks get-credentials --name paa-<env>-aks --resource-group paa-<env>-rg`
-- ArgoCD UI accessible at `https://paa-<env>.acmeadventure.ca/argocd`
+- ArgoCD accessed via port-forward: `kubectl port-forward svc/argocd-server -n argocd 8080:80` → `http://localhost:8080`
 
 ### AKS.1 First-Time Bootstrap
 
@@ -134,6 +134,65 @@ ContainerLogV2
 4. Merge to apply. ArgoCD rolls out the new pod. The Azure Files NFS share is unaffected by the rollout.
 
 **Rollback:** Revert `appVersion` in `Chart.yaml` and merge. ArgoCD rolls back to the previous image.
+
+### AKS.6 ArgoCD Administration
+
+ArgoCD is not exposed via the Gateway. Access the UI and API server with `kubectl port-forward`:
+
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8080:80
+# Then open: http://localhost:8080
+```
+
+Use the `argocd` CLI via the forwarded port:
+
+```bash
+argocd login localhost:8080 --username admin --password <password> --plaintext
+```
+
+#### Retrieve the Initial Admin Password
+
+On first bootstrap, ArgoCD's initial admin password is stored in a Kubernetes Secret:
+
+```bash
+kubectl get secret argocd-initial-admin-secret \
+  -n argocd \
+  -o jsonpath='{.data.password}' | base64 -d && echo
+```
+
+Log in at `http://localhost:8080` (port-forward active) with user `admin` and the password above.
+
+> **Rotate the password immediately after first login.** The initial secret is deleted after the password is changed via the UI or CLI.
+
+#### Rotate the Admin Password via CLI
+
+```bash
+argocd login localhost:8080 --username admin --password <current-password> --plaintext
+argocd account update-password \
+  --current-password <current-password> \
+  --new-password <new-strong-password>
+```
+
+#### Rotate the Redis Secret
+
+If the ArgoCD Redis auth secret needs rotation:
+
+```bash
+kubectl delete secret argocd-redis -n argocd
+helm upgrade argocd argo/argo-cd --reuse-values --wait --namespace argocd
+kubectl rollout restart deployment argocd-redis -n argocd
+kubectl rollout restart deployment argocd-server argocd-repo-server -n argocd
+kubectl rollout restart statefulset argocd-application-controller -n argocd
+```
+
+#### Force a Full Sync
+
+```bash
+argocd login localhost:8080 --username admin --password <password> --plaintext
+argocd app sync --all
+# or for a specific app:
+argocd app sync openclaw-<env>
+```
 
 ---
 

@@ -1,0 +1,12 @@
+# Pinned Helm chart versions for Secrets Store CSI Driver and Azure Key Vault Provider.
+# The bootstrap CI steps pass these values via --version flags to helm upgrade --install.
+# Update this file (and the CI step --version flags) whenever chart versions are bumped.
+#
+# Chart versions pinned at: 2026-04-08
+#
+# secrets-store-csi-driver chart ships as a sub-chart dependency bundled inside
+# csi-secrets-store-provider-azure. Both are installed separately per the bootstrap plan
+# so that the driver CRDs are present before the provider daemonset is deployed.
+
+secrets-store-csi-driver: "1.5.4"
+csi-secrets-store-provider-azure: "1.7.2"

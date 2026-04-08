@@ -141,6 +141,134 @@ jobs:
             --name "${TF_VAR_project}-${TF_VAR_environment}-aks" \
             --overwrite-existing
 
+      # ── AKS Platform Bootstrap: Phase 1 — Secrets Store CSI Driver ──────────────
+      # Installs the Secrets Store CSI Driver so pods can mount Key Vault secrets.
+      # Chart pinned at 1.5.4; see workloads/bootstrap/csi-versions.yaml.
+      - name: Bootstrap AKS — CSI Driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add secrets-store-csi-driver \
+            https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+          helm repo update secrets-store-csi-driver
+          helm upgrade --install csi-secrets-store \
+            secrets-store-csi-driver/secrets-store-csi-driver \
+            --namespace kube-system \
+            --version 1.5.4 \
+            --set syncSecret.enabled=true \
+            --set enableSecretRotation=true \
+            --wait --timeout 5m
+
+      # ── AKS Platform Bootstrap: Phase 1 — Azure Key Vault Provider ───────────────
+      # Installs the Azure provider for the CSI driver. Chart pinned at 1.7.2.
+      - name: Bootstrap AKS — Azure KV CSI Provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add csi-secrets-store-provider-azure \
+            https://azure.github.io/secrets-store-csi-driver-provider-azure/charts
+          helm repo update csi-secrets-store-provider-azure
+          helm upgrade --install azure-csi-provider \
+            csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
+            --namespace kube-system \
+            --version 1.7.2 \
+            --set workloadIdentity.subscriptionId="${AZURE_SUBSCRIPTION_ID}" \
+            --wait --timeout 5m
+
+      # ── AKS Platform Bootstrap: Phase 2 — Gateway API CRDs ───────────────────────
+      # Standard channel CRDs pinned at v1.2.1. Update comment when upgrading.
+      - name: Bootstrap AKS — Gateway API CRDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl apply -f \
+            https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+
+      # ── AKS Platform Bootstrap: Phase 2 — NGINX Gateway Fabric ──────────────────
+      # Chart 2.5.0 from OCI registry. Creates GatewayClass "nginx" and a
+      # LoadBalancer service in gateway-system. Capture the external IP after install:
+      #   kubectl get svc -n gateway-system ngf-nginx-gateway-fabric
+      # Record in workloads/bootstrap/README.md and set DNS A records before Phase 3.
+      - name: Bootstrap AKS — NGINX Gateway Fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm upgrade --install ngf \
+            oci://ghcr.io/nginx/charts/nginx-gateway-fabric \
+            --namespace gateway-system \
+            --create-namespace \
+            --version 2.5.0 \
+            --set nginx.service.type=LoadBalancer \
+            --wait --timeout 10m
+          echo "Gateway LoadBalancer IP:"
+          kubectl get svc -n gateway-system ngf-nginx-gateway-fabric \
+            --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
+
+      # ── AKS Platform Bootstrap: Phase 2 — Gateway manifest ───────────────────────
+      # Applies the shared Gateway resource. CERT_SECRET_NAME is substituted by
+      # envsubst before kubectl apply. The TLS secret will be created by cert-manager
+      # in Phase 3; the Gateway listener tolerates a missing secret at this stage.
+      - name: Bootstrap AKS — Gateway manifest
+        shell: bash
+        env:
+          CERT_SECRET_NAME: ${{ format('{0}-dev-tls', vars.TF_VAR_PROJECT) }}
+        run: |
+          set -euo pipefail
+          envsubst '${CERT_SECRET_NAME}' \
+            < workloads/bootstrap/gateway.yaml \
+            | kubectl apply -f -
+
+      # Phase 3 — cert-manager (TLS certificate issuance via Let's Encrypt)
+      # Chart 1.20.1: ExperimentalGatewayAPISupport is BETA and default=true;
+      # crds.enabled installs CRDs as Helm-managed resources.
+      - name: Bootstrap AKS — cert-manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update jetstack
+          helm upgrade --install cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --version 1.20.1 \
+            --set crds.enabled=true \
+            --wait --timeout 5m
+
+      - name: Bootstrap AKS — ClusterIssuers
+        shell: bash
+        env:
+          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+        run: |
+          set -euo pipefail
+          envsubst '${LETSENCRYPT_EMAIL}' \
+            < workloads/bootstrap/cluster-issuers.yaml \
+            | kubectl apply -f -
+
+      # Phase 4 — ArgoCD (GitOps controller)
+      # Chart 9.4.17: server.insecure=true for plain-HTTP access via kubectl port-forward.
+      # ArgoCD is NOT exposed via the Gateway — access is internal only.
+      # Retrieve initial password: kubectl -n argocd get secret argocd-initial-admin-secret
+      #   -o jsonpath='{.data.password}' | base64 -d
+      - name: Bootstrap AKS — ArgoCD
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add argo https://argoproj.github.io/argo-helm
+          helm repo update argo
+          helm upgrade --install argocd argo/argo-cd \
+            --namespace argocd \
+            --create-namespace \
+            --version 9.4.17 \
+            --set-string 'configs.params.server\.insecure=true' \
+            --wait --timeout 10m
+
+      - name: Bootstrap AKS — ArgoCD NetworkPolicy
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl label ns argocd kubernetes.io/metadata.name=argocd --overwrite
+          kubectl apply -f workloads/bootstrap/argocd-netpol.yaml
+
       # Uploads config/openclaw.batch.json to Azure Files, applies and validates it
       # inside the running container via az containerapp exec + script(1) PTY workaround.
       # Uses node /app/openclaw.mjs directly — no openclaw CLI on the runner needed.
@@ -378,6 +506,134 @@ jobs:
             --resource-group "${TF_VAR_project}-${TF_VAR_environment}-rg" \
             --name "${TF_VAR_project}-${TF_VAR_environment}-aks" \
             --overwrite-existing
+
+      # ── AKS Platform Bootstrap: Phase 1 — Secrets Store CSI Driver ──────────────
+      # Installs the Secrets Store CSI Driver so pods can mount Key Vault secrets.
+      # Chart pinned at 1.5.4; see workloads/bootstrap/csi-versions.yaml.
+      - name: Bootstrap AKS — CSI Driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add secrets-store-csi-driver \
+            https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+          helm repo update secrets-store-csi-driver
+          helm upgrade --install csi-secrets-store \
+            secrets-store-csi-driver/secrets-store-csi-driver \
+            --namespace kube-system \
+            --version 1.5.4 \
+            --set syncSecret.enabled=true \
+            --set enableSecretRotation=true \
+            --wait --timeout 5m
+
+      # ── AKS Platform Bootstrap: Phase 1 — Azure Key Vault Provider ───────────────
+      # Installs the Azure provider for the CSI driver. Chart pinned at 1.7.2.
+      - name: Bootstrap AKS — Azure KV CSI Provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add csi-secrets-store-provider-azure \
+            https://azure.github.io/secrets-store-csi-driver-provider-azure/charts
+          helm repo update csi-secrets-store-provider-azure
+          helm upgrade --install azure-csi-provider \
+            csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
+            --namespace kube-system \
+            --version 1.7.2 \
+            --set workloadIdentity.subscriptionId="${AZURE_SUBSCRIPTION_ID}" \
+            --wait --timeout 5m
+
+      # ── AKS Platform Bootstrap: Phase 2 — Gateway API CRDs ───────────────────────
+      # Standard channel CRDs pinned at v1.2.1. Update comment when upgrading.
+      - name: Bootstrap AKS — Gateway API CRDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl apply -f \
+            https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+
+      # ── AKS Platform Bootstrap: Phase 2 — NGINX Gateway Fabric ──────────────────
+      # Chart 2.5.0 from OCI registry. Creates GatewayClass "nginx" and a
+      # LoadBalancer service in gateway-system. Capture the external IP after install:
+      #   kubectl get svc -n gateway-system ngf-nginx-gateway-fabric
+      # Record in workloads/bootstrap/README.md and set DNS A records before Phase 3.
+      - name: Bootstrap AKS — NGINX Gateway Fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm upgrade --install ngf \
+            oci://ghcr.io/nginx/charts/nginx-gateway-fabric \
+            --namespace gateway-system \
+            --create-namespace \
+            --version 2.5.0 \
+            --set nginx.service.type=LoadBalancer \
+            --wait --timeout 10m
+          echo "Gateway LoadBalancer IP:"
+          kubectl get svc -n gateway-system ngf-nginx-gateway-fabric \
+            --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
+
+      # ── AKS Platform Bootstrap: Phase 2 — Gateway manifest ───────────────────────
+      # Applies the shared Gateway resource. CERT_SECRET_NAME is substituted by
+      # envsubst before kubectl apply. The TLS secret will be created by cert-manager
+      # in Phase 3; the Gateway listener tolerates a missing secret at this stage.
+      - name: Bootstrap AKS — Gateway manifest
+        shell: bash
+        env:
+          CERT_SECRET_NAME: ${{ format('{0}-prod-tls', vars.TF_VAR_PROJECT) }}
+        run: |
+          set -euo pipefail
+          envsubst '${CERT_SECRET_NAME}' \
+            < workloads/bootstrap/gateway.yaml \
+            | kubectl apply -f -
+
+      # Phase 3 — cert-manager (TLS certificate issuance via Let's Encrypt)
+      # Chart 1.20.1: ExperimentalGatewayAPISupport is BETA and default=true;
+      # crds.enabled installs CRDs as Helm-managed resources.
+      - name: Bootstrap AKS — cert-manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update jetstack
+          helm upgrade --install cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --version 1.20.1 \
+            --set crds.enabled=true \
+            --wait --timeout 5m
+
+      - name: Bootstrap AKS — ClusterIssuers
+        shell: bash
+        env:
+          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+        run: |
+          set -euo pipefail
+          envsubst '${LETSENCRYPT_EMAIL}' \
+            < workloads/bootstrap/cluster-issuers.yaml \
+            | kubectl apply -f -
+
+      # Phase 4 — ArgoCD (GitOps controller)
+      # Chart 9.4.17: server.insecure=true for plain-HTTP access via kubectl port-forward.
+      # ArgoCD is NOT exposed via the Gateway — access is internal only.
+      # Retrieve initial password: kubectl -n argocd get secret argocd-initial-admin-secret
+      #   -o jsonpath='{.data.password}' | base64 -d
+      - name: Bootstrap AKS — ArgoCD
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add argo https://argoproj.github.io/argo-helm
+          helm repo update argo
+          helm upgrade --install argocd argo/argo-cd \
+            --namespace argocd \
+            --create-namespace \
+            --version 9.4.17 \
+            --set-string 'configs.params.server\.insecure=true' \
+            --wait --timeout 10m
+
+      - name: Bootstrap AKS — ArgoCD NetworkPolicy
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl label ns argocd kubernetes.io/metadata.name=argocd --overwrite
+          kubectl apply -f workloads/bootstrap/argocd-netpol.yaml
 
       # Uploads config/openclaw.batch.json to Azure Files, applies and validates it
       # inside the running container via az containerapp exec + script(1) PTY workaround.

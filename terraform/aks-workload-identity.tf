@@ -11,8 +11,11 @@ resource "azurerm_federated_identity_credential" "openclaw" {
 # No new Key Vault role assignment is required for Workload Identity — the existing
 # role binding applies via the same MI client ID when tokens are exchanged via OIDC.
 
+# Azure Files NFS shares use network-level (POSIX) authentication, not Azure RBAC data-plane
+# roles. Storage Account Contributor is granted so the CSI driver can enumerate file shares
+# and retrieve account metadata when establishing the NFS mount via Workload Identity.
 resource "azurerm_role_assignment" "aks_files_contributor" {
-  scope                = "${azurerm_storage_account.openclaw_nfs.id}/fileServices/default/shares/${azurerm_storage_share.openclaw_nfs.name}"
-  role_definition_name = "Storage File Data NFS Share Contributor"
+  scope                = azurerm_storage_account.openclaw_nfs.id
+  role_definition_name = "Storage Account Contributor"
   principal_id         = module.identity.principal_id
 }

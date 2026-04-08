@@ -11,6 +11,7 @@ module "aks" {
   kubernetes_version = var.aks_kubernetes_version
 
   sku = {
+    name = "Base"
     tier = "Free"
   }
 

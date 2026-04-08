@@ -30,4 +30,5 @@ locals {
   openclaw_state_storage_account_name = substr(replace("${var.project}${var.environment}ocstate", "-", ""), 0, 24)
   openclaw_state_file_share_name      = "openclaw-state"
   openclaw_backup_file_share_name     = "openclaw-backup"
+  openclaw_nfs_storage_account_name   = substr(replace("${var.project}${var.environment}ocnfs", "-", ""), 0, 24)
 }

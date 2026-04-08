@@ -132,6 +132,15 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
+      - name: Configure kubectl
+        shell: bash
+        run: |
+          set -euo pipefail
+          az aks get-credentials \
+            --resource-group "${TF_VAR_project}-${TF_VAR_environment}-rg" \
+            --name "${TF_VAR_project}-${TF_VAR_environment}-aks" \
+            --overwrite-existing
+
       # Uploads config/openclaw.batch.json to Azure Files, applies and validates it
       # inside the running container via az containerapp exec + script(1) PTY workaround.
       # Uses node /app/openclaw.mjs directly — no openclaw CLI on the runner needed.
@@ -360,6 +369,15 @@ jobs:
 
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
+
+      - name: Configure kubectl
+        shell: bash
+        run: |
+          set -euo pipefail
+          az aks get-credentials \
+            --resource-group "${TF_VAR_project}-${TF_VAR_environment}-rg" \
+            --name "${TF_VAR_project}-${TF_VAR_environment}-aks" \
+            --overwrite-existing
 
       # Uploads config/openclaw.batch.json to Azure Files, applies and validates it
       # inside the running container via az containerapp exec + script(1) PTY workaround.

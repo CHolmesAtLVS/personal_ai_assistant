@@ -36,3 +36,21 @@ output "embedding_deployment_name" {
   description = "Deployment name for the text embedding model (driven by var.embedding_model_name)."
   value       = var.embedding_model_name
 }
+
+output "aks_cluster_name" {
+  description = "Name of the AKS cluster."
+  sensitive   = false
+  value       = module.aks.name
+}
+
+output "aks_oidc_issuer_url" {
+  description = "OIDC issuer URL for the AKS cluster (used for Workload Identity federation)."
+  sensitive   = true
+  value       = module.aks.oidc_issuer_profile_issuer_url
+}
+
+output "aks_node_resource_group" {
+  description = "Name of the AKS node resource group."
+  sensitive   = false
+  value       = module.aks.node_resource_group_name
+}

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# seed-openclaw-aks.sh — Apply OpenClaw CRDs to AKS via envsubst before ArgoCD sync.
+# seed-openclaw-aks.sh — Apply OpenClaw bootstrap manifests to AKS via envsubst before ArgoCD sync.
 #
-# Applies all YAML files in workloads/<env>/openclaw/crds/ after substituting
+# Applies all YAML files in workloads/<env>/openclaw/bootstrap/ after substituting
 # ${VAR} placeholders using environment variables. Must be run before applying the
-# ArgoCD Application (TASK-020) so the SecretProviderClass and PV/PVC exist before
+# ArgoCD Application (TASK-020) so the SecretProviderClass and PV exist before
 # the first pod start.
 #
 # Usage:
@@ -46,10 +46,10 @@ fi
 : "${NFS_STORAGE_ACCOUNT_NAME:?NFS_STORAGE_ACCOUNT_NAME must be set}"
 : "${AKS_NODE_RESOURCE_GROUP:?AKS_NODE_RESOURCE_GROUP must be set}"
 
-CRD_DIR="${REPO_ROOT}/workloads/${ENV}/openclaw/crds"
+CRD_DIR="${REPO_ROOT}/workloads/${ENV}/openclaw/bootstrap"
 
 if [[ ! -d "${CRD_DIR}" ]]; then
-  echo "ERROR: CRD directory not found: ${CRD_DIR}" >&2
+  echo "ERROR: Bootstrap directory not found: ${CRD_DIR}" >&2
   exit 1
 fi
 
@@ -59,17 +59,17 @@ if [[ ! -e "${YAML_FILES[0]}" ]]; then
   exit 0
 fi
 
-echo "Applying OpenClaw CRDs for environment: ${ENV}"
+echo "Applying OpenClaw bootstrap manifests for environment: ${ENV}"
 for f in "${YAML_FILES[@]}"; do
   echo "  Applying: $(basename "${f}")"
   envsubst < "${f}" | kubectl apply -f -
 done
 
-echo "Done. CRDs applied to AKS for environment: ${ENV}."
+echo "Done. Bootstrap manifests applied to AKS for environment: ${ENV}."
 
 # TASK-020: Apply ArgoCD Application manifest for the target environment.
-# This must run after CRDs are applied so the SecretProviderClass and PV/PVC
-# exist before the first pod start triggered by ArgoCD sync.
+# This must run after bootstrap/ manifests are applied so the SecretProviderClass
+# and PV exist before the first pod start triggered by ArgoCD sync.
 ARGOCD_APP="${REPO_ROOT}/argocd/apps/${ENV}-openclaw.yaml"
 if [[ ! -f "${ARGOCD_APP}" ]]; then
   echo "ERROR: ArgoCD Application manifest not found: ${ARGOCD_APP}" >&2

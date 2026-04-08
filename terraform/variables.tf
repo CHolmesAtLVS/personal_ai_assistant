@@ -202,3 +202,22 @@ variable "azure_ai_api_key" {
 }
 
 # vm_* variables removed — dev VM is no longer managed by Terraform.
+
+variable "aks_kubernetes_version" {
+  description = "AKS Kubernetes version; null selects the latest stable AKS-supported version."
+  type        = string
+  nullable    = true
+  default     = null
+}
+
+variable "aks_node_vm_size" {
+  description = "VM SKU for AKS system and workload node pools."
+  type        = string
+  default     = "Standard_B2s"
+}
+
+variable "aks_api_authorized_ips" {
+  description = "CIDR ranges allowed to reach the AKS API server; empty list = unrestricted (default for dev)."
+  type        = list(string)
+  default     = []
+}

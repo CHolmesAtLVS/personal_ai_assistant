@@ -5,7 +5,7 @@ description: "Connect the local openclaw CLI to the remote Azure Container Apps 
 
 # OpenClaw CLI — Remote Gateway Usage
 
-Use the local `openclaw` CLI to connect to, configure, and troubleshoot the OpenClaw gateway running on Azure Container Apps. This is the **preferred** approach over `az containerapp exec` — it's faster, interactive, and not subject to Azure exec rate limits.
+Use the local `openclaw` CLI to connect to, configure, and troubleshoot the OpenClaw gateway running on AKS. This is the **preferred** approach over `kubectl exec` — it's faster, interactive, and provides richer output.
 
 ## Prerequisites
 
@@ -37,14 +37,10 @@ openclaw devices approve <requestId>
 **Exec fallback — only if no device is yet approved and the CLI cannot self-approve:**
 
 ```bash
-az containerapp exec --name paa-dev-app --resource-group paa-dev-rg \
-  --command "node /app/openclaw.mjs devices list"
+kubectl exec -n openclaw deployment/openclaw -- node /app/openclaw.mjs devices list
 
-az containerapp exec --name paa-dev-app --resource-group paa-dev-rg \
-  --command "node /app/openclaw.mjs devices approve <requestId>"
+kubectl exec -n openclaw deployment/openclaw -- node /app/openclaw.mjs devices approve <requestId>
 ```
-
-> **Azure exec rate limit:** HTTP 429, retry-after ~600s. If you hit it, wait 10 min or use an already-paired device to approve.
 
 ## Diagnostic Commands
 
@@ -62,8 +58,7 @@ openclaw logs --follow            # tail live gateway log
 
 If `openclaw logs` is unavailable (RPC down), fall back to:
 ```bash
-az containerapp logs show --name paa-dev-app --resource-group paa-dev-rg \
-  --type console --tail 100 --follow false
+kubectl logs -n openclaw deployment/openclaw --tail=100 --follow=false
 ```
 
 ## Config Commands
@@ -95,21 +90,18 @@ openclaw memory status --deep       # embedding provider + DB health
 openclaw security audit --deep      # security posture check
 ```
 
-## Container Exec Fallback
+## Pod Exec Fallback
 
-Use only when the local CLI is unavailable (not yet installed, pairing not approved, or gateway scaled to zero):
+Use only when the local CLI is unavailable (not yet installed, pairing not approved, or pod not ready):
 
 ```bash
-az containerapp exec \
-  --name paa-dev-app \
-  --resource-group paa-dev-rg \
-  --command "node /app/openclaw.mjs <subcommand>"
+kubectl exec -n openclaw deployment/openclaw -- node /app/openclaw.mjs <subcommand>
 ```
 
 | Command | Purpose |
 |---|---|
-| `node /app/openclaw.mjs devices list` | List pending/paired devices |
-| `node /app/openclaw.mjs devices approve <id>` | Approve first-time pairing |
-| `node /app/openclaw.mjs status --all` | Full status from inside container |
-| `node /app/openclaw.mjs doctor --non-interactive` | Config/state diagnostics |
-| `node /app/openclaw.mjs config get <key>` | Read a config value (prefer over raw file access) |
+| `kubectl exec -n openclaw deployment/openclaw -- node /app/openclaw.mjs devices list` | List pending/paired devices |
+| `kubectl exec -n openclaw deployment/openclaw -- node /app/openclaw.mjs devices approve <id>` | Approve first-time pairing |
+| `kubectl exec -n openclaw deployment/openclaw -- node /app/openclaw.mjs status --all` | Full status from inside the pod |
+| `kubectl exec -n openclaw deployment/openclaw -- node /app/openclaw.mjs doctor --non-interactive` | Config/state diagnostics |
+| `kubectl exec -n openclaw deployment/openclaw -- node /app/openclaw.mjs config get <key>` | Read a config value (prefer over raw file access) |

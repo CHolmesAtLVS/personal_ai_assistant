@@ -2,7 +2,7 @@
 
 ## Scope
 
-This project deploys OpenClaw to Azure Container Apps using Terraform, GitHub Actions, and an Ubuntu-based container image. Keep changes aligned with these architecture choices unless a proposal explicitly changes them.
+This project deploys OpenClaw to Azure Kubernetes Service (AKS) using Terraform, GitHub Actions, ArgoCD, and an Ubuntu-based container image. Application delivery uses the [serhanekicii/openclaw-helm](https://github.com/serhanekicii/openclaw-helm) Helm chart via an umbrella chart pattern. Keep changes aligned with these architecture choices unless a proposal explicitly changes them.
 
 ## Core Contribution Principles
 
@@ -17,9 +17,11 @@ This project deploys OpenClaw to Azure Container Apps using Terraform, GitHub Ac
 ## What to Update for Typical Changes
 
 - Application behavior changes: update app code and related documentation.
-- Image version bump: update the `TF_VAR_OPENCLAW_IMAGE_TAG` GitHub Environment variable to the new pinned tag; open a PR so CI plans and applies only the tag change.
+- Image version bump: update `image.tag` in `workloads/<env>/openclaw/values.yaml` and open a PR so ArgoCD syncs only the tag change. Never use `latest`.
 - Infrastructure changes: update Terraform and document impact.
-- Deployment changes: update GitHub Actions workflow and rollout notes.
+- Deployment changes: update GitHub Actions workflow, `scripts/bootstrap-aks-platform.sh`, or Helm chart values and document the rollout.
+- Helm values changes: update `workloads/<env>/openclaw/values.yaml`; ArgoCD will detect and sync automatically on PR merge.
+- ArgoCD Application changes: update `argocd/apps/<env>-openclaw.yaml` and re-apply via `kubectl apply` or the bootstrap script.
 
 ## Environment Safety
 
@@ -27,7 +29,7 @@ All live debugging, troubleshooting, and operational commands must target the **
 
 - AI agents and automated tooling must only be directed against dev resources during troubleshooting sessions. Do not provide production resource group names, Key Vault names, storage account names, app names, or other production identifiers to an AI agent in a debugging context.
 - If a production issue cannot be reproduced in dev, document the impasse and explicitly authorize the scope change before proceeding against production.
-- Production operations (config seed, secret rotation, image upgrades) are documented in `docs/openclaw-containerapp-operations.md`. Validate all runbook steps in dev before applying to prod.
+- Production operations (config seed, secret rotation, image upgrades, ArgoCD sync) are documented in `docs/openclaw-containerapp-operations.md`. Validate all runbook steps in dev before applying to prod.
 
 ## Local Troubleshooting
 
@@ -80,6 +82,10 @@ Before requesting review:
 - Personal details (including home public IP) are sourced only from GitHub Secrets and never committed
 - Image tag changes use a pinned version; `latest` is not present anywhere in Terraform defaults or examples
 - Storage and gateway changes verified against `docs/openclaw-containerapp-operations.md` runbook
+- Helm values changes validated with `helm dependency build && helm template . --debug` before committing
+- For gateway config changes: confirm `gateway.bind` is `lan` (not `loopback`) when deploying to AKS; `loopback` is incompatible with Kubernetes Service/HTTPRoute routing
+- `SecretProviderClass` manifests contain only `${VAR}` placeholders; confirm no real Key Vault names, tenant IDs, or client IDs are committed
+- ArgoCD Application sync confirmed healthy after merge: `argocd app wait openclaw-<env> --sync --timeout 300`
 
 ## Terraform CI/CD Baseline
 
@@ -87,8 +93,16 @@ Before requesting review:
 - Terraform deploy workflow is split into `terraform-dev` and `terraform-prod` jobs mapped to `dev` and `prod` GitHub Environments.
 - Remote state resources are bootstrapped through Azure CLI before `terraform init`.
 - Pull requests must run `terraform fmt`, `terraform validate`, and `terraform plan` and remain plan-only.
-- Non-main push events auto-apply in the `terraform-dev` job.
+- Non-main push events auto-apply in the `terraform-dev` job; followed by `az aks get-credentials` and `scripts/bootstrap-aks-platform.sh dev`.
 - Apply to production is limited to the `terraform-prod` job on `main` and must remain protected by environment approvals.
+
+## ArgoCD and Helm Baseline
+
+- All OpenClaw application manifests are delivered via ArgoCD from `workloads/<env>/openclaw/` in this repository.
+- ArgoCD is bootstrapped via `scripts/bootstrap-aks-platform.sh` after each `terraform apply`; it is idempotent.
+- Umbrella chart dependencies must be updated with `helm dependency build` after changing `Chart.yaml`; commit the resulting `charts/` directory lockfile.
+- ArgoCD `syncPolicy.automated.prune: true` and `selfHeal: true` are enabled; direct `kubectl apply` of application manifests is reserved for bootstrapping only.
+- `SecretProviderClass`, `PersistentVolume`, and `PersistentVolumeClaim` manifests in `crds/` are applied before ArgoCD sync via the bootstrap script using `envsubst`; they contain only `${VAR}` placeholders in committed form.
 
 ## Pull Request Checklist Addendum
 

@@ -1,0 +1,47 @@
+---
+# Shared Gateway resource for the nginx GatewayClass.
+# Namespace: gateway-system (created by NGINX Gateway Fabric Helm install).
+# Applied by the bootstrap CI job after NGINX Gateway Fabric is ready.
+#
+# Two listeners:
+#   http  — port 80, all namespaces.  Used for HTTP-01 ACME challenges and
+#           HTTP→HTTPS redirects (handled by HTTPRoute resources).
+#   https — port 443, TLS termination.  certificateRefs points to the TLS
+#           secret created by cert-manager once ClusterIssuers are configured.
+#
+# The TLS secret name is injected at apply time via envsubst:
+#   CERT_SECRET_NAME="${project}-${environment}-tls"
+#   envsubst '${CERT_SECRET_NAME}' < workloads/bootstrap/gateway.yaml | kubectl apply -f -
+#
+# REQ-003: GatewayClass named "nginx"  (created by NGINX Gateway Fabric)
+# REQ-007: Gateway in namespace gateway-system, ports 80 and 443
+# CON-002: ClusterIssuer names "letsencrypt-staging" / "letsencrypt-prod" are set
+#          in Phase 3 (cert-manager); this file is applied in Phase 2.
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: main-gateway
+  namespace: gateway-system
+spec:
+  gatewayClassName: nginx
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: ${CERT_SECRET_NAME}
+            namespace: gateway-system

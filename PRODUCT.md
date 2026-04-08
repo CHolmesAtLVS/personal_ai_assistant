@@ -2,9 +2,9 @@
 
 ## Product Purpose
 
-OpenClaw is a personal AI assistant deployed as a containerized service on Azure Container Apps, backed by Azure AI Foundry as the LLM provider. The product is exposed via HTTPS with strict source-IP access control.
+OpenClaw is a personal AI assistant — an autonomous agent that connects to your messaging platforms, takes actions on your behalf, and works in the background while you get on with your day. It is self-hosted in your own Azure environment, backed by Azure AI Foundry, and accessible from anywhere via HTTPS.
 
-The design goal is a **deploy-first, configure-after** baseline: Terraform provisions all required Azure infrastructure and seeds a working initial `openclaw.json` so that OpenClaw is functional immediately on first boot. From that point, the user personalizes the assistant — adding channels, agents, skills, and integrations — while OpenClaw accumulates its own persistent state over time. All state is backed up automatically.
+The design goal is a **deploy-first, configure-after** baseline: everything needed to run OpenClaw is provisioned and configured automatically so it is functional on first boot. From that point, you personalize the assistant — adding communication channels, custom agent personas, skills, and integrations — while OpenClaw accumulates its own persistent state over time.
 
 ## Primary User and Access Model
 
@@ -14,55 +14,36 @@ The design goal is a **deploy-first, configure-after** baseline: Terraform provi
 
 ### Access Constraints
 
-- The service is internet-reachable only through HTTPS ingress
-- Ingress is allow-listed to the user's home public IP only
-- Requests from non-approved source IP addresses are denied
-
-This provides a simple but effective protection boundary for a public endpoint.
+- The service is reachable over HTTPS at `paa-dev.acmeadventure.ca` (dev) and `paa.acmeadventure.ca` (prod)
+- Access is restricted to the user's approved home IP address
+- Gateway token authentication is required for all connections
 
 ## Baseline Definition
 
-The baseline is the minimum set of infrastructure and configuration that makes OpenClaw fully functional on first boot, without any manual setup steps by the user.
+The baseline is the minimum set of infrastructure and configuration that makes OpenClaw fully functional on first boot, without any manual setup steps.
 
-### Layer 1 — Azure Infrastructure (Terraform-deployed)
+### Layer 1 — Infrastructure
 
-These components are provisioned declaratively by Terraform and must be in place before the container starts:
+All required Azure cloud infrastructure is provisioned automatically via Terraform before the assistant starts. This covers compute, networking, TLS certificates, secrets management, persistent storage, the AI model backend, and cost monitoring. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full infrastructure inventory.
 
-| Component | Purpose |
-|---|---|
-| Azure Container Apps Environment + Container App | Hosts the OpenClaw container; HTTPS ingress, IP-restricted |
-| Azure Files share (mounted at `/home/node/.openclaw`) | Persistent state: config, auth profiles, skills, workspace files |
-| Azure Key Vault | Stores the gateway token secret; injected at runtime via Managed Identity |
-| Azure AI Services account + AI Foundry Hub + Project | LLM endpoint and model deployments |
-| User-Assigned Managed Identity | Authenticates the Container App to Key Vault and AI Services without static credentials |
-| Log Analytics Workspace | Centralized telemetry sink for Container Apps Environment and Key Vault diagnostics |
-| Azure Storage Account (shared with Files share) | Also serves as the backup target for Blob-based state exports |
-| Consumption Budget + Monitor Action Group | Cost alerts at 50 %, 80 %, 100 % actual and 110 % forecasted thresholds |
+### Layer 2 — Pre-Configured Assistant Settings
 
-### Layer 2 — Pre-Seeded OpenClaw Configuration (first-run `openclaw.json`)
-
-Terraform writes an `openclaw.json` template to the Azure Files share before the container starts. This file configures the minimum required settings so OpenClaw connects to AI Foundry and accepts authenticated requests on first boot. It contains no hardcoded secrets — all sensitive values are referenced as `${VAR_NAME}` and resolved from Container App environment variables injected via Managed Identity at runtime.
+The assistant is pre-configured at deploy time with the minimum settings needed to connect to the AI backend and accept authenticated requests:
 
 | Configuration area | Baseline value |
 |---|---|
-| Gateway port | `18789` |
-| Gateway bind | `lan` |
-| Gateway auth mode | `token` — token resolved from Key Vault via `${OPENCLAW_GATEWAY_TOKEN}` |
-| Control UI allowed origins | Restricted to the deployed Container App FQDN via `${APP_FQDN}` |
-| AI model provider | Custom `azure-foundry` provider pointing at the AI Model Inference endpoint |
-| AI auth method | API key injected from Key Vault via `${AZURE_AI_API_KEY}` (see note below) |
+| Authentication | Token-based; token stored in Azure Key Vault |
+| AI model provider | Azure AI Foundry |
 | Primary chat model | `grok-4-fast-reasoning` (falls back to `grok-3`) |
 | Lightweight model | `grok-3-mini` |
-| Tool profile | `full` — all tools unrestricted; the assistant needs web, browser, messaging, automation, and canvas in addition to filesystem and runtime tools. User can add explicit `deny` rules post-deploy to restrict specific tools. |
-| In-container update checks | Disabled (`update.checkOnStart: false`); image updates are applied by bumping the Terraform image tag variable |
+| Tool access | Full — web, browser, filesystem, messaging, automation, canvas. Restrict specific tools post-deploy if needed. |
+| Automatic update checks | Disabled; image updates are applied deliberately via deployment |
 
-> **AI auth note:** Key Vault access and Azure RBAC use Managed Identity throughout. The Azure AI Model Inference endpoint (Grok) currently requires an API key because OpenClaw's custom provider does not yet support Azure Managed Identity token acquisition for that endpoint type. The API key is stored in Key Vault and injected at runtime — it is never committed to source control. Managed Identity coverage for the inference endpoint is a planned improvement pending OpenClaw provider support.
+> **AI auth note:** The Azure AI Model Inference endpoint (Grok) currently requires an API key stored in Azure Key Vault; it is injected at runtime and never committed to source control. Managed Identity coverage for that endpoint is a planned improvement.
 
-The baseline config deliberately omits channels, custom agents, skills, and integrations. Those are user-configured after deployment.
+The baseline deliberately omits channels, custom agent personas, skills, and integrations. Those are user-configured after deployment.
 
-Changes to the gateway block (port, bind, auth, TLS) require a container restart. All other config areas (models, agents, channels, skills, routing) hot-reload without a restart.
-
-> **Schema validation:** OpenClaw enforces strict config validation — an invalid `openclaw.json` (unknown keys, malformed types) prevents the gateway from starting entirely. Only `openclaw doctor`, `logs`, `health`, and `status` remain usable in that state. Run `openclaw doctor` after the first deployment to confirm the pre-seeded config is valid.
+> **Schema validation:** OpenClaw enforces strict config validation on startup. Run `openclaw doctor` after the first deployment to confirm the baseline config is valid.
 
 ### Layer 3 — User-Configured (post-deploy, runtime)
 
@@ -85,86 +66,80 @@ OpenClaw manages this state in the persistent Files share. It evolves over time 
 - Installed plugin state
 - Workspace files generated during sessions
 
-This state is preserved across container restarts and revision deployments because the Azure Files share is mounted into every revision.
+This state is preserved across restarts and redeployments because the persistent storage volume is mounted into every revision of the pod.
 
 ## Backup
 
-> **Implementation status:** Neither backup mechanism is implemented in Terraform yet — this section describes the target design. Automated backup is Roadmap item 2.
+> **Implementation status:** Automated backup is not yet implemented. This section describes the target design. Automated backup is Roadmap item 2.
 
-The unit of backup is the Azure Files share at `/home/node/.openclaw`.
+The unit of backup is the persistent state volume at `/home/node/.openclaw`.
 
 ### Azure Files Share Snapshots (primary, planned)
 
-Azure Files native snapshots will capture point-in-time consistent copies of the share on a scheduled basis. Recovery will be performed by restoring from a snapshot in-place or mounting the snapshot as a read-only share for selective file recovery.
+Point-in-time snapshots of the storage share on a scheduled basis. Recovery restores from a snapshot in-place or mounts a snapshot for selective file recovery.
 
 ### Offsite Blob Export (secondary, planned)
 
-A scheduled job will export the contents of the Files share to an Azure Blob Storage container in the same Storage Account on a regular cadence. The Blob copy provides an independent, durable copy that survives share-level incidents and is accessible via standard Azure Storage tools for audit or off-cloud extraction.
+A scheduled job exports the share contents to Azure Blob Storage on a regular cadence. The Blob copy survives share-level incidents and is accessible via standard Azure tools for audit or off-cloud extraction.
 
-Both mechanisms will operate without requiring the container to be stopped.
+Both mechanisms will operate without stopping the assistant.
 
 ## Functional Capabilities
 
-### 1. LLM Interaction
+### 1. Autonomous AI Agent
 
-- Accepts user prompts via the OpenClaw web interface and configured channels
-- Routes requests to the configured Azure AI Foundry model endpoint
-- Returns model responses to the user interface
-- Supports multiple model deployments; user can select model per session or configure per-agent routing
+- Connects to your messaging platforms (WhatsApp, Telegram, Signal, Slack, Discord, and more) and acts autonomously
+- Give it a task, let it run, come back to results — less chatbot, more agent
+- Supports multiple model deployments; route specific agents to specific models
 
-### 2. Cloud-Native Runtime
+### 2. Self-Hosted and Private
 
-- Runs OpenClaw from the pre-built public image at `ghcr.io/openclaw/openclaw`, pinned to an explicit version tag
-- Hosts the container in Azure Container Apps
-- Persists all long-lived user data to an Azure Files share mounted at `/home/node/.openclaw`; data survives container restarts and revision deployments
-- Gateway token authentication is enforced at startup; token is stored in Azure Key Vault and injected via Managed Identity
+- Runs entirely in your own Azure environment; your data stays under your control
+- No shared infrastructure; secrets managed in Azure Key Vault, never in source code
+- Persistent state (conversations, sessions, installed skills, workspace files) survives restarts automatically
 
-### 3. Secure Configuration Handling
+### 3. Extensible
 
-- Uses Managed Identity for Key Vault access and Azure RBAC role assignments; the Azure AI Model Inference endpoint (Grok) currently uses an API key stored in Key Vault and injected at runtime — Managed Identity coverage for that endpoint is a planned improvement
-- Stores secrets outside source code in Azure-managed secret stores
-- Injects non-secret settings at runtime rather than hardcoding; `${VAR_NAME}` substitution in `openclaw.json` makes the mapping auditable
-- No credentials committed to source control or Terraform state output
+- Add channels, custom agent personas, MCP tool integrations, and skills after initial deployment
+- Most configuration changes take effect immediately without a restart
+- Skills and integrations installed from ClawHub extend the assistant's capabilities
 
-### 4. Observability
+### 4. Observable
 
-- Emits operational logs and telemetry to Azure monitoring services
-- Supports troubleshooting and health visibility through Log Analytics and `openclaw status`/`openclaw doctor` CLI
-- Cost visibility via Consumption Budget alerts
+- Logs and diagnostics available via Azure monitoring and `openclaw status` / `openclaw doctor`
+- Cost monitored via Azure Consumption Budget with configurable alert thresholds
 
 ## Non-Functional Requirements
 
 - Security: no secret material in public repository artifacts
-- Reliability: managed Azure runtime and repeatable deployments; persistent state survives restarts
-- Maintainability: Terraform as Infrastructure as Code source of truth
-- Traceability: CI/CD-driven deployments through GitHub Actions
-- Network control: HTTPS ingress constrained to approved source IP
+- Reliability: repeatable deployments; persistent state survives restarts
+- Maintainability: Infrastructure as Code (Terraform) and GitOps (ArgoCD) as sources of truth
+- Traceability: all deployments driven through GitHub Actions CI/CD
+- Network control: HTTPS ingress; access restricted to the approved source IP
 - Backup integrity: automated snapshots and Blob export (target design); both must be restorable without manual intervention once implemented
-- Privacy of deployment metadata: do not expose Azure tenant, subscription, identity object, or DNS identifiers in public-facing project docs
+- Privacy: Azure tenant, subscription, identity, and DNS identifiers are not exposed in public-facing project docs
 
 ## Product Workflow
 
 ### Deployment (first-time or update)
 
-1. Maintainer updates Terraform (or bumps the pinned image tag variable) in GitHub.
-2. CI/CD applies Terraform to provision or update all baseline Azure resources.
-3. Terraform writes the pre-seeded `openclaw.json` template to the Azure Files share.
-4. Container Apps pulls the pre-built OpenClaw image at the pinned tag and starts the container.
-5. The container reads `openclaw-gateway-token` from Key Vault via Managed Identity and starts the gateway.
-6. OpenClaw is functional on first boot — AI Foundry is reachable and gateway auth is enforced.
-7. Run `openclaw doctor` (via the openclaw-cli skill) to validate the pre-seeded config and confirm gateway health.
+1. Maintainer opens a PR with the desired change (infrastructure, image version, or configuration).
+2. CI/CD provisions or updates all Azure infrastructure and cluster platform tools automatically.
+3. ArgoCD detects the change in Git and deploys the updated assistant configuration.
+4. On first boot, the assistant loads its configuration, connects to the AI backend, and starts accepting requests.
+5. Run `openclaw doctor` to confirm everything is healthy.
 
 ### User Configuration (post-deploy)
 
-8. User accesses the OpenClaw web UI or CLI from the approved home IP.
-9. User adds channels, custom agents, skills, and MCP integrations through the OpenClaw interface.
-10. OpenClaw hot-reloads most config changes without requiring a container restart.
+6. Access the OpenClaw web UI from `https://paa.acmeadventure.ca`.
+7. Add messaging channels, custom agent personas, skills, and tool integrations.
+8. Most changes take effect immediately; no restart required.
 
 ### Ongoing Operation
 
-11. User interacts with OpenClaw; conversation history, workspace files, and plugin state accumulate in the Files share.
-12. Azure Files snapshots and Blob export jobs run on schedule, backing up all persistent state.
-13. Logs and diagnostics are available in Log Analytics and via `openclaw status`.
+9. Interact with the assistant; conversation history, workspace files, and plugin state grow over time.
+10. Persistent state is backed up automatically (once backup is implemented).
+11. Monitor health and costs via `openclaw status` and Azure alerts.
 
 ## Product Guardrails
 
@@ -176,10 +151,9 @@ Both mechanisms will operate without requiring the container to be stopped.
 
 ## Near-Term Roadmap
 
-1. **Multi-model deployment** — Grok-4-fast-reasoning as primary, Grok-3 fallback, Grok-3-mini lightweight; remove GPT-4o once Grok is validated in dev. *(In Progress)*
+1. **ACA decommission** — remove Azure Container Apps runtime after AKS validation (dev then prod, 7-day soak). See [plan/feature-aks-decommission-1.md](plan/feature-aks-decommission-1.md). *(In Progress)*
 2. **Automated backup** — Azure Files share snapshots and Blob export scheduled via Terraform or a container sidecar.
-3. **Custom domain and managed TLS certificate.**
-4. **Authentication layer** in front of OpenClaw (in addition to gateway token auth).
-5. **Dev/prod environment split.**
-6. **Image scanning** in CI pipeline.
-7. **Alerting** for availability and failed-request signals.
+3. **Authentication layer** in front of OpenClaw (in addition to gateway token auth).
+4. **Image scanning** in CI pipeline.
+5. **Alerting** for availability and failed-request signals.
+6. **Managed Identity for Grok inference endpoint** — eliminate the last static API key once OpenClaw provider support is available.

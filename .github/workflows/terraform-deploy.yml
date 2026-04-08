@@ -150,7 +150,14 @@ jobs:
             echo "Patching Container App to remove broken secret + referencing containers..."
             az rest --method PATCH --url "$RURL" \
               --headers "Content-Type=application/json" --body "$PATCH" \
-              && echo "Patch applied." || echo "Patch returned non-zero — continuing."
+              && echo "Patch accepted." || echo "Patch returned non-zero — continuing."
+            echo "Waiting for Container App to finish provisioning..."
+            for i in $(seq 1 36); do
+              STATE=$(az containerapp show --name "$APP" --resource-group "$RG" \
+                --query "properties.provisioningState" -o tsv 2>/dev/null || echo "Unknown")
+              echo "  provisioningState: $STATE"
+              [[ "$STATE" == "Succeeded" ]] && break || sleep 5
+            done
           else
             echo "No broken secret reference found — skipping."
           fi

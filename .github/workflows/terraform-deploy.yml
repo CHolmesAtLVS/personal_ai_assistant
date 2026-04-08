@@ -144,49 +144,16 @@ jobs:
           RG="${TF_VAR_project}-${TF_VAR_environment}-rg"
           API_VER="2024-03-01"
           RURL="https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RG}/providers/Microsoft.App/containerApps/${APP}?api-version=${API_VER}"
-
           CURRENT=$(az rest --method GET --url "$RURL" 2>/dev/null || echo "{}")
-          HAS_BROKEN=$(echo "$CURRENT" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-secs = d.get('properties', {}).get('configuration', {}).get('secrets', [])
-print('yes' if any(s.get('name') == 'openclaw-state-storage-key' for s in secs) else 'no'
-)" 2>/dev/null || echo "no")
-
-          if [[ "$HAS_BROKEN" == "no" ]]; then
-            echo "No broken secret reference — skipping."
-            exit 0
+          PATCH=$(echo "$CURRENT" | python3 scripts/fix-containerapp-secret.py 2>/dev/null || true)
+          if [[ -n "$PATCH" ]]; then
+            echo "Patching Container App to remove broken secret + referencing containers..."
+            az rest --method PATCH --url "$RURL" \
+              --headers "Content-Type=application/json" --body "$PATCH" \
+              && echo "Patch applied." || echo "Patch returned non-zero — continuing."
+          else
+            echo "No broken secret reference found — skipping."
           fi
-
-          echo "Removing broken secret + referencing containers via PATCH..."
-          PATCHED=$(echo "$CURRENT" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-SECRET_NAME = 'openclaw-state-storage-key'
-cfg  = d.get('properties', {}).get('configuration', {})
-tmpl = d.get('properties', {}).get('template', {})
-
-cfg['secrets'] = [s for s in cfg.get('secrets', [])
-                  if s.get('name') != SECRET_NAME]
-
-def drop_referencing(containers):
-    return [c for c in containers
-            if not any(e.get('secretRef') == SECRET_NAME or e.get('name') == 'STORAGE_ACCOUNT_KEY'
-                       for e in c.get('env', []))]
-
-tmpl['initContainers'] = drop_referencing(tmpl.get('initContainers', []))
-main = [c for c in tmpl.get('containers', []) if c.get('name') == 'openclaw']
-extra = drop_referencing([c for c in tmpl.get('containers', []) if c.get('name') != 'openclaw'])
-tmpl['containers'] = main + extra
-
-print(json.dumps({'properties': {'configuration': cfg, 'template': tmpl}}))")
-
-          az rest --method PATCH \
-            --url "$RURL" \
-            --headers "Content-Type=application/json" \
-            --body "$PATCHED" \
-            && echo "Container App patched successfully." \
-            || echo "Patch returned non-zero (may still succeed) — continuing."
 
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan

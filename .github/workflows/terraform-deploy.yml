@@ -129,6 +129,30 @@ jobs:
           name: terraform-plan-dev
           path: terraform/tfplan
 
+      # The dev Container App has a broken 'openclaw-state-storage-key' secret reference
+      # (its Key Vault backend was deleted but the ACA sidecar env var still references it).
+      # Azure rejects any Container App update while a broken KV-backed secret exists.
+      # This step replaces it with a plain placeholder value so the subsequent
+      # Terraform apply can atomically remove the secret + sidecar together.
+      # Idempotent and non-fatal: silently no-ops once the state is clean.
+      - name: Fix broken Container App secret
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="${TF_VAR_project}-${TF_VAR_environment}-app"
+          RG="${TF_VAR_project}-${TF_VAR_environment}-rg"
+          BROKEN=$(az containerapp secret list --name "$APP" --resource-group "$RG" \
+            --query "[?name=='openclaw-state-storage-key'].name" -o tsv 2>/dev/null || echo "")
+          if [[ -n "$BROKEN" ]]; then
+            echo "Replacing broken KV-backed secret with placeholder to unblock Terraform apply..."
+            az containerapp secret set --name "$APP" --resource-group "$RG" \
+              --secrets "openclaw-state-storage-key=placeholder-removing"
+            echo "Secret replaced. Terraform apply will remove it alongside the sidecar."
+          else
+            echo "No broken secret found — skipping."
+          fi
+
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 

@@ -88,13 +88,13 @@ After Phase 4 CI completes:
 
 ## Pinned Chart Versions
 
-See [csi-versions.yaml](csi-versions.yaml) for CSI driver chart versions.
+The Secrets Store CSI Driver and Azure Key Vault Provider are installed by the AKS
+`key_vault_secrets_provider` add-on declared in Terraform — they are not managed here.
 
-| Component                        | Chart version | Pinned at  |
-| -------------------------------- | ------------- | ---------- |
-| secrets-store-csi-driver         | 1.5.4         | 2026-04-08 |
-| csi-secrets-store-provider-azure | 1.7.2         | 2026-04-08 |
-| nginx-gateway-fabric             | 2.5.0         | 2026-04-08 |
-| Gateway API CRDs                 | v1.2.1        | 2026-04-08 |
-| cert-manager                     | 1.20.1        | 2026-04-08 |
-| argo-cd                          | 9.4.17        | 2026-04-08 |
+| Component            | Chart version | Pinned at  | Managed by      |
+| -------------------- | ------------- | ---------- | --------------- |
+| nginx-gateway-fabric | 2.5.0         | 2026-04-08 | CI bootstrap    |
+| Gateway API CRDs     | v1.2.1        | 2026-04-08 | CI bootstrap    |
+| cert-manager         | 1.20.1        | 2026-04-08 | CI bootstrap    |
+| argo-cd              | 9.4.17        | 2026-04-08 | CI bootstrap    |
+| CSI Driver + AKV     | AKS-managed   | —          | Terraform (AKS) |

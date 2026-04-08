@@ -130,11 +130,11 @@ jobs:
           path: terraform/tfplan
 
       # The dev Container App has a broken 'openclaw-state-storage-key' secret reference
-      # (its Key Vault backend was deleted but the ACA sidecar env var still references it).
-      # Azure rejects any Container App update while a broken KV-backed secret exists.
-      # This step replaces it with a plain placeholder value so the subsequent
-      # Terraform apply can atomically remove the secret + sidecar together.
-      # Idempotent and non-fatal: silently no-ops once the state is clean.
+      # (its Key Vault backend was deleted but Azure CSI sync sidecars added to dev state
+      # in a prior local apply were never removed). Azure rejects ANY Container App update
+      # while referenced secrets exist in running containers. This step atomically removes
+      # the offending init containers, sidecar containers, and the broken secret via a
+      # single PATCH before Terraform apply. Idempotent: no-ops when state is already clean.
       - name: Fix broken Container App secret
         continue-on-error: true
         shell: bash
@@ -142,16 +142,51 @@ jobs:
           set -euo pipefail
           APP="${TF_VAR_project}-${TF_VAR_environment}-app"
           RG="${TF_VAR_project}-${TF_VAR_environment}-rg"
-          BROKEN=$(az containerapp secret list --name "$APP" --resource-group "$RG" \
-            --query "[?name=='openclaw-state-storage-key'].name" -o tsv 2>/dev/null || echo "")
-          if [[ -n "$BROKEN" ]]; then
-            echo "Replacing broken KV-backed secret with placeholder to unblock Terraform apply..."
-            az containerapp secret set --name "$APP" --resource-group "$RG" \
-              --secrets "openclaw-state-storage-key=placeholder-removing"
-            echo "Secret replaced. Terraform apply will remove it alongside the sidecar."
-          else
-            echo "No broken secret found — skipping."
+          API_VER="2024-03-01"
+          RURL="https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RG}/providers/Microsoft.App/containerApps/${APP}?api-version=${API_VER}"
+
+          CURRENT=$(az rest --method GET --url "$RURL" 2>/dev/null || echo "{}")
+          HAS_BROKEN=$(echo "$CURRENT" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+secs = d.get('properties', {}).get('configuration', {}).get('secrets', [])
+print('yes' if any(s.get('name') == 'openclaw-state-storage-key' for s in secs) else 'no'
+)" 2>/dev/null || echo "no")
+
+          if [[ "$HAS_BROKEN" == "no" ]]; then
+            echo "No broken secret reference — skipping."
+            exit 0
           fi
+
+          echo "Removing broken secret + referencing containers via PATCH..."
+          PATCHED=$(echo "$CURRENT" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+SECRET_NAME = 'openclaw-state-storage-key'
+cfg  = d.get('properties', {}).get('configuration', {})
+tmpl = d.get('properties', {}).get('template', {})
+
+cfg['secrets'] = [s for s in cfg.get('secrets', [])
+                  if s.get('name') != SECRET_NAME]
+
+def drop_referencing(containers):
+    return [c for c in containers
+            if not any(e.get('secretRef') == SECRET_NAME or e.get('name') == 'STORAGE_ACCOUNT_KEY'
+                       for e in c.get('env', []))]
+
+tmpl['initContainers'] = drop_referencing(tmpl.get('initContainers', []))
+main = [c for c in tmpl.get('containers', []) if c.get('name') == 'openclaw']
+extra = drop_referencing([c for c in tmpl.get('containers', []) if c.get('name') != 'openclaw'])
+tmpl['containers'] = main + extra
+
+print(json.dumps({'properties': {'configuration': cfg, 'template': tmpl}}))")
+
+          az rest --method PATCH \
+            --url "$RURL" \
+            --headers "Content-Type=application/json" \
+            --body "$PATCHED" \
+            && echo "Container App patched successfully." \
+            || echo "Patch returned non-zero (may still succeed) — continuing."
 
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan

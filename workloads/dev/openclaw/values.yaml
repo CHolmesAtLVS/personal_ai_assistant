@@ -61,20 +61,8 @@ openclaw:
               }
             }
 
-    # --------------------------------------------------------------------------
-    # Service account (TASK-007, REQ-008)
-    # SA is pre-created by crds/serviceaccount.yaml (applied via seed-openclaw-aks.sh)
-    # with the azure.workload.identity/client-id annotation.
-    # app-template v4: serviceAccount is a named map keyed by SA identifier.
-    # --------------------------------------------------------------------------
-    serviceAccount:
-      main:
-        create: false
-        name: openclaw
-
     # Workload Identity pod label — required by the Azure WI mutating webhook (REQ-008).
     defaultPodOptions:
-      serviceAccountName: openclaw
       labels:
         azure.workload.identity/use: "true"
 
@@ -83,6 +71,13 @@ openclaw:
     # --------------------------------------------------------------------------
     controllers:
       main:
+        # --------------------------------------------------------------------------
+        # Service account (TASK-007, REQ-008)
+        # SA is pre-created by crds/serviceaccount.yaml with the WI annotation.
+        # app-template v4: external SA referenced via controllers.<name>.serviceAccount.name.
+        # --------------------------------------------------------------------------
+        serviceAccount:
+          name: openclaw
         containers:
           main:
             image:
@@ -115,10 +110,15 @@ openclaw:
     persistence:
       # Static NFS Azure Files share (REQ-007, 10Gi).
       # PV and PVC are defined in crds/pv.yaml and crds/pvc.yaml.
-      # app-template v4: type: persistentVolumeClaim required for existingClaim to pass schema.
+      # app-template v4: use type: custom with volumeSpec.persistentVolumeClaim to reference
+      # a pre-existing PVC (existingClaim is not a valid property in app-template v4).
       data:
-        type: persistentVolumeClaim
-        existingClaim: openclaw-state-nfs
+        type: custom
+        volumeSpec:
+          persistentVolumeClaim:
+            claimName: openclaw-state-nfs
+        globalMounts:
+          - path: /home/node/.openclaw
 
       # CSI secrets-store volume mount (TASK-011, REQ-002).
       # Mounting this volume triggers SecretProviderClass sync which creates the

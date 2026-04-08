@@ -54,3 +54,15 @@ output "aks_node_resource_group" {
   sensitive   = false
   value       = module.aks.node_resource_group_name
 }
+
+output "openclaw_nfs_storage_account_name" {
+  description = "Name of the Premium FileStorage account hosting the OpenClaw NFS share."
+  sensitive   = false
+  value       = azurerm_storage_account.openclaw_nfs.name
+}
+
+output "openclaw_nfs_file_share_name" {
+  description = "Azure Files NFS share name mounted to /home/node/.openclaw."
+  sensitive   = false
+  value       = azurerm_storage_share.openclaw_nfs.name
+}

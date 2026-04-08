@@ -3,26 +3,39 @@
 # Namespace: gateway-system (created by NGINX Gateway Fabric Helm install).
 # Applied by the bootstrap CI job after NGINX Gateway Fabric is ready.
 #
-# Two listeners:
-#   http  — port 80, all namespaces.  Used for HTTP-01 ACME challenges and
-#           HTTP→HTTPS redirects (handled by HTTPRoute resources).
-#   https — port 443, TLS termination.  certificateRefs points to the TLS
-#           secret created by cert-manager once ClusterIssuers are configured.
+# Listeners:
+#   http       — port 80, all namespaces.  Used for HTTP-01 ACME challenges and
+#                HTTP→HTTPS redirects (handled by HTTPRoute resources in openclaw ns).
+#   https-dev  — port 443, hostname paa-dev.acmeadventure.ca. TLS terminated.
+#   https-prod — port 443, hostname paa.acmeadventure.ca. TLS terminated.
 #
-# The TLS secret name is injected at apply time via envsubst:
-#   CERT_SECRET_NAME="${project}-${environment}-tls"
-#   envsubst '${CERT_SECRET_NAME}' < workloads/bootstrap/gateway.yaml | kubectl apply -f -
+# cert-manager annotation: cert-manager watches this Gateway and issues a Certificate
+# for each HTTPS listener's hostname, storing it in the named certificateRefs secret.
+# Both environments use letsencrypt-staging until certificates are confirmed stable;
+# then update the annotation to letsencrypt-prod and re-apply.
+# Switch command:
+#   kubectl annotate gateway main-gateway -n gateway-system \
+#     cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite
+#
+# HTTPRoutes in the openclaw namespace use sectionName to target the correct listener:
+#   sectionName: http       — for HTTP-01 ACME challenges and HTTP→HTTPS redirects
+#   sectionName: https-dev  — for dev HTTPS traffic
+#   sectionName: https-prod — for prod HTTPS traffic
+#
+# No envsubst required — cert secret names are static.
 #
 # REQ-003: GatewayClass named "nginx"  (created by NGINX Gateway Fabric)
 # REQ-007: Gateway in namespace gateway-system, ports 80 and 443
-# CON-002: ClusterIssuer names "letsencrypt-staging" / "letsencrypt-prod" are set
-#          in Phase 3 (cert-manager); this file is applied in Phase 2.
 
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: main-gateway
   namespace: gateway-system
+  annotations:
+    # Use letsencrypt-staging for both environments until certificates are confirmed stable.
+    # Update to letsencrypt-prod once staging certs are READY (TASK-015).
+    cert-manager.io/cluster-issuer: letsencrypt-staging
 spec:
   gatewayClassName: nginx
   listeners:
@@ -33,9 +46,10 @@ spec:
         namespaces:
           from: All
 
-    - name: https
+    - name: https-dev
       protocol: HTTPS
       port: 443
+      hostname: paa-dev.acmeadventure.ca
       allowedRoutes:
         namespaces:
           from: All
@@ -43,5 +57,19 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: ${CERT_SECRET_NAME}
+            name: paa-dev-tls
+            namespace: gateway-system
+
+    - name: https-prod
+      protocol: HTTPS
+      port: 443
+      hostname: paa.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: paa-prod-tls
             namespace: gateway-system

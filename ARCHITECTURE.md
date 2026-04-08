@@ -2,14 +2,17 @@
 
 ## System Overview
 
-This project deploys OpenClaw from a public GitHub repository into Azure Container Apps in a private Azure environment. The runtime is an Ubuntu-based Docker container. Infrastructure is defined and managed through Terraform. The application's LLM backend is Azure AI Foundry.
+This project deploys OpenClaw from a public GitHub repository into Azure Kubernetes Service (AKS) in a private Azure environment. The runtime is the pre-built Ubuntu-based container image from GHCR. Infrastructure is defined and managed through Terraform. The application's LLM backend is Azure AI Foundry. Application delivery uses a GitOps model via ArgoCD and the [serhanekicii/openclaw-helm](https://github.com/serhanekicii/openclaw-helm) Helm chart.
+
+> **Migration status:** The target runtime is AKS. The Azure Container Apps (ACA) runtime is being retired. See [plan/feature-aks-migration-1.md](plan/feature-aks-migration-1.md) for the phased migration plan.
 
 Core architecture goals:
 
 - Keep deployment repeatable and auditable through Infrastructure as Code
 - Keep credentials out of source control
 - Use managed Azure identity where possible
-- Limit application exposure by allowing ingress only from a specific home public IP
+- Limit application exposure via HTTPS and DNS-scoped ingress through Kubernetes Gateway API
+- Maintain GitOps delivery: all application state declared in Git, reconciled by ArgoCD
 
 ## Logical Components
 
@@ -30,30 +33,35 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 - Azure CLI bootstraps Terraform remote state infrastructure (Resource Group, Storage Account, Blob Container) before Terraform backend initialization
 - Terraform uses Azure Blob remote state for shared, auditable infrastructure state
 - Resource naming and required tags are centralized in Terraform locals for consistent policy enforcement
+- After `terraform apply`, CI runs `az aks get-credentials` and the `scripts/bootstrap-aks-platform.sh` script to install cluster-level platform tools
 
 ### Azure Runtime Platform
 
-- Azure Container Registry (ACR): stores built container images; lives in a dedicated shared resource group (`${project}-shared-rg`) provisioned only in the prod environment. Dev deployments use a public placeholder image and have no ACR dependency. ACR is reserved for custom-built image scenarios; standard deployment uses the pre-built GHCR image.
-- Azure Container Apps Environment: runtime environment for containerized workloads, linked to Log Analytics Workspace
-- OpenClaw Container App: running service endpoint; min replicas 0, 2 vCPU / 4 GiB per replica; pulls pre-built image from `ghcr.io/openclaw/openclaw` at the pinned tag
-- Azure Files share mounted at `/home/node/.openclaw`: persists all long-lived OpenClaw state (config, auth profiles, skills state, workspace files) across revisions and restarts
-- Gateway token auth: the OpenClaw gateway runs with `bind=lan` and token authentication; the token is stored in Key Vault under the canonical secret name `openclaw-gateway-token` and injected into the container at startup via Managed Identity secret reference
-- HTTPS ingress with source IP restriction to the user's home public IP; insecure connections blocked
-- Liveness probe at `/healthz:18789` and readiness probe at `/readyz:18789` for Container Apps health management
-- Log Analytics Workspace: centralized telemetry sink for Container Apps Environment, Key Vault diagnostics, and ACR diagnostics
-- Azure Monitor Action Group + Consumption Budget: cost alerts at 50 %, 80 %, 100 % actual, and 110 % forecasted thresholds against the environment resource group
+- **AKS cluster** (free tier, 2 × `Standard_B2s` nodes, Azure CNI Overlay): runtime environment for all containerized workloads. One system node pool and one workload node pool.
+- **OpenClaw Deployment**: single-replica pod running the pre-built image `ghcr.io/openclaw/openclaw` at the pinned version tag. Managed by ArgoCD via the umbrella Helm chart in `workloads/<env>/openclaw/`.
+- **NGINX Gateway Fabric**: implements Kubernetes Gateway API (`GatewayClass: nginx`); provides a shared external LoadBalancer for HTTPS routing to all workloads including OpenClaw.
+- **Kubernetes Gateway API `HTTPRoute`**: routes `paa-dev.acmeadventure.ca` (dev) and `paa.acmeadventure.ca` (prod) to the OpenClaw service on port 18789.
+- **cert-manager + Let's Encrypt**: TLS certificates issued via HTTP-01 ACME challenge; `letsencrypt-staging` used during dev validation, `letsencrypt-prod` for trusted certs.
+- **ArgoCD**: GitOps operator running in the `argocd` namespace; continuously reconciles `workloads/<env>/openclaw/` from this repository to the cluster. `configMode: merge` preserves runtime config state across pod restarts.
+- **Azure Files NFS share** (Premium FileStorage storage account) mounted at `/home/node/.openclaw`: persists all long-lived OpenClaw state (config, auth profiles, skills state, workspace files) across pod restarts and redeployments. NFS protocol required for POSIX `chmod`/`chown` semantics.
+- **Secrets Store CSI Driver + Azure Key Vault Provider**: syncs `openclaw-gateway-token` and `azure-ai-api-key` from Key Vault into a Kubernetes `Secret` (`openclaw-env-secret`) via `SecretProviderClass`. No secret material in Git or Helm values.
+- **Workload Identity**: the OpenClaw pod's Kubernetes ServiceAccount is annotated with the Managed Identity client ID; OIDC federation allows the pod to exchange a projected token for the MI token, enabling Key Vault and AI Services access without static credentials.
+- **Gateway token auth**: OpenClaw gateway runs with `bind=lan` (required for Gateway API routing — loopback is incompatible with Service/HTTPRoute access) and token authentication. Token sourced from Key Vault via CSI sync.
+- **Network policies**: enabled per the Helm chart's built-in network policy block; ingress from `gateway-system` namespace on port 18789 only; egress to public internet for AI API calls; internal RFC1918 egress blocked.
+- **Log Analytics Workspace**: centralized telemetry sink for the AKS cluster diagnostics and Key Vault diagnostics.
+- **Azure Monitor Action Group + Consumption Budget**: cost alerts at 50 %, 80 %, 100 % actual, and 110 % forecasted thresholds against the environment resource group.
 
 ### Resource Group Topology
 
-- **Environment resource group** (`${project}-${environment}-rg`): deployed in every environment; holds Key Vault, AI platform, Container Apps Environment, Container App, Managed Identity, and Log Analytics Workspace.
+- **Environment resource group** (`${project}-${environment}-rg`): deployed in every environment; holds Key Vault, AI platform, AKS cluster, Managed Identity, Log Analytics Workspace, Premium storage account (NFS share), and budget resources.
 - **Shared resource group** (`${project}-shared-rg`): deployed in prod only; holds the single Azure Container Registry shared across the project.
 
 ### Security and Configuration
 
-- Managed Identity: preferred authentication path to Azure services; a single User-Assigned Managed Identity is attached to the Container App
-- Azure Key Vault (RBAC mode, admin-disabled): secret values outside code; legacy access policies disabled
-- Runtime configuration injection: non-secret settings (e.g. `AZURE_OPENAI_ENDPOINT`) injected as container environment variables at deployment time by Terraform
-- AI authentication: Managed Identity is used where supported (Azure OpenAI embedding endpoint via `Cognitive Services OpenAI User` role). The Azure AI Model Inference endpoint (used for Grok/xAI MaaS models) does not yet support Managed Identity in OpenClaw's `azure-foundry` provider; it uses an API key stored in Key Vault (`azure-ai-api-key`) and injected at runtime via secret reference. Managed Identity coverage for that endpoint is a planned improvement.
+- Managed Identity: preferred authentication path to Azure services; a single User-Assigned Managed Identity is attached to the AKS cluster and federated via OIDC to the `openclaw` Kubernetes ServiceAccount (Workload Identity)
+- Azure Key Vault (RBAC mode, admin-disabled): secret values outside code; legacy access policies disabled; secrets accessed from pods via Secrets Store CSI Driver without static credentials
+- Runtime configuration: non-secret settings (e.g. `AZURE_OPENAI_ENDPOINT`, `APP_FQDN`) injected as container environment variables via Helm values; secrets injected via `SecretProviderClass` CSI sync → Kubernetes Secret → pod `envFrom`
+- AI authentication: Managed Identity is used where supported (Azure OpenAI embedding endpoint via `Cognitive Services OpenAI User` role). The Azure AI Model Inference endpoint (used for Grok/xAI MaaS models) does not yet support Managed Identity in OpenClaw's `azure-foundry` provider; it uses an API key stored in Key Vault (`azure-ai-api-key`) and injected at runtime via CSI secret sync. Managed Identity coverage for that endpoint is a planned improvement.
 - The Azure AI Foundry API key must be provided on every Terraform apply via `TF_VAR_azure_ai_api_key` (GitHub Secret: `TF_VAR_AZURE_AI_API_KEY`); the `lifecycle { ignore_changes = [value] }` rule prevents the Key Vault secret value from being overwritten, but Terraform variable validation still runs and will reject an empty value.
 
 #### Managed Identity Role Assignments
@@ -64,13 +72,14 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 | Key Vault Secrets User | Environment Key Vault | all |
 | Cognitive Services OpenAI User | AI Services account | all |
 | Cognitive Services User | AI Services account | all |
+| Storage File Data NFS Share Contributor | Premium NFS Azure Files share | all |
 
 ### AI and Observability
 
 - Azure AI Services account (Cognitive Services) with an AI Foundry Hub and Project: provides the LLM model deployment endpoint consumed by OpenClaw
 - Model deployments: `text-embedding-3-large` (embeddings, Azure OpenAI endpoint); `gpt-5.4-mini` (primary chat, version `2026-03-17`) via the Azure OpenAI endpoint.
 - Primary chat model: `gpt-5.4-mini` — set via `agents.defaults.model.primary` in openclaw config; no fallback configured
-- Log Analytics Workspace (`${project}-${environment}-law`): 30-day retention; receives diagnostics from Key Vault, ACR (prod), and the Container Apps Environment
+- Log Analytics Workspace (`${project}-${environment}-law`): 30-day retention; receives diagnostics from Key Vault, ACR (prod), and the AKS cluster
 
 ### Resource Inventory
 
@@ -80,13 +89,12 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 | -------- | ---------- | ----- |
 | Resource Group | `avm-res-resources-resourcegroup` | |
 | Log Analytics Workspace | `avm-res-operationalinsights-workspace` | 30-day retention |
-| User-Assigned Managed Identity | `avm-res-managedidentity-userassignedidentity` | |
-| Key Vault (standard, RBAC mode) | `avm-res-keyvault-vault` | Diagnostics → LAW; holds `openclaw-gateway-token` |
+| User-Assigned Managed Identity | `avm-res-managedidentity-userassignedidentity` | OIDC federated to `system:serviceaccount:openclaw:openclaw` |
+| Key Vault (standard, RBAC mode) | `avm-res-keyvault-vault` | Diagnostics → LAW; holds `openclaw-gateway-token` and `azure-ai-api-key` |
 | AI Services / AI Foundry Hub + Project + model deployment | `avm-ptn-aiml-ai-foundry` | Uses existing Key Vault |
-| Container Apps Environment | `avm-res-app-managedenvironment` | Linked to LAW |
-| Container App (OpenClaw) | `avm-res-app-containerapp` | HTTPS, IP-restricted ingress; KV secret ref for gateway token |
-| Azure Storage Account + Files share | `azurerm_storage_account` / `azurerm_storage_share` | Persists `/home/node/.openclaw` |
-| Container Apps Environment Storage binding | `azurerm_container_app_environment_storage` | Mounts Azure Files share into Container App |
+| AKS Cluster (free tier, 2 × `Standard_B2s`) | `avm-res-containerservice-managedcluster ~> 0.5` | Azure CNI Overlay; OIDC issuer; Workload Identity; KV Secrets Provider add-on |
+| Premium Storage Account (FileStorage) + NFS Azure Files share | `azurerm_storage_account` / `azurerm_storage_share` | NFS protocol; persists `/home/node/.openclaw`; POSIX chmod/chown support |
+| OIDC Federated Identity Credential | `azurerm_federated_identity_credential` | Binds MI to `openclaw` K8s ServiceAccount for Workload Identity |
 | Monitor Action Group | `azurerm_monitor_action_group` | Budget email alerts |
 | Consumption Budget | `azurerm_consumption_budget_resource_group` | Monthly cap on env RG |
 
@@ -101,23 +109,27 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 
 | Output | Description | Sensitive |
 | ------ | ----------- | --------- |
-| `container_app_fqdn` | FQDN of the deployed OpenClaw Container App | yes |
+| `aks_cluster_name` | Name of the deployed AKS cluster | no |
+| `aks_oidc_issuer_url` | OIDC issuer URL for Workload Identity federation | yes |
+| `aks_node_resource_group` | Node resource group created by AKS | no |
 | `ai_services_endpoint` | Endpoint URL of the AI Services account | yes |
 | `acr_login_server` | ACR login server (null in non-prod) | yes |
-| `openclaw_state_storage_account_name` | Storage account name hosting the OpenClaw state Azure Files share | no |
-| `openclaw_state_file_share_name` | Azure Files share name mounted to `/home/node/.openclaw` | no |
+| `openclaw_state_storage_account_name` | Premium storage account name hosting the NFS Azure Files share | no |
+| `openclaw_state_file_share_name` | NFS Azure Files share name mounted to `/home/node/.openclaw` | no |
 
 ## End-to-End Deployment and Runtime Flow
 
-1. A change is pushed to the public GitHub repository (app code, Docker config, or Terraform).
-2. GitHub Actions applies Terraform to provision or update Azure resources in the private Azure environment.
-3. Azure Container Apps pulls the pre-built OpenClaw image from `ghcr.io/openclaw/openclaw` at the pinned tag and runs the container.
-4. The Azure Files share hosting `/home/node/.openclaw` is mounted into the container, restoring all persistent state.
-5. The Container App reads the `openclaw-gateway-token` Key Vault secret via Managed Identity and starts the gateway with token authentication.
-6. A user connects over HTTPS from the approved home public IP.
-7. OpenClaw authenticates to Azure services via Managed Identity where supported.
-8. OpenClaw calls Azure AI Foundry's configured LLM deployment endpoint.
-9. Operational telemetry and diagnostics flow to Azure monitoring.
+1. A change is pushed to the public GitHub repository (Terraform or Helm values/charts).
+2. GitHub Actions applies Terraform to provision or update Azure resources: AKS cluster, Key Vault, AI Services, storage, Managed Identity, OIDC federation.
+3. CI fetches AKS credentials and runs `scripts/bootstrap-aks-platform.sh` to install/upgrade platform tools: Secrets Store CSI Driver, Azure Key Vault Provider, NGINX Gateway Fabric, cert-manager (with ClusterIssuers), ArgoCD.
+4. ArgoCD detects the updated `workloads/<env>/openclaw/` directory in Git and syncs the umbrella Helm chart.
+5. The Helm chart deploys the OpenClaw `Deployment`, `Service`, `ConfigMap`, `PVC`, `ServiceAccount`, and network policies.
+6. The Secrets Store CSI volume mount triggers Key Vault secret sync → `openclaw-env-secret` Kubernetes Secret is created/updated.
+7. The NFS Azure Files share is mounted at `/home/node/.openclaw`, restoring all persistent state.
+8. OpenClaw starts with `gateway.bind=lan`, reads `OPENCLAW_GATEWAY_TOKEN` from the synced secret, and begins accepting connections.
+9. A user connects over HTTPS from `paa-dev.acmeadventure.ca` or `paa.acmeadventure.ca`; the NGINX Gateway Fabric routes the request via `HTTPRoute` to the OpenClaw service on port 18789.
+10. OpenClaw authenticates to Azure AI Foundry via Workload Identity (Managed Identity OIDC token exchange) where supported; the Grok inference endpoint uses the CSI-synced API key.
+11. Operational telemetry flows to Log Analytics Workspace; cost alerts fire via the Consumption Budget.
 
 Terraform workflow details:
 
@@ -125,25 +137,26 @@ Terraform workflow details:
 2. CI runs an idempotent Azure CLI bootstrap script for backend state resources.
 3. CI runs `terraform fmt -check`, `terraform init`, `terraform validate`, `terraform plan`.
 4. CI uploads the environment-specific plan artifact (both jobs).
-5. CI auto-applies in the `terraform-dev` job after plan succeeds.
+5. CI auto-applies in the `terraform-dev` job after plan succeeds; fetches AKS kubeconfig; runs platform bootstrap.
 6. CI applies in the `terraform-prod` job only on merge to `main`, subject to GitHub Environment protection controls.
 
 ## Trust Boundaries and Access Model
 
 - Public boundary: GitHub repository and the public HTTPS endpoint
-- Controlled ingress boundary: Container App ingress allows only the approved source IP
-- Cloud identity boundary: workload identity through Managed Identity
-- Secret boundary: sensitive values stored in Azure-managed secret stores, not in repository history
+- Controlled ingress boundary: `HTTPRoute` allows all source IPs but TLS-terminates at the Gateway; the gateway token provides authentication at the application layer
+- Cloud identity boundary: Workload Identity through Managed Identity OIDC federation; no static credentials in pods
+- Secret boundary: sensitive values stored in Azure Key Vault, synced to Kubernetes Secrets via CSI Driver only at pod runtime; never committed to Git or Helm values
 
 This model intentionally reduces blast radius for a public codebase deployment while preserving a straightforward operational path.
 
 ## Infrastructure Ownership and Change Model
 
 - Terraform is the authoritative mechanism for provisioning and infrastructure updates.
-- GitHub Actions is the deployment entry point for image publish and infrastructure changes.
-- Azure Container Apps is the authoritative runtime for serving OpenClaw.
+- GitHub Actions is the deployment entry point for infrastructure changes and platform bootstrap.
+- ArgoCD is the authoritative GitOps operator for application workloads on AKS.
+- AKS is the authoritative runtime for serving OpenClaw.
 
-This gives a single declarative infrastructure source, a single CI/CD execution layer, and a managed container runtime.
+This gives a single declarative infrastructure source (Terraform), a single CI/CD execution layer (GitHub Actions), a GitOps application delivery layer (ArgoCD), and a managed container runtime (AKS).
 
 ## Security Principles Applied
 
@@ -157,26 +170,27 @@ This gives a single declarative infrastructure source, a single CI/CD execution 
 
 ## Assumptions and Constraints
 
-- OpenClaw runs correctly in Azure Container Apps
+- OpenClaw runs correctly on AKS with `gateway.bind=lan` and the official security context (UID 1000, `readOnlyRootFilesystem`, drop ALL capabilities)
 - Azure AI Foundry is the selected LLM platform
-- Home public IP is stable, or ingress rules can be updated when it changes
+- DNS for `paa-dev.acmeadventure.ca` and `paa.acmeadventure.ca` is managed by the operator and points to the AKS Gateway LoadBalancer IP
 - Terraform remains the source of truth for Azure resource state
+- ArgoCD remains the source of truth for Kubernetes application state
 
 ## Operational Environment Policy
 
 The two deployed environments (`dev`, `prod`) exist specifically to separate change-risk from production traffic.
 
 - **All troubleshooting, diagnosis, and live operational work must be performed against the dev environment.** Production is only touched for authorized deployment or incident response where the issue is confirmed non-reproducible in dev.
-- This rule applies to human operators and to AI agents. An AI agent must never be provided production resource identifiers (resource group, Key Vault, storage account, Container App name) in a debugging context. If there is any ambiguity about which environment is targeted, the agent must stop and ask before executing any `az`, Terraform, or script command.
+- This rule applies to human operators and to AI agents. An AI agent must never be provided production resource identifiers (resource group, Key Vault, storage account, AKS cluster name, ArgoCD application name) in a debugging context. If there is any ambiguity about which environment is targeted, the agent must stop and ask before executing any `az`, `kubectl`, Terraform, or script command.
 - Production incidents are an exception, not a default. Explicitly document the authorization to work in prod before executing any live commands.
 
 ## Planned Evolution
 
 Recommended next enhancements:
 
-- Custom domain mapping for Container App
-- Azure-managed TLS certificate for the custom domain
-- Front-door authentication layer (basic or federated)
-- Separate dev and prod environments
-- Container image scanning in CI
-- Monitoring alerts for availability and failed requests
+- Automated backup — Azure Files share snapshots and Blob export scheduled via Terraform or a container sidecar
+- Authentication layer in front of OpenClaw (in addition to gateway token auth)
+- Container image scanning in CI pipeline
+- Monitoring alerts for availability and failed-request signals
+- Managed Identity coverage for the Azure AI Model Inference endpoint (Grok) once OpenClaw provider support is available
+- AKS node autoscaling or vertical pod autoscaling as workload grows

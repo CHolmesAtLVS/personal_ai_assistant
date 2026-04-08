@@ -109,11 +109,11 @@ Enable `/debug` in chat for runtime-only config overrides (requires `commands.de
 
 ---
 
-## Deployment Notes (Azure Container Apps)
+## Deployment Notes (AKS)
 
-Process env (Container App vars injected from Key Vault via Managed Identity) is the highest-priority source. Use `${VAR}` in config for references. Do not use `env.shellEnv` (no login shell in container). Config: `/home/node/.openclaw/openclaw.json`.
+Process env is injected from Azure Key Vault via the Secrets Store CSI Driver: `SecretProviderClass` syncs Key Vault secrets to Kubernetes Secret `openclaw-env-secret`; the pod uses `envFrom` to consume this Secret. Use `${VAR}` in config for references. Config file: `/home/node/.openclaw/openclaw.json` (on Azure Files NFS share mounted as a PVC). Do not use `env.shellEnv` (no login shell in container).
 
-→ Full ACA patterns: [references/azure-container-apps.md](references/azure-container-apps.md)
+→ Full AKS patterns: `workloads/` directory and `plan/feature-aks-application-1.md`
 
 ---
 
@@ -122,7 +122,7 @@ Process env (Container App vars injected from Key Vault via Managed Identity) is
 Quick update: `openclaw update` (detects install type, fetches latest, runs `openclaw doctor`, restarts gateway).  
 After any update: `openclaw doctor && openclaw gateway restart && openclaw health`
 
-> **Container App deployments:** change the image tag in Terraform and re-deploy. Do not run `openclaw update` inside a managed container.
+> **AKS deployments:** update the image tag (`appVersion`) in `workloads/<env>/openclaw/Chart.yaml` and merge to Git. ArgoCD detects the change and rolls out the new pod. Do not run `openclaw update` inside a managed container — image version is controlled exclusively by the `Chart.yaml` `appVersion` pin.
 
 → Full update methods, auto-updater config, rollback: [references/updating.md](references/updating.md)
 

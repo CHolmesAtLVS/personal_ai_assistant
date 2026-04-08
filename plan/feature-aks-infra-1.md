@@ -5,13 +5,13 @@ version: 1.0
 date_created: 2026-04-08
 last_updated: 2026-04-08
 owner: Platform
-status: 'In Progress'
+status: 'Completed'
 tags: [feature, migration, aks, terraform, avm, infrastructure, workload-identity]
 ---
 
 # Introduction
 
-![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow)
+![Status: Completed](https://img.shields.io/badge/status-Completed-green)
 
 Extend the existing Terraform configuration to provision an AKS cluster (free tier, 2 × `Standard_B2s` nodes) alongside the existing Azure Container Apps infrastructure. This subplan also establishes Workload Identity federation so pods can authenticate to Key Vault and AI Services without static credentials, and adds the required Terraform outputs for downstream cluster configuration. The ACA resources are left untouched.
 
@@ -77,7 +77,7 @@ Extend the existing Terraform configuration to provision an AKS cluster (free ti
 | Task     | Description                                                                                                                                                                                                                                                                                                                                                                                                          | Completed | Date |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---- |
 | TASK-014 | Add an `az aks get-credentials` step to the Terraform CI workflow after `terraform apply` succeeds in both `terraform-dev` and `terraform-prod` jobs. Command: `az aks get-credentials --resource-group <rg> --name <cluster> --overwrite-existing`. Use Terraform output values to derive the resource group and cluster name. Store kubeconfig in the CI runner's default `~/.kube/config`; do not commit or cache. | ✅ | 2026-04-08 |
-| TASK-015 | Add GitHub secret `TF_VAR_AKS_API_AUTHORIZED_IPS` to `dev` and `prod` GitHub Environments. Value should be a JSON-encoded list of CIDRs: the home public IP `/32` plus GitHub Actions runner IP ranges, or leave empty during initial rollout and tighten post-validation.                                                                                                                                            |   |      |
+| TASK-015 | Add GitHub secret `TF_VAR_AKS_API_AUTHORIZED_IPS` to `dev` and `prod` GitHub Environments. Value should be a JSON-encoded list of CIDRs: the home public IP `/32` plus GitHub Actions runner IP ranges, or leave empty during initial rollout and tighten post-validation.                                                                                                                                            | ✅ | 2026-04-08 |
 | TASK-016 | Run `terraform fmt`, `terraform validate`, and `terraform plan` for the `dev` environment. Confirm the plan shows only AKS additive changes (no ACA modifications). Resolve any module version constraints or provider version conflicts before merging.                                                                                                                                                              | ✅ | 2026-04-08 |
 
 ## 3. Alternatives

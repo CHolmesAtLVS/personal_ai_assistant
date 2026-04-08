@@ -148,6 +148,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Adopt any pre-existing CSI driver cluster-scoped resources into this
+          # Helm release. Required when the driver was provisioned outside of Helm
+          # (e.g. by AKS add-on or a prior manual install). Without this, helm
+          # upgrade --install fails with an ownership metadata validation error.
+          for cr in secretproviderrotation-role secretproviderclasses-role; do
+            if kubectl get clusterrole "$cr" &>/dev/null; then
+              kubectl annotate clusterrole "$cr" \
+                meta.helm.sh/release-name=csi-secrets-store \
+                meta.helm.sh/release-namespace=kube-system --overwrite
+              kubectl label clusterrole "$cr" \
+                app.kubernetes.io/managed-by=Helm --overwrite
+            fi
+          done
           helm repo add secrets-store-csi-driver \
             https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
           helm repo update secrets-store-csi-driver
@@ -514,6 +527,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Adopt any pre-existing CSI driver cluster-scoped resources into this
+          # Helm release. Required when the driver was provisioned outside of Helm
+          # (e.g. by AKS add-on or a prior manual install). Without this, helm
+          # upgrade --install fails with an ownership metadata validation error.
+          for cr in secretproviderrotation-role secretproviderclasses-role; do
+            if kubectl get clusterrole "$cr" &>/dev/null; then
+              kubectl annotate clusterrole "$cr" \
+                meta.helm.sh/release-name=csi-secrets-store \
+                meta.helm.sh/release-namespace=kube-system --overwrite
+              kubectl label clusterrole "$cr" \
+                app.kubernetes.io/managed-by=Helm --overwrite
+            fi
+          done
           helm repo add secrets-store-csi-driver \
             https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
           helm repo update secrets-store-csi-driver

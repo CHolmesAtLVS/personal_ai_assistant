@@ -6,12 +6,13 @@ date_created: 2026-04-08
 last_updated: 2026-04-08
 owner: Platform
 status: 'In Progress'
+progress: 'SUB-001 ✅ SUB-002 ✅ SUB-003 ⬜ SUB-004 ⬜'
 tags: [feature, migration, aks, kubernetes, helm, argocd, gitops, infrastructure]
 ---
 
 # Introduction
 
-![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow)
+![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow) — SUB-001 ✅ SUB-002 ✅ SUB-003 ⬜ SUB-004 ⬜
 
 Migrate the OpenClaw personal AI assistant from Azure Container Apps (ACA) to Azure Kubernetes Service (AKS). The migration introduces a GitOps delivery model via ArgoCD, Helm-based application packaging using the [serhanekicii/openclaw-helm](https://github.com/serhanekicii/openclaw-helm) chart, Kubernetes Gateway API for ingress, Let's Encrypt + cert-manager for TLS, and Workload Identity + Azure Key Vault CSI for secrets. The ACA instance remains live throughout until AKS is fully validated. ACA decommission is a discrete, final phase.
 
@@ -48,7 +49,7 @@ Target DNS:
 | ID      | Subplan File                                                                      | Goal                                                        | Status  |
 | ------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------- |
 | SUB-001 | [feature-aks-infra-1.md](../plan/feature-aks-infra-1.md)                         | Terraform: AKS cluster, Workload Identity, AVM modules      | Completed |
-| SUB-002 | [feature-aks-platform-1.md](../plan/feature-aks-platform-1.md)                   | K8s platform: ArgoCD, cert-manager, Gateway Fabric, CSI     | Planned |
+| SUB-002 | [feature-aks-platform-1.md](../plan/feature-aks-platform-1.md)                   | K8s platform: ArgoCD, cert-manager, Gateway Fabric, CSI     | Completed |
 | SUB-003 | [feature-aks-application-1.md](../plan/feature-aks-application-1.md)             | OpenClaw: umbrella chart, SecretProviderClass, HTTPRoute     | Planned |
 | SUB-004 | [feature-aks-decommission-1.md](../plan/feature-aks-decommission-1.md)           | ACA decommission after AKS validation                       | Planned |
 

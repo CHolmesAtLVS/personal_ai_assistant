@@ -112,7 +112,7 @@ openclaw:
       data:
         accessMode: ReadWriteOnce
         size: 10Gi
-        storageClass: ""
+        storageClass: "-"
         volumeName: openclaw-state-nfs-prod
 
       # CSI secrets-store volume mount (REQ-002).

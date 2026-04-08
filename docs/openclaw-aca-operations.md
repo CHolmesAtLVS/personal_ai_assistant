@@ -1,6 +1,6 @@
-# OpenClaw Container App Operations Runbook
+# OpenClaw Operations Runbook
 
-This document covers operational procedures for the OpenClaw Container App runtime: first-time bootstrap, gateway token management, config updates, storage backup/restore, and image upgrades.
+This document covers operational procedures for the OpenClaw gateway runtime: first-time bootstrap, gateway token management, config updates, storage backup/restore, and image upgrades.
 
 ## Prerequisites
 
@@ -12,7 +12,134 @@ This document covers operational procedures for the OpenClaw Container App runti
 
 ---
 
+## AKS Operations
+
+These procedures apply to the AKS deployment of OpenClaw (post-migration from ACA). ACA procedures below are preserved and marked as **Legacy (ACA)** until ACA decommission is confirmed complete per `plan/feature-aks-decommission-1.md`.
+
+### Prerequisites
+
+- `kubectl` and `argocd` CLI installed
+- Kubeconfig obtained: `az aks get-credentials --name paa-<env>-aks --resource-group paa-<env>-rg`
+- ArgoCD UI accessible at `https://paa-<env>.acmeadventure.ca/argocd`
+
+### AKS.1 First-Time Bootstrap
+
+1. AKS cluster and platform bootstrap complete (SUB-001 + SUB-002 per `plan/feature-aks-migration-1.md`).
+2. Obtain kubeconfig:
+   ```bash
+   az aks get-credentials --name paa-<env>-aks --resource-group paa-<env>-rg
+   ```
+3. Apply CRDs (SecretProviderClass and supporting manifests):
+   ```bash
+   envsubst < workloads/<env>/openclaw/crds/secretproviderclass.yaml | kubectl apply -f -
+   ```
+4. Apply the ArgoCD Application to deploy OpenClaw:
+   ```bash
+   kubectl apply -f argocd/apps/openclaw-<env>.yaml
+   ```
+5. Monitor pod startup:
+   ```bash
+   kubectl get pods -n openclaw -w
+   ```
+6. Load remote credentials and approve device:
+   ```bash
+   source <(./scripts/openclaw-connect.sh <env> --export)
+   openclaw devices list
+   openclaw devices approve <requestId>
+   ```
+7. Validate:
+   ```bash
+   openclaw status --all
+   openclaw doctor
+   ```
+
+### AKS.2 Gateway Token Rotation
+
+1. Generate a new token:
+   ```bash
+   NEW_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(24))")
+   ```
+2. Update the Key Vault secret:
+   ```bash
+   az keyvault secret set \
+     --vault-name "<kv-name>" \
+     --name "openclaw-gateway-token" \
+     --value "$NEW_TOKEN"
+   ```
+3. The CSI driver rotates the Kubernetes Secret automatically at the configured 2-minute interval. To force immediate refresh:
+   ```bash
+   kubectl rollout restart deployment/openclaw -n openclaw
+   ```
+   > **Confirm with the user before restarting.** The rollout briefly interrupts gateway availability.
+4. Confirm:
+   ```bash
+   kubectl rollout status deployment/openclaw -n openclaw
+   openclaw status
+   ```
+
+### AKS.3 Configuration Updates
+
+**Bulk updates (primary path):** Update `workloads/<env>/openclaw/values.yaml` in Git, open a pull request, and merge. ArgoCD syncs automatically. `configMode: merge` means runtime state (paired devices, UI changes) is preserved across syncs.
+
+For an immediate forced sync without waiting for Git merge:
+```bash
+argocd app sync openclaw-<env>
+```
+
+**Individual key (immediate in-place change):**
+```bash
+kubectl exec -n openclaw deployment/openclaw -- node /app/openclaw.mjs config set <key> <value>
+```
+
+If `gateway.*` was changed, restart the pod (confirm with user first):
+```bash
+kubectl rollout restart deployment/openclaw -n openclaw
+```
+
+> **Note:** `openclaw config set` writes to the local shell's `~/.openclaw`, not the gateway pod. Always use `kubectl exec` for gateway config changes.
+
+### AKS.4 Logs and Diagnostics
+
+```bash
+# Live logs
+kubectl logs -n openclaw deployment/openclaw --follow --tail=100
+
+# Pod status
+kubectl get pods -n openclaw -o wide
+
+# Describe pod (events, volume mounts)
+kubectl describe pod -n openclaw <pod-name>
+
+# ArgoCD sync status
+kubectl get application openclaw-<env> -n argocd
+
+# CSI secret health
+kubectl get secret openclaw-env-secret -n openclaw
+kubectl get secretproviderclass -n openclaw
+```
+
+Log Analytics (AKS diagnostics) — use `azure-mcp-server/monitor` with KQL:
+```kql
+ContainerLogV2
+| where ContainerName == "openclaw"
+| order by TimeGenerated desc
+| take 100
+```
+
+### AKS.5 Image Upgrades
+
+1. Identify the new pinned tag from the [OpenClaw GHCR release page](https://github.com/openclaw/openclaw/pkgs/container/openclaw).
+2. Update `appVersion` in `workloads/<env>/openclaw/Chart.yaml` to the new tag.
+3. Open a pull request — review the ArgoCD diff confirming only the image tag changes.
+4. Merge to apply. ArgoCD rolls out the new pod. The Azure Files NFS share is unaffected by the rollout.
+
+**Rollback:** Revert `appVersion` in `Chart.yaml` and merge. ArgoCD rolls back to the previous image.
+
+---
+
 ## 1. First-Time Bootstrap
+
+> **Legacy (ACA) — These procedures apply to the ACA deployment. See [AKS Operations](#aks-operations) for the current approach.**
 
 ### 1.1 Gateway Token — Terraform-Managed
 
@@ -89,6 +216,8 @@ All fields below are required for `bind=lan` operation. An invalid or missing `o
 
 ## 2. Gateway Token Rotation
 
+> **Legacy (ACA) — These procedures apply to the ACA deployment. See [AKS.2 Gateway Token Rotation](#aks2-gateway-token-rotation) for the current approach.**
+
 The gateway token is managed by Terraform in Key Vault. To rotate it without redeploying infrastructure:
 
 ```bash
@@ -114,6 +243,8 @@ az containerapp revision restart \
 ---
 
 ## 3. Gateway Configuration Updates
+
+> **Legacy (ACA) — These procedures apply to the ACA deployment. See [AKS.3 Configuration Updates](#aks3-configuration-updates) for the current approach.**
 
 The `openclaw` CLI is the primary interface for updating runtime config — it edits the gateway configuration in place with no file download required.
 
@@ -157,6 +288,8 @@ openclaw configure --section gateway    # scoped to gateway settings only
 ---
 
 ## 4. State Backup and Restore
+
+> **Legacy (ACA) — These procedures apply to the ACA deployment. AKS uses the same Azure Files NFS share; backup/restore commands are equivalent.**
 
 The Azure Files share holds all persistent OpenClaw state under `/home/node/.openclaw`. Key paths:
 
@@ -211,6 +344,8 @@ After restoring, restart the Container App revision to reload the configuration 
 
 ## 5. Image Upgrades
 
+> **Legacy (ACA) — These procedures apply to the ACA deployment. See [AKS.5 Image Upgrades](#aks5-image-upgrades) for the current approach.**
+
 OpenClaw uses a pinned image tag defined in `terraform/variables.tf` as `openclaw_image_tag` (default: `2026.2.26`). To upgrade:
 
 ### 5.1 Upgrade procedure
@@ -237,6 +372,8 @@ To roll back to the previous tag, revert the `TF_VAR_OPENCLAW_IMAGE_TAG` variabl
 
 ## 6. Health Probe Endpoints
 
+> **Legacy (ACA) — Probe endpoints are unchanged on AKS (same `/healthz` and `/readyz` on port 18789); Kubernetes liveness/readiness probe config is defined in the Helm chart.**
+
 The Container App runtime configures health probes at:
 
 | Probe | Endpoint | Port |
@@ -249,6 +386,8 @@ If the liveness probe fails repeatedly, the Container App platform restarts the 
 ---
 
 ## 7. Troubleshooting
+
+> **Legacy (ACA) — These procedures apply to the ACA deployment. See [AKS.4 Logs and Diagnostics](#aks4-logs-and-diagnostics) and the `openclaw-troubleshoot` skill for the current approach.**
 
 > **Environment safety:** Always troubleshoot against the **dev** environment. Never supply production resource names to a diagnostic command or AI agent during a troubleshooting session. If the target environment is ambiguous, confirm explicitly before running any command.
 

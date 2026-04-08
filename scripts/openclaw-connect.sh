@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # openclaw-connect.sh — Fetch the OpenClaw gateway URL + token from Key Vault
-# and set up the local openclaw CLI to target the remote Azure Container App.
+# and set up the local openclaw CLI to target the remote gateway
+# (AKS post-migration primary; ACA fallback for pre-migration environments).
+#
+# FQDN derivation order:
+#   1. Static AKS DNS hostname: paa-<env>.acmeadventure.ca (preferred post-migration)
+#   2. Terraform output: container_app_fqdn (ACA fallback, pre-migration)
+#   3. az containerapp show (final ACA fallback if Terraform output unavailable)
 #
 # Usage:
 #   ./scripts/openclaw-connect.sh [env] [--export] [--install]
@@ -71,16 +77,25 @@ TOKEN=$(az keyvault secret show \
   --query "value" \
   -o tsv)
 
-# ── Derive FQDN: Terraform outputs → az containerapp show ────────────────────
+# ── Derive FQDN: AKS DNS hostname → Terraform output → az containerapp show ──
 TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../terraform" && pwd)"
 VARS_FILE="$(dirname "${BASH_SOURCE[0]}")/${ENV}.tfvars"
 
+AKS_HOSTNAME="${PROJECT}-${ENV}.acmeadventure.ca"
+
 FQDN=""
-if [[ -f "${VARS_FILE}" ]]; then
+# 1. Prefer the static AKS DNS hostname (post-migration)
+if host "${AKS_HOSTNAME}" >/dev/null 2>&1; then
+  FQDN="${AKS_HOSTNAME}"
+fi
+
+# 2. ACA fallback: Terraform output (pre-migration)
+if [[ -z "${FQDN}" ]] && [[ -f "${VARS_FILE}" ]]; then
   FQDN=$(terraform -chdir="${TF_DIR}" \
     output -raw container_app_fqdn 2>/dev/null || true)
 fi
 
+# 3. ACA fallback: az containerapp show (if Terraform output unavailable)
 if [[ -z "${FQDN}" ]]; then
   FQDN=$(az containerapp show \
     --name "${PROJECT}-${ENV}-app" \

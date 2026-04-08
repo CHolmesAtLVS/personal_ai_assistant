@@ -93,8 +93,8 @@ The Secrets Store CSI Driver and Azure Key Vault Provider are installed by the A
 
 | Component            | Chart version | Pinned at  | Managed by      |
 | -------------------- | ------------- | ---------- | --------------- |
-| nginx-gateway-fabric | 2.5.0         | 2026-04-08 | CI bootstrap    |
+| nginx-gateway-fabric | 2.5.0         | 2026-04-08 | Terraform       |
+| cert-manager         | 1.20.1        | 2026-04-08 | Terraform       |
 | Gateway API CRDs     | v1.2.1        | 2026-04-08 | CI bootstrap    |
-| cert-manager         | 1.20.1        | 2026-04-08 | CI bootstrap    |
 | argo-cd              | 9.4.17        | 2026-04-08 | CI bootstrap    |
 | CSI Driver + AKV     | AKS-managed   | —          | Terraform (AKS) |

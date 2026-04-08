@@ -129,6 +129,11 @@ jobs:
           name: terraform-plan-dev
           path: terraform/tfplan
 
+      # On the very first run (cluster not in state), apply only module.aks so
+      # the Helm provider can read kube_config, then run the full apply.
+      - name: Terraform Apply — AKS (bootstrap gate)
+        run: terraform -chdir=terraform apply -input=false -auto-approve -target=module.aks
+
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
@@ -142,33 +147,14 @@ jobs:
             --overwrite-existing
 
       # ── AKS Platform Bootstrap: Phase 2 — Gateway API CRDs ───────────────────────
-      # Standard channel CRDs pinned at v1.2.1. Update comment when upgrading.
+      # Standard channel CRDs pinned at v1.2.1; NGINX GF and cert-manager are managed
+      # by helm_release resources in terraform/helm.tf.
       - name: Bootstrap AKS — Gateway API CRDs
         shell: bash
         run: |
           set -euo pipefail
           kubectl apply -f \
             https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
-
-      # ── AKS Platform Bootstrap: Phase 2 — NGINX Gateway Fabric ──────────────────
-      # Chart 2.5.0 from OCI registry. Creates GatewayClass "nginx" and a
-      # LoadBalancer service in gateway-system. Capture the external IP after install:
-      #   kubectl get svc -n gateway-system ngf-nginx-gateway-fabric
-      # Record in workloads/bootstrap/README.md and set DNS A records before Phase 3.
-      - name: Bootstrap AKS — NGINX Gateway Fabric
-        shell: bash
-        run: |
-          set -euo pipefail
-          helm upgrade --install ngf \
-            oci://ghcr.io/nginx/charts/nginx-gateway-fabric \
-            --namespace gateway-system \
-            --create-namespace \
-            --version 2.5.0 \
-            --set nginx.service.type=LoadBalancer \
-            --wait --timeout 10m
-          echo "Gateway LoadBalancer IP:"
-          kubectl get svc -n gateway-system ngf-nginx-gateway-fabric \
-            --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
 
       # ── AKS Platform Bootstrap: Phase 2 — Gateway manifest ───────────────────────
       # Applies the shared Gateway resource. CERT_SECRET_NAME is substituted by
@@ -183,22 +169,6 @@ jobs:
           envsubst '${CERT_SECRET_NAME}' \
             < workloads/bootstrap/gateway.yaml \
             | kubectl apply -f -
-
-      # Phase 3 — cert-manager (TLS certificate issuance via Let's Encrypt)
-      # Chart 1.20.1: ExperimentalGatewayAPISupport is BETA and default=true;
-      # crds.enabled installs CRDs as Helm-managed resources.
-      - name: Bootstrap AKS — cert-manager
-        shell: bash
-        run: |
-          set -euo pipefail
-          helm repo add jetstack https://charts.jetstack.io
-          helm repo update jetstack
-          helm upgrade --install cert-manager jetstack/cert-manager \
-            --namespace cert-manager \
-            --create-namespace \
-            --version 1.20.1 \
-            --set crds.enabled=true \
-            --wait --timeout 5m
 
       - name: Bootstrap AKS — ClusterIssuers
         shell: bash
@@ -461,6 +431,11 @@ jobs:
           name: terraform-plan-prod
           path: terraform/tfplan
 
+      # On the very first run (cluster not in state), apply only module.aks so
+      # the Helm provider can read kube_config, then run the full apply.
+      - name: Terraform Apply — AKS (bootstrap gate)
+        run: terraform -chdir=terraform apply -input=false -auto-approve -target=module.aks
+
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 
@@ -474,33 +449,14 @@ jobs:
             --overwrite-existing
 
       # ── AKS Platform Bootstrap: Phase 2 — Gateway API CRDs ───────────────────────
-      # Standard channel CRDs pinned at v1.2.1. Update comment when upgrading.
+      # Standard channel CRDs pinned at v1.2.1; NGINX GF and cert-manager are managed
+      # by helm_release resources in terraform/helm.tf.
       - name: Bootstrap AKS — Gateway API CRDs
         shell: bash
         run: |
           set -euo pipefail
           kubectl apply -f \
             https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
-
-      # ── AKS Platform Bootstrap: Phase 2 — NGINX Gateway Fabric ──────────────────
-      # Chart 2.5.0 from OCI registry. Creates GatewayClass "nginx" and a
-      # LoadBalancer service in gateway-system. Capture the external IP after install:
-      #   kubectl get svc -n gateway-system ngf-nginx-gateway-fabric
-      # Record in workloads/bootstrap/README.md and set DNS A records before Phase 3.
-      - name: Bootstrap AKS — NGINX Gateway Fabric
-        shell: bash
-        run: |
-          set -euo pipefail
-          helm upgrade --install ngf \
-            oci://ghcr.io/nginx/charts/nginx-gateway-fabric \
-            --namespace gateway-system \
-            --create-namespace \
-            --version 2.5.0 \
-            --set nginx.service.type=LoadBalancer \
-            --wait --timeout 10m
-          echo "Gateway LoadBalancer IP:"
-          kubectl get svc -n gateway-system ngf-nginx-gateway-fabric \
-            --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
 
       # ── AKS Platform Bootstrap: Phase 2 — Gateway manifest ───────────────────────
       # Applies the shared Gateway resource. CERT_SECRET_NAME is substituted by
@@ -515,22 +471,6 @@ jobs:
           envsubst '${CERT_SECRET_NAME}' \
             < workloads/bootstrap/gateway.yaml \
             | kubectl apply -f -
-
-      # Phase 3 — cert-manager (TLS certificate issuance via Let's Encrypt)
-      # Chart 1.20.1: ExperimentalGatewayAPISupport is BETA and default=true;
-      # crds.enabled installs CRDs as Helm-managed resources.
-      - name: Bootstrap AKS — cert-manager
-        shell: bash
-        run: |
-          set -euo pipefail
-          helm repo add jetstack https://charts.jetstack.io
-          helm repo update jetstack
-          helm upgrade --install cert-manager jetstack/cert-manager \
-            --namespace cert-manager \
-            --create-namespace \
-            --version 1.20.1 \
-            --set crds.enabled=true \
-            --wait --timeout 5m
 
       - name: Bootstrap AKS — ClusterIssuers
         shell: bash

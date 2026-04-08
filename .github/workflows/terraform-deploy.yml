@@ -129,39 +129,6 @@ jobs:
           name: terraform-plan-dev
           path: terraform/tfplan
 
-      # The dev Container App has a broken 'openclaw-state-storage-key' secret reference
-      # (its Key Vault backend was deleted but Azure CSI sync sidecars added to dev state
-      # in a prior local apply were never removed). Azure rejects ANY Container App update
-      # while referenced secrets exist in running containers. This step atomically removes
-      # the offending init containers, sidecar containers, and the broken secret via a
-      # single PATCH before Terraform apply. Idempotent: no-ops when state is already clean.
-      - name: Fix broken Container App secret
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          APP="${TF_VAR_project}-${TF_VAR_environment}-app"
-          RG="${TF_VAR_project}-${TF_VAR_environment}-rg"
-          API_VER="2024-03-01"
-          RURL="https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RG}/providers/Microsoft.App/containerApps/${APP}?api-version=${API_VER}"
-          CURRENT=$(az rest --method GET --url "$RURL" 2>/dev/null || echo "{}")
-          PATCH=$(echo "$CURRENT" | python3 scripts/fix-containerapp-secret.py 2>/dev/null || true)
-          if [[ -n "$PATCH" ]]; then
-            echo "Patching Container App to remove broken secret + referencing containers..."
-            az rest --method PATCH --url "$RURL" \
-              --headers "Content-Type=application/json" --body "$PATCH" \
-              && echo "Patch accepted." || echo "Patch returned non-zero — continuing."
-            echo "Waiting for Container App to finish provisioning..."
-            for i in $(seq 1 36); do
-              STATE=$(az containerapp show --name "$APP" --resource-group "$RG" \
-                --query "properties.provisioningState" -o tsv 2>/dev/null || echo "Unknown")
-              echo "  provisioningState: $STATE"
-              [[ "$STATE" == "Succeeded" ]] && break || sleep 5
-            done
-          else
-            echo "No broken secret reference found — skipping."
-          fi
-
       - name: Terraform Apply
         run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
 

@@ -106,18 +106,14 @@ openclaw:
     # --------------------------------------------------------------------------
     persistence:
       # Static NFS Azure Files share (REQ-007, 10Gi).
-      # PV and PVC are defined in crds/pv.yaml and crds/pvc.yaml.
-      # app-template v4 oneOf[1]: type: persistentVolumeClaim + existingClaim references an
-      # existing PVC without creating one. The chart defaults 'size' and 'accessMode' must be
-      # explicitly nulled (Helm removes null-keyed values from the merge, so the schema validator
-      # sees only the allowed properties for the existingClaim variant).
+      # PV is defined in crds/pv.yaml; the chart creates and manages the PVC.
+      # storageClass: "" disables dynamic provisioning; volumeName binds to the static PV.
+      # advancedMounts are inherited from chart defaults (init-config, init-skills, main).
       data:
-        type: persistentVolumeClaim
-        existingClaim: openclaw-state-nfs
-        size: null
-        accessMode: null
-        # advancedMounts inherited from chart defaults: mounts /home/node/.openclaw for
-        # init-config, init-skills, and main containers (no override needed).
+        accessMode: ReadWriteOnce
+        size: 10Gi
+        storageClass: ""
+        volumeName: openclaw-state-nfs-prod
 
       # CSI secrets-store volume mount (REQ-002).
       # Mounting this volume triggers SecretProviderClass sync which creates the

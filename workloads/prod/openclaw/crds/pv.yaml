@@ -40,9 +40,5 @@ spec:
       shareName: openclaw-nfs
       # NFS mounts use network-level auth via Workload Identity (nodeStageSecretRef not required).
       resourceGroup: "${AKS_NODE_RESOURCE_GROUP}"
-  # Pre-bind to the PVC so no other claim can acquire this PV.
-  claimRef:
-    apiVersion: v1
-    kind: PersistentVolumeClaim
-    name: openclaw-state-nfs
-    namespace: openclaw
+  # No claimRef — the chart-managed PVC references this PV by name via
+  # spec.volumeName: openclaw-state-nfs-prod, which triggers automatic binding.

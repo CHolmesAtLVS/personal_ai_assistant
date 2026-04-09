@@ -1,0 +1,4 @@
+# crds/ contains ${VAR} template files applied by scripts/seed-openclaw-aks.sh
+# via envsubst before ArgoCD sync. Do NOT include them in the Helm render or
+# ArgoCD sync — they hold unsubstituted placeholders and are not Helm CRDs.
+crds/

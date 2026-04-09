@@ -1,0 +1,31 @@
+---
+# Certificate: TLS certificate for paa-dev.acmeadventure.ca issued by Let's Encrypt.
+#
+# cert-manager watches this resource and fulfils it via the HTTP-01 ACME challenge
+# using the gatewayHTTPRoute solver (defined in workloads/bootstrap/cluster-issuers.yaml).
+#
+# Prerequisites:
+#   1. DNS A record: paa-dev.acmeadventure.ca → Gateway LB IP (<gateway-lb-public-ip>)
+#   2. Port 80 accessible from Internet (NSG rule k8s-azure-lb_allow_IPv4_* covers this)
+#   3. letsencrypt-prod ClusterIssuer must be Ready
+#
+# NOTE: cert-manager's gateway-shim is not enabled (--enable-gateway-api flag not set).
+# This Certificate resource is required to trigger issuance via the ClusterIssuer annotation
+# on the Gateway. Once cert is Ready, the paa-dev-tls secret is created in gateway-system,
+# the https-dev Listener becomes Programmed, and HTTPS traffic flows.
+#
+# This manifest is configured to request a production certificate via letsencrypt-prod.
+#
+# Applied by: scripts/seed-openclaw-aks.sh dev
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: paa-dev-tls
+  namespace: gateway-system
+spec:
+  secretName: paa-dev-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - paa-dev.acmeadventure.ca

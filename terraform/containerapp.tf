@@ -15,24 +15,11 @@ locals {
   )
 }
 
-module "container_apps_environment" {
-  source  = "Azure/avm-res-app-managedenvironment/azurerm"
-  version = "~> 0.3"
+# ACA Container Apps Environment removed — paa-dev decommissioned 2026-04-09 (feature-aks-decommission-1.md TASK-007).
 
-  name                = local.cae_name
-  location            = var.location
-  resource_group_name = module.resource_group.name
-  tags                = local.common_tags
-
-  enable_telemetry = true
-
-  zone_redundancy_enabled = false
-
-  log_analytics_workspace = {
-    resource_id = module.logging.resource_id
-  }
-}
-
+# module "container_app" removed — ACA decommissioned 2026-04-09 (feature-aks-decommission-1.md TASK-007).
+# Retained below for history only — actual resource block deleted.
+/*
 module "container_app" {
   source  = "Azure/avm-res-app-containerapp/azurerm"
   version = "~> 0.3"
@@ -182,3 +169,4 @@ module "container_app" {
     ]
   }
 }
+*/

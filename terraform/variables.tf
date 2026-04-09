@@ -90,23 +90,6 @@ variable "openclaw_image_tag" {
   }
 }
 
-variable "container_image" {
-  description = "Deprecated legacy image override. Leave unset; OpenClaw image is computed from openclaw_image_repository and openclaw_image_tag."
-  type        = string
-  default     = null
-
-  validation {
-    condition     = var.container_image == null
-    error_message = "container_image is deprecated. Use openclaw_image_repository and openclaw_image_tag instead."
-  }
-}
-
-variable "container_image_acr_server" {
-  description = "ACR login server to configure as a registry credential on the Container App. Set when container_image is sourced from ACR. Leave null when using a public image."
-  type        = string
-  default     = null
-}
-
 variable "openclaw_state_share_quota_gb" {
   description = "Quota in GiB for the Azure Files share mounted at /home/node/.openclaw."
   type        = number
@@ -115,17 +98,6 @@ variable "openclaw_state_share_quota_gb" {
   validation {
     condition     = var.openclaw_state_share_quota_gb >= 10 && var.openclaw_state_share_quota_gb <= 102400
     error_message = "openclaw_state_share_quota_gb must be between 10 and 102400."
-  }
-}
-
-variable "openclaw_backup_share_quota_gb" {
-  description = "Quota in GiB for the Azure Files share mounted at /mnt/openclaw-backup (backup output)."
-  type        = number
-  default     = 10
-
-  validation {
-    condition     = var.openclaw_backup_share_quota_gb >= 1 && var.openclaw_backup_share_quota_gb <= 102400
-    error_message = "openclaw_backup_share_quota_gb must be between 1 and 102400."
   }
 }
 
@@ -173,31 +145,6 @@ variable "embedding_model_capacity" {
   validation {
     condition     = var.embedding_model_capacity > 0
     error_message = "embedding_model_capacity must be a number greater than zero."
-  }
-}
-
-variable "azure_ai_api_key" {
-  description = <<-EOT
-    API key for the Azure AI Foundry account. Stored in Key Vault as 'azure-ai-api-key' and
-    injected into the Container App as AZURE_AI_API_KEY for use by the azure-foundry provider
-    in openclaw.json. Required because the Azure AI Model Inference endpoint (used for Grok/xAI
-    MaaS models) does not support Managed Identity in OpenClaw's azure-foundry provider.
-
-    CI source: GitHub Environment secret TF_VAR_AZURE_AI_API_KEY (both dev and prod environments).
-    Local source: TF_VAR_azure_ai_api_key entry in scripts/dev.tfvars or scripts/prod.tfvars.
-
-    IMPORTANT: Must be non-empty on every Terraform apply. The lifecycle { ignore_changes = [value] }
-    rule on the Key Vault secret prevents overwriting an existing key, but Terraform variable
-    validation still runs and will reject an empty value. In CI, a preflight secret check in the
-    GitHub Actions workflow will fail fast if this Environment secret is empty, before Terraform
-    validate/plan is executed.
-  EOT
-  type        = string
-  sensitive   = true
-
-  validation {
-    condition     = length(trimspace(var.azure_ai_api_key)) > 0
-    error_message = "azure_ai_api_key must not be empty. Set TF_VAR_AZURE_AI_API_KEY in the GitHub Environment secrets (Settings → Environments → <env> → Secrets), or TF_VAR_azure_ai_api_key in scripts/<env>.tfvars for local runs."
   }
 }
 

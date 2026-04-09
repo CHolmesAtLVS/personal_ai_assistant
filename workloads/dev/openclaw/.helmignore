@@ -1,0 +1,5 @@
+# bootstrap/ manifests are applied from workloads/dev/openclaw/bootstrap/*.yaml
+# by scripts/seed-openclaw-aks.sh before ArgoCD sync. Do NOT include crds/ in
+# the Helm render or ArgoCD sync — it holds unsubstituted placeholder files and
+# is not part of the bootstrap flow.
+crds/

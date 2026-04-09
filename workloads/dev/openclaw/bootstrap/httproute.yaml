@@ -1,0 +1,58 @@
+---
+# HTTPRoute: HTTP → HTTPS redirect for dev (paa-dev.acmeadventure.ca).
+#
+# Attaches to the HTTP listener (port 80). All HTTP requests are permanently
+# redirected to HTTPS. This listener also handles HTTP-01 ACME challenges issued
+# by cert-manager for the letsencrypt-staging ClusterIssuer — the challenge path
+# (/.well-known/acme-challenge/) is NOT intercepted here; HTTP-01 solver pods are
+# handled by cert-manager before the redirect rule fires in Kubernetes routing.
+#
+# REQ-006: External access via HTTPS on port 443 only.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openclaw-http-redirect
+  namespace: openclaw
+spec:
+  parentRefs:
+    - name: main-gateway
+      namespace: gateway-system
+      sectionName: http
+  hostnames:
+    - paa-dev.acmeadventure.ca
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+
+---
+# HTTPRoute: HTTPS traffic to the OpenClaw service (dev).
+#
+# Attaches to the https-dev listener (port 443, hostname paa-dev.acmeadventure.ca).
+# All paths are forwarded to the openclaw service on port 18789 (internal only).
+# TLS is terminated at the Gateway; traffic inside the cluster is plain HTTP.
+#
+# REQ-006: HTTPRoute routes traffic from the hostname to the OpenClaw service on port 18789.
+# The application is not reachable on port 80 or directly on 18789 from outside the cluster.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openclaw-https
+  namespace: openclaw
+spec:
+  parentRefs:
+    - name: main-gateway
+      namespace: gateway-system
+      sectionName: https-dev
+  hostnames:
+    - paa-dev.acmeadventure.ca
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: openclaw
+          port: 18789

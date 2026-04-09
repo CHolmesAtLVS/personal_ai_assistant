@@ -21,6 +21,12 @@ spec:
   policyTypes:
     - Egress
   egress:
+    # Intra-namespace: allow all ArgoCD components to communicate with each other
+    # (application-controller → repo-server:8081 gRPC, all pods → redis:6379, etc.)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
     # Outbound HTTPS (GitHub, ACME Let's Encrypt, Kubernetes API, registries)
     - ports:
         - protocol: TCP

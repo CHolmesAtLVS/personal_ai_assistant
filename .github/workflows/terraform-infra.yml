@@ -68,23 +68,9 @@ jobs:
       TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
       TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
       TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
-      TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Check required secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          _key="${TF_VAR_azure_ai_api_key:-}"
-          if [[ -z "${_key// }" ]]; then
-            echo "::error::TF_VAR_AZURE_AI_API_KEY is empty or not set in the GitHub 'dev' Environment secrets."
-            echo "  Set it at: GitHub repository → Settings → Environments → dev → Secrets"
-            echo "  See docs/secrets-inventory.md for the full secrets inventory."
-            exit 1
-          fi
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -166,22 +152,9 @@ jobs:
       TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
       TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
       TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
-      TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Check required secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          _key="${TF_VAR_azure_ai_api_key:-}"
-          if [[ -z "${_key// }" ]]; then
-            echo "::error::TF_VAR_AZURE_AI_API_KEY is empty or not set in the GitHub 'prod' Environment secrets."
-            echo "  Set it at: GitHub repository → Settings → Environments → prod → Secrets"
-            exit 1
-          fi
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -259,23 +232,9 @@ jobs:
       TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
       TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
       TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
-      TF_VAR_azure_ai_api_key: ${{ secrets.TF_VAR_AZURE_AI_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Check required secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          _key="${TF_VAR_azure_ai_api_key:-}"
-          if [[ -z "${_key// }" ]]; then
-            echo "::error::TF_VAR_AZURE_AI_API_KEY is empty or not set in the GitHub 'prod' Environment secrets."
-            echo "  Set it at: GitHub repository → Settings → Environments → prod → Secrets"
-            echo "  See docs/secrets-inventory.md for the full secrets inventory."
-            exit 1
-          fi
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:

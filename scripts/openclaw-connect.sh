@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# NOTE: ACA fallback logic in this script (FQDN derivation steps 2 and 3) is now obsolete for dev.
+# ACA has been decommissioned for the dev environment (2026-04-09) per feature-aks-decommission-1.md.
+# The script continues to use the static AKS DNS hostname (step 1: paa-<env>.acmeadventure.ca)
+# which is correct. ACA fallback paths are retained for prod until prod ACA is decommissioned.
+#
 # openclaw-connect.sh — Fetch the OpenClaw gateway URL + token from Key Vault
 # and set up the local openclaw CLI to target the remote gateway
 # (AKS post-migration primary; ACA fallback for pre-migration environments).

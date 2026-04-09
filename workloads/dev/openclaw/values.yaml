@@ -50,6 +50,23 @@ openclaw:
                   }
                 }
               },
+              "models": {
+                "providers": {
+                  "azure-openai": {
+                    "baseUrl": "${AZURE_OPENAI_ENDPOINT}/openai/deployments/gpt-5.4-mini",
+                    "apiKey": "${AZURE_AI_API_KEY}",
+                    "api": "openai-completions",
+                    "models": [
+                      {
+                        "id": "gpt-5.4-mini",
+                        "name": "GPT-5.4 Mini (Azure)",
+                        "contextWindow": 128000,
+                        "maxTokens": 16384
+                      }
+                    ]
+                  }
+                }
+              },
               "update": {
                 "checkOnStart": false
               },

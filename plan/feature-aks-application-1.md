@@ -3,15 +3,15 @@ goal: Deploy OpenClaw on AKS via ArgoCD umbrella chart with Key Vault CSI secret
 plan_type: standalone
 version: 1.0
 date_created: 2026-04-08
-last_updated: 2026-04-08
+last_updated: 2026-04-09
 owner: Platform
-status: 'In Progress'
+status: 'Complete'
 tags: [feature, migration, aks, openclaw, helm, argocd, gitops, secrets-csi, httproute, tls]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Complete](https://img.shields.io/badge/status-Complete-brightgreen)
 
 Deploy OpenClaw to AKS using the [serhanekicii/openclaw-helm](https://github.com/serhanekicii/openclaw-helm) chart wrapped in an umbrella chart per environment (`dev` and `prod`). Secrets are injected from Azure Key Vault via the Secrets Store CSI Driver + `SecretProviderClass`. HTTPS routing is handled by a Kubernetes `HTTPRoute` terminating at the shared `Gateway`. ArgoCD manages the full lifecycle. Both environments deploy from the same `workloads/` directory structure using separate subdirectories. The ACA instance remains live during this entire subplan.
 
@@ -23,7 +23,7 @@ Deploy OpenClaw to AKS using the [serhanekicii/openclaw-helm](https://github.com
 - **REQ-004**: ArgoCD configured to ignore diffs on the `openclaw` ConfigMap `data` field (per article recommendation for merge mode).
 - **REQ-005**: Network policy enabled per the chart's built-in networkpolicies block; ingress from `gateway-system` namespace only on port 18789.
 - **REQ-006**: HTTPS termination at the `Gateway`; `HTTPRoute` routes traffic from the hostname to the OpenClaw service on port 18789. TLS certificates provisioned by cert-manager with `letsencrypt-prod` issuer (after staging validation).
-- **REQ-007**: Persistent storage uses the NFS Azure Files share (provisioned in SUB-001 REQ-012) mounted via Azure Files CSI driver at `/home/node/.openclaw`. `accessMode: ReadWriteOnce` is sufficient for single-replica. PVC size: **10Gi** — aligned with the official OpenClaw Kubernetes manifest default.
+- **REQ-007**: Persistent storage uses a **`managed-csi-premium`** dynamically provisioned Azure Disk (Premium SSD) at `/home/node/.openclaw`. `accessMode: ReadWriteOnce`, `size: 10Gi`. NFS Azure Files was originally planned but the storage account (`paadevocnfs`) lacks a private endpoint / VNet service endpoint, causing `access denied` mount errors; managed disk requires no additional network config and is auto-provisioned by the Azure Disk CSI driver on first PVC bind (`WaitForFirstConsumer`). Note: no ACA state migration — fresh disk, managed disk is sufficient for a new deployment.
 - **REQ-008**: Workload Identity annotation on the `openclaw` Kubernetes ServiceAccount: `azure.workload.identity/client-id: <MI_CLIENT_ID>`. The Managed Identity client ID is injected via Terraform output → GitHub secret `OPENCLAW_MI_CLIENT_ID`.
 - **REQ-009**: ArgoCD `syncPolicy.automated.prune: true` and `selfHeal: true` to correct drift.
 - **REQ-010**: Dev environment targets `letsencrypt-staging` first; only switch to `letsencrypt-prod` after staging cert is confirmed issued and HTTP-01 challenge succeeds.
@@ -59,12 +59,12 @@ Deploy OpenClaw to AKS using the [serhanekicii/openclaw-helm](https://github.com
 
 | Task     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Completed | Date |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---- |
-| TASK-007 | Create `workloads/dev/openclaw/values.yaml`. Structure: `openclaw:` root key. Under `app-template.controllers.main.containers.main`: set `image.repository: ghcr.io/openclaw/openclaw`, `image.tag: "<pinned-tag>"`. Add `envFrom: [{secretRef: {name: openclaw-env-secret}}]`. Add `env` entries for non-secret config: `AZURE_OPENAI_ENDPOINT`, `APP_FQDN: "https://paa-dev.acmeadventure.ca"`. Under `app-template.controllers.main.pod`: add annotation `azure.workload.identity/use: "true"`. Under `serviceAccount`: set `annotations: {"azure.workload.identity/client-id": "${OPENCLAW_MI_CLIENT_ID}"}` (substituted at apply time). |           |      |
-| TASK-008 | In `workloads/dev/openclaw/values.yaml`, add the `openclaw.json` config block under `openclaw.config`. Set `gateway.port: 18789`, `gateway.bind: "lan"`, `gateway.auth.mode: "token"`, `gateway.auth.token: "${OPENCLAW_GATEWAY_TOKEN}"`, `allowedOrigins: ["https://paa-dev.acmeadventure.ca"]`, `agents.defaults.model.primary: "grok-4-fast-reasoning"`, `models.lightweightModel: "grok-3-mini"`, `update.checkOnStart: false`, `tools.profile: "full"`. Use `configMode: merge`.                                                                                                                                                                                       |           |      |
-| TASK-009 | In `workloads/dev/openclaw/values.yaml`, configure a static PV/PVC for the **NFS** Azure Files share (provisioned in SUB-001 TASK-010). Define a `PersistentVolume` in `workloads/dev/openclaw/crds/pv.yaml`: CSI driver `file.csi.azure.com`, `volumeAttributes.protocol: nfs`, `volumeAttributes.storageAccount: <aks-premium-storage-account>`, `volumeAttributes.shareName: <nfs-share-name>`, `volumeHandle: <unique-id>`. Set `accessModes: [ReadWriteOnce]`. Do **not** set `nodeStageSecretRef` — Workload Identity handles auth for NFS; no storage key is needed. Create matching `PersistentVolumeClaim` in `crds/pvc.yaml` bound to the static PV. Mount path `/home/node/.openclaw`. NFS protocol enables full POSIX chmod/chown semantics inside the pod. Note: state data must be copied from the existing SMB share to the NFS share (via `azcopy sync`) before the pod starts — see SUB-001 RISK-003. |           |      |
-| TASK-010 | In `workloads/dev/openclaw/values.yaml`, enable network policy: under `app-template.networkpolicies.main`: `enabled: true`. The default policy allows ingress from `gateway-system` on port 18789 and egress to public internet (blocks RFC1918). Add egress rule to allow `azure-ai-endpoint` host (required for AI API calls to Azure — Azure public IPs).                                                                                                                                                                                                                   |           |      |
-| TASK-011 | Add CSI volume mount to the values so the `SecretProviderClass` is referenced: under `app-template.persistence.secrets`: `type: custom`, with a `volumeSpec.csi` block: `driver: secrets-store.csi.k8s.io`, `readOnly: true`, `volumeAttributes.secretProviderClass: openclaw-kv`. Mount path `/mnt/secrets-store`. This mount triggers the CSI sync that creates the `openclaw-env-secret` Kubernetes Secret.                                                                                                                                                                 |           |      |
-| TASK-012 | Create `workloads/prod/openclaw/values.yaml`: identical to dev values with changes: `APP_FQDN: "https://paa.acmeadventure.ca"`, `allowedOrigins: ["https://paa.acmeadventure.ca"]`. All other values identical. Use prod Key Vault and storage references (from prod Terraform outputs).                                                                                                                                                                                                                                                                                        |           |      |
+| TASK-007 | Create `workloads/dev/openclaw/values.yaml`. Structure: `openclaw:` root key. Under `app-template.controllers.main.containers.main`: set `image.repository: ghcr.io/openclaw/openclaw`, `image.tag: "<pinned-tag>"`. Add `envFrom: [{secretRef: {name: openclaw-env-secret}}, {configMapRef: {name: openclaw-env-config}}]`. Add `env: {APP_FQDN: "https://paa-dev.acmeadventure.ca"}`. Under `defaultPodOptions.labels`: add `azure.workload.identity/use: "true"`. Under `controllers.main.serviceAccount.name`: reference the external SA `openclaw` (pre-created by `bootstrap/serviceaccount.yaml` with WI annotation; app-template v4 syntax). | ✅        | 2026-04-08 |
+| TASK-008 | In `workloads/dev/openclaw/values.yaml`, add the `openclaw.json` config block under `openclaw.configMaps.config.data`. Set `gateway.mode: "local"`, `gateway.port: 18789`, `gateway.bind: "lan"`, `gateway.auth.mode: "token"`, `gateway.auth.token: "${OPENCLAW_GATEWAY_TOKEN}"`, `agents.defaults.model.primary: "azure-openai/gpt-5.4-mini"`, `update.checkOnStart: false`, `tools.profile: "full"`. Configure `models.providers.azure-openai` with `baseUrl: ${AZURE_OPENAI_ENDPOINT}/openai/deployments/gpt-5.4-mini`, `apiKey: ${AZURE_AI_API_KEY}`, `api: openai-completions`. Use `configMode: merge`. Notes: `allowedOrigins` and `models.lightweightModel` are not valid keys in app version 2026.4.8 and were removed after causing startup failures. `gateway.mode` is required and must be set explicitly. | ✅        | 2026-04-08 |
+| TASK-009 | Configure `persistence.data` in `workloads/dev/openclaw/values.yaml` for dynamic disk provisioning: `storageClass: managed-csi-premium`, `accessMode: ReadWriteOnce`, `size: 10Gi`. No static PV or PVC needed — the chart owns PVC creation; the Azure Disk CSI driver auto-provisions a Premium SSD in the node resource group on first bind. NFS static PV/PVC was implemented and then removed after mount failures (see ALT-001 / RISK-001). | ✅        | 2026-04-09 |
+| TASK-010 | In `workloads/dev/openclaw/values.yaml`, enable network policy: under `app-template.networkpolicies.main`: `enabled: true`. The default policy allows ingress from `gateway-system` on port 18789 and egress to public internet (blocks RFC1918). | ✅        | 2026-04-08 |
+| TASK-011 | Add CSI volume mount to the values so the `SecretProviderClass` is referenced: under `app-template.persistence.secrets`: `type: custom`, with a `volumeSpec.csi` block: `driver: secrets-store.csi.k8s.io`, `readOnly: true`, `volumeAttributes.secretProviderClass: openclaw-kv`. Mount path `/mnt/secrets-store`. This mount triggers the CSI sync that creates the `openclaw-env-secret` Kubernetes Secret. | ✅        | 2026-04-08 |
+| TASK-012 | Create `workloads/prod/openclaw/values.yaml`: same structure as dev with `APP_FQDN: "https://paa.acmeadventure.ca"`. All other values identical. | ✅        | 2026-04-08 |
 
 ### Implementation Phase 4 — HTTPRoute and TLS Certificate
 
@@ -72,10 +72,10 @@ Deploy OpenClaw to AKS using the [serhanekicii/openclaw-helm](https://github.com
 
 | Task     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Completed | Date |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---- |
-| TASK-013 | Create `workloads/dev/openclaw/crds/httproute.yaml`: `apiVersion: gateway.networking.k8s.io/v1`, `kind: HTTPRoute`, namespace `openclaw`. `spec.parentRefs[0]`: name `main-gateway`, namespace `gateway-system`. `hostnames: ["paa-dev.acmeadventure.ca"]`. Rules: one rule matching `path: PathPrefix /` → backendRef `openclaw` service port `18789`. Also add a second rule (or separate HTTPRoute) that redirects HTTP to HTTPS using `RequestRedirect` filter with `scheme: https`.                                                |           |      |
-| TASK-014 | Update `workloads/bootstrap/gateway.yaml` (from platform subplan TASK-006) to add the `cert-manager.io/cluster-issuer: letsencrypt-staging` annotation on the `Gateway` HTTPS listener for the dev environment. This triggers cert-manager to issue a cert for `paa-dev.acmeadventure.ca` and store it as secret `openclaw-dev-tls` in the `gateway-system` namespace. The `tls.certificateRefs` in the listener already references this secret name; cert-manager will create it.                                                  |           |      |
-| TASK-015 | Once `letsencrypt-staging` cert is confirmed `READY: True` (validate with `kubectl get certificate -n gateway-system`), update the `Gateway` HTTPS listener annotation to `cert-manager.io/cluster-issuer: letsencrypt-prod` and re-apply. The cert secret `openclaw-dev-tls` is updated with a trusted cert. Confirm browser access to `https://paa-dev.acmeadventure.ca` with no certificate error.                                                                                                                             |           |      |
-| TASK-016 | Create `workloads/prod/openclaw/crds/httproute.yaml`: identical to dev HTTPRoute but `hostnames: ["paa.acmeadventure.ca"]` and Gateway annotation uses `letsencrypt-prod` from the start (prod should not go through staging). Cert secret named `openclaw-prod-tls`.                                                                                                                                                                                                                                                              |           |      |
+| TASK-013 | Create `workloads/dev/openclaw/bootstrap/httproute.yaml` (two HTTPRoute resources): `openclaw-http-redirect` attaches to `sectionName: http` and issues a 301 redirect to HTTPS; `openclaw-https` attaches to `sectionName: https-dev` and routes all paths to the `openclaw` service on port 18789. Note: directory was renamed from `crds/` to `bootstrap/` to prevent Helm/ArgoCD from processing `${VAR}` template files as chart CRDs. | ✅        | 2026-04-08 |
+| TASK-014 | Update `workloads/bootstrap/gateway.yaml` with `cert-manager.io/cluster-issuer: letsencrypt-staging` annotation and per-environment HTTPS listeners (`https-dev`, `https-prod`) with matching `certificateRefs`. Note: cert-manager gateway-shim requires `--enable-gateway-api` flag (not set at bootstrap time — patched manually onto the `cert-manager` deployment). An explicit `Certificate` resource (`workloads/dev/openclaw/bootstrap/certificate.yaml`) is required since the gateway-shim auto-cert was not enabled. TLS secret name: `paa-dev-tls` in `gateway-system`. | ✅        | 2026-04-09 |
+| TASK-015 | Staging cert confirmed `READY: True`; updated `Certificate` resource issuer to `letsencrypt-prod`. Prod cert issued immediately (cert-manager reused the existing secret). Confirmed trusted cert: `SSL certificate verify ok`, issuer `Let's Encrypt R12`, valid to 2026-07-08. | ✅        | 2026-04-09 |
+| TASK-016 | Create `workloads/prod/openclaw/bootstrap/httproute.yaml`: mirrors dev with `hostnames: ["paa.acmeadventure.ca"]` and `sectionName: https-prod`. Cert (`paa-prod-tls`) will be issued on first deployment to prod — DNS A record and prod bootstrap not yet executed. | ✅        | 2026-04-08 |
 
 ### Implementation Phase 5 — ArgoCD Application Manifests
 
@@ -103,7 +103,7 @@ Deploy OpenClaw to AKS using the [serhanekicii/openclaw-helm](https://github.com
 
 ## 3. Alternatives
 
-- **ALT-001**: Static PVC (dynamic provisioning via `azurefile-csi` storage class) instead of a static PV referencing the existing share — rejected for migration; the existing Azure Files share holds accumulated ACA state (conversations, auth profiles, device registrations) that must be preserved. A static PV/PVC referencing the same storage account and share name is required. Post-migration, new deployments can use dynamic provisioning.
+- **ALT-001**: NFS Azure Files static PV — attempted but failed. The storage account (`paadevocnfs`) has no private endpoint or VNet service endpoint; the NFS mount returned `access denied` at pod start. Additionally, `crds/` directories are processed verbatim by Helm/ArgoCD causing ArgoCD to overwrite the seeded PV with unsubstituted `${VAR}` placeholders (immutable spec conflict). Resolved by: (a) switching to `managed-csi-premium` dynamic provisioning (no Terraform or network changes needed), and (b) renaming `crds/` → `bootstrap/` so Helm ignores the directory.
 - **ALT-002**: Kubernetes-native `Secret` with plain base64 values in the `crds/` directory — rejected per SEC-002; secrets never in Git even as base64.
 - **ALT-003**: `configMode: overwrite` for strict GitOps — deferred; runtime state (device pairings, web UI config changes) would be lost on every pod restart. Merge mode with ArgoCD ignoreDifferences is the correct tradeoff.
 - **ALT-004**: Direct ArgoCD repo access to the GHCR Helm repository (no umbrella chart) — rejected; umbrella chart provides per-environment value overrides in a standard, auditable directory structure.
@@ -115,25 +115,27 @@ Deploy OpenClaw to AKS using the [serhanekicii/openclaw-helm](https://github.com
 - **DEP-003**: `GatewayClass nginx` available and `main-gateway` in `gateway-system` programmed (SUB-002 TASK-004/005/006).
 - **DEP-004**: `ClusterIssuer letsencrypt-staging` and `letsencrypt-prod` present (SUB-002 TASK-009).
 - **DEP-005**: DNS A records for `paa-dev.acmeadventure.ca` and `paa.acmeadventure.ca` pointing to the Gateway LoadBalancer IP before TASK-013/014.
-- **DEP-006**: Terraform outputs `openclaw_state_storage_account_name`, `openclaw_state_file_share_name`, `aks_oidc_issuer_url` available to CI for TASK-004/009.
+- **DEP-006**: Terraform outputs `azure_openai_endpoint` available to CI for TASK-005/008. (`openclaw_state_file_share_name` and NFS storage account outputs no longer needed — managed disk replaced NFS.)
 - **DEP-007**: GitHub Secrets `OPENCLAW_MI_CLIENT_ID`, `KEY_VAULT_NAME`, `AZURE_TENANT_ID` populated in both environments.
 
 ## 5. Files
 
 - **FILE-001**: `workloads/dev/openclaw/Chart.yaml`
 - **FILE-002**: `workloads/dev/openclaw/values.yaml`
-- **FILE-003**: `workloads/dev/openclaw/crds/secretproviderclass.yaml` (contains `${VAR}` placeholders; never committed with real values)
-- **FILE-004**: `workloads/dev/openclaw/crds/pv.yaml` (static PV referencing existing Azure Files share)
-- **FILE-005**: `workloads/dev/openclaw/crds/pvc.yaml` (PVC binding to static PV)
-- **FILE-006**: `workloads/dev/openclaw/crds/httproute.yaml`
-- **FILE-007**: `workloads/prod/openclaw/Chart.yaml`
-- **FILE-008**: `workloads/prod/openclaw/values.yaml`
-- **FILE-009**: `workloads/prod/openclaw/crds/secretproviderclass.yaml`
-- **FILE-010**: `workloads/prod/openclaw/crds/pv.yaml`
-- **FILE-011**: `workloads/prod/openclaw/crds/pvc.yaml`
-- **FILE-012**: `workloads/prod/openclaw/crds/httproute.yaml`
-- **FILE-013**: `argocd/apps/dev-openclaw.yaml`
-- **FILE-014**: `argocd/apps/prod-openclaw.yaml`
+- **FILE-003**: `workloads/dev/openclaw/bootstrap/secretproviderclass.yaml` (contains `${VAR}` placeholders; never committed with real values)
+- **FILE-004**: `workloads/dev/openclaw/bootstrap/serviceaccount.yaml` (SA with WI annotation `${OPENCLAW_MI_CLIENT_ID}`; applied by `seed-openclaw-aks.sh` before ArgoCD sync)
+- **FILE-005**: `workloads/dev/openclaw/bootstrap/configmap.yaml` (non-secret env config including `${AZURE_OPENAI_ENDPOINT}`)
+- **FILE-006**: `workloads/dev/openclaw/bootstrap/httproute.yaml` (HTTP→HTTPS redirect + HTTPS route)
+- **FILE-007**: `workloads/dev/openclaw/bootstrap/certificate.yaml` (explicit cert-manager `Certificate` for `paa-dev-tls` in `gateway-system`)
+- **FILE-008**: `workloads/prod/openclaw/Chart.yaml`
+- **FILE-009**: `workloads/prod/openclaw/values.yaml`
+- **FILE-010**: `workloads/prod/openclaw/bootstrap/secretproviderclass.yaml`
+- **FILE-011**: `workloads/prod/openclaw/bootstrap/serviceaccount.yaml`
+- **FILE-012**: `workloads/prod/openclaw/bootstrap/configmap.yaml`
+- **FILE-013**: `workloads/prod/openclaw/bootstrap/httproute.yaml`
+- **FILE-014**: `argocd/apps/dev-openclaw.yaml`
+- **FILE-015**: `argocd/apps/prod-openclaw.yaml`
+- **FILE-016**: `workloads/bootstrap/gateway.yaml` (updated with `https-dev`/`https-prod` listeners and `cert-manager.io/cluster-issuer` annotation)
 
 ## 6. Testing
 
@@ -142,15 +144,15 @@ Deploy OpenClaw to AKS using the [serhanekicii/openclaw-helm](https://github.com
 - **TEST-003**: `kubectl describe secretproviderclass openclaw-kv -n openclaw` shows no errors; `kubectl get secret openclaw-env-secret -n openclaw` exists with expected keys.
 - **TEST-004**: HTTPS end-to-end: load `https://paa-dev.acmeadventure.ca`, no cert error (after switching to prod issuer), OpenClaw login page renders.
 - **TEST-005**: AI prompt completes successfully; no Key Vault access errors in pod logs.
-- **TEST-006**: Azure Files mount persists state: existing config and session files from ACA visible inside the pod.
+- **TEST-006**: Managed disk mount persists state: `kubectl exec` into pod confirms `/home/node/.openclaw/` contains `agents/`, `devices/`, `identity/`, `openclaw.json`, `workspace/` directories.
 
 ## 7. Risks & Assumptions
 
-- **RISK-001**: Azure Files CSI static PV may require specific permissions (`nodestageFileURL` role or storage key) depending on AKS CSI driver version. Verify authentication method: prefer Workload Identity-based CSI auth over storage key to maintain SEC-001.
+- **RISK-001** ⚠️ **Resolved**: Azure Files NFS mount failed with `access denied` due to missing private endpoint on the storage account (not a CSI auth issue). Switched to `managed-csi-premium` dynamic provisioning; no storage account or network config required.
 - **RISK-002**: The `openclaw-env-secret` Kubernetes Secret is only created when the CSI volume is mounted (i.e., the pod must start for the sync to happen). If the pod fails to start (e.g., resource constraints), the secret doesn't exist yet — this is a circular dependency. Mitigation: ensure node resources are sufficient before applying the ArgoCD Application.
 - **RISK-003**: Gateway API `HTTPRoute` `parentRefs` must match the `Gateway` name and namespace exactly. Typos cause silent routing failures. Validate with `kubectl describe httproute openclaw -n openclaw`.
 - **ASSUMPTION-001**: The OpenClaw Helm chart version `1.3.7` (from the article) is the current stable release. Verify against Artifact Hub at implementation time and pin the actual latest stable version.
-- **ASSUMPTION-002**: Azure AI Foundry model identifiers (grok-4-fast-reasoning, grok-3-mini) are available in the configured AI Services account; adapt if model lineup has changed.
+- **ASSUMPTION-002** ⚠️ **Updated**: Azure OpenAI hub (`paa-dev-hub`) has deployments `gpt-5.4-mini` and `text-embedding-3-large`. Grok models are not available. Config updated to `azure-openai/gpt-5.4-mini` with an explicit `models.providers` entry. The Azure endpoint requires custom `baseUrl` config since the deployment name is not in OpenClaw's built-in azure-openai catalog.
 
 ## 8. Related Specifications / Further Reading
 

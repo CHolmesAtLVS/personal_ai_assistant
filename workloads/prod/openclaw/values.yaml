@@ -46,7 +46,7 @@ openclaw:
               "agents": {
                 "defaults": {
                   "model": {
-                    "primary": "grok-4-fast-reasoning"
+                    "primary": "azure-openai/gpt-5.4-mini"
                   }
                 }
               },

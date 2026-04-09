@@ -46,7 +46,7 @@ openclaw:
               "agents": {
                 "defaults": {
                   "model": {
-                    "primary": "azure-openai/gpt-4o"
+                    "primary": "azure-openai/gpt-5.4-mini"
                   }
                 }
               },

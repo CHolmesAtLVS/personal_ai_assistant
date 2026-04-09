@@ -1,5 +1,12 @@
 # OpenClaw Operations Runbook
 
+> **[DECOMMISSIONED — dev environment, 2026-04-09]**
+> Azure Container Apps (ACA) has been removed from the **dev** environment per
+> [feature-aks-decommission-1.md](../plan/feature-aks-decommission-1.md). Prod ACA decommission
+> is pending SUB-003 prod validation. For current AKS operations see
+> [docs/openclaw-containerapp-operations.md](openclaw-containerapp-operations.md) (AKS Operations section).
+> This document is retained for historical reference and rollback documentation.
+
 This document covers operational procedures for the OpenClaw gateway runtime: first-time bootstrap, gateway token management, config updates, storage backup/restore, and image upgrades.
 
 ## Prerequisites

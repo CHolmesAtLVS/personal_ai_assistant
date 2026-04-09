@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# DEPRECATED: This script targets Azure Container Apps (ACA). ACA has been decommissioned for the
+# dev environment (2026-04-09) per feature-aks-decommission-1.md. For AKS diagnostics use
+# kubectl logs / kubectl exec / the openclaw-cli skill against https://paa-dev.acmeadventure.ca.
+# Retained for historical reference and rollback scenarios during the prod soak period.
+#
 # diagnose-containerapp.sh — Capture a full diagnostic snapshot of the OpenClaw Container App.
 #
 # Usage:

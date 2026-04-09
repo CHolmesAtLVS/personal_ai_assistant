@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# DEPRECATED: This script seeds config via Azure Container Apps (ACA) exec. ACA has been
+# decommissioned for the dev environment (2026-04-09) per feature-aks-decommission-1.md.
+# For AKS config updates use: kubectl exec -n openclaw deployment/openclaw -c main --
+#   node /app/openclaw.mjs config set <key> <value>
+# or update workloads/dev/openclaw/values.yaml and merge to trigger ArgoCD sync.
+# Retained for historical reference and rollback scenarios during the prod soak period.
+#
 # seed-openclaw-config.sh — Seed the OpenClaw gateway config locally via az containerapp exec.
 #
 # For LOCAL use from an interactive shell (devcontainer, laptop). Requires a TTY.

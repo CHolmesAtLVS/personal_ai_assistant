@@ -1,4 +1,5 @@
 [
+  { "_comment": "ACA-era reference. ACA decommissioned for dev 2026-04-09 (feature-aks-decommission-1.md). For AKS, use workloads/dev/openclaw/values.yaml. Retained as canonical config key reference." },
   { "path": "gateway.mode",           "value": "local" },
   { "path": "gateway.port",           "value": 18789 },
   { "path": "gateway.bind",           "value": "lan" },

@@ -42,16 +42,12 @@ openclaw:
                 // Retrieve after first deploy: kubectl get pods -n gateway-system -o wide
                 "trustedProxies": []
               },
-              "allowedOrigins": ["https://paa-dev.acmeadventure.ca"],
               "agents": {
                 "defaults": {
                   "model": {
                     "primary": "grok-4-fast-reasoning"
                   }
                 }
-              },
-              "models": {
-                "lightweightModel": "grok-3-mini"
               },
               "update": {
                 "checkOnStart": false

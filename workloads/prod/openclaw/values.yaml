@@ -105,15 +105,12 @@ openclaw:
     # Persistence (TASK-012, REQ-007)
     # --------------------------------------------------------------------------
     persistence:
-      # Static NFS Azure Files share (REQ-007, 10Gi).
-      # PV is defined in crds/pv.yaml; the chart creates and manages the PVC.
-      # storageClass: "" disables dynamic provisioning; volumeName binds to the static PV.
-      # advancedMounts are inherited from chart defaults (init-config, init-skills, main).
+      # Managed disk (Azure Disk CSI, Premium SSD) — dynamically provisioned.
+      # No static PV required; WaitForFirstConsumer ensures scheduling before provisioning.
       data:
         accessMode: ReadWriteOnce
         size: 10Gi
-        storageClass: "-"
-        volumeName: openclaw-state-nfs-prod
+        storageClass: managed-csi-premium
 
       # CSI secrets-store volume mount (REQ-002).
       # Mounting this volume triggers SecretProviderClass sync which creates the

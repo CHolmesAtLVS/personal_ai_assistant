@@ -3,8 +3,8 @@
 #
 # Applies all YAML files in workloads/<env>/openclaw/bootstrap/ after substituting
 # ${VAR} placeholders using environment variables. Must be run before applying the
-# ArgoCD Application (TASK-020) so the SecretProviderClass and PV exist before
-# the first pod start.
+# ArgoCD Application (TASK-020) so the SecretProviderClass, SA, and ConfigMap
+# exist before the first pod start.
 #
 # Usage:
 #   ./scripts/seed-openclaw-aks.sh [dev|prod]
@@ -14,8 +14,6 @@
 #   KEY_VAULT_NAME           — Key Vault name (terraform output kv_name)
 #   AZURE_TENANT_ID          — Azure tenant ID (GitHub Secret)
 #   AZURE_OPENAI_ENDPOINT    — Azure AI Services endpoint URL (terraform output azure_openai_endpoint)
-#   NFS_STORAGE_ACCOUNT_NAME — NFS premium storage account name (terraform output openclaw_nfs_storage_account_name)
-#   AKS_NODE_RESOURCE_GROUP  — AKS node resource group (terraform output aks_node_resource_group)
 #
 # SEC-001: Targets dev by default. Pass 'prod' explicitly and set ALLOW_PROD=true.
 # Never commit files with real substituted values.
@@ -43,8 +41,6 @@ fi
 : "${KEY_VAULT_NAME:?KEY_VAULT_NAME must be set}"
 : "${AZURE_TENANT_ID:?AZURE_TENANT_ID must be set}"
 : "${AZURE_OPENAI_ENDPOINT:?AZURE_OPENAI_ENDPOINT must be set}"
-: "${NFS_STORAGE_ACCOUNT_NAME:?NFS_STORAGE_ACCOUNT_NAME must be set}"
-: "${AKS_NODE_RESOURCE_GROUP:?AKS_NODE_RESOURCE_GROUP must be set}"
 
 CRD_DIR="${REPO_ROOT}/workloads/${ENV}/openclaw/bootstrap"
 

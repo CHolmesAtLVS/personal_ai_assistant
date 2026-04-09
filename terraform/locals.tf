@@ -15,11 +15,11 @@ locals {
   # Resource name locals.
   # Key Vault constraint: 3-24 chars, alphanumeric and hyphens only.
   # ACR constraint: 5-50 chars, alphanumeric only (no hyphens).
-  law_name                            = "${local.name_prefix}-law"
-  identity_name                       = "${local.name_prefix}-id"
-  kv_name                             = "${local.name_prefix}-kv"
-  acr_name                            = "${replace(var.project, "-", "")}sharedacr"
-  shared_rg_name                      = "${var.project}-shared-rg"
+  law_name                          = "${local.name_prefix}-law"
+  identity_name                     = "${local.name_prefix}-id"
+  kv_name                           = "${local.name_prefix}-kv"
+  acr_name                          = "${replace(var.project, "-", "")}sharedacr"
+  shared_rg_name                    = "${var.project}-shared-rg"
   ai_hub_name                       = "${local.name_prefix}-hub"
   ai_project_name                   = "${local.name_prefix}-proj"
   budget_name                       = "${local.name_prefix}-budget"

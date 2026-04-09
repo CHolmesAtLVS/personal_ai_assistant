@@ -55,6 +55,9 @@ if [[ ! -e "${YAML_FILES[0]}" ]]; then
   exit 0
 fi
 
+echo "Ensuring namespace 'openclaw' exists for environment: ${ENV}"
+kubectl create namespace openclaw --dry-run=client -o yaml | kubectl apply -f -
+
 echo "Applying OpenClaw bootstrap manifests for environment: ${ENV}"
 for f in "${YAML_FILES[@]}"; do
   echo "  Applying: $(basename "${f}")"
@@ -64,8 +67,9 @@ done
 echo "Done. Bootstrap manifests applied to AKS for environment: ${ENV}."
 
 # TASK-020: Apply ArgoCD Application manifest for the target environment.
-# This must run after bootstrap/ manifests are applied so the SecretProviderClass
-# and PV exist before the first pod start triggered by ArgoCD sync.
+# This must run after bootstrap/ manifests are applied so bootstrap resources
+# (SecretProviderClass, ServiceAccount, ConfigMap) exist before the first pod
+# start triggered by ArgoCD sync.
 ARGOCD_APP="${REPO_ROOT}/argocd/apps/${ENV}-openclaw.yaml"
 if [[ ! -f "${ARGOCD_APP}" ]]; then
   echo "ERROR: ArgoCD Application manifest not found: ${ARGOCD_APP}" >&2

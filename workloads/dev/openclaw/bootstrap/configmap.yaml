@@ -1,7 +1,7 @@
 # configmap.yaml — Non-secret environment configuration for the OpenClaw pod.
 #
 # TEMPLATE FILE — contains ${VAR} placeholders. Never commit with substituted values.
-# Apply via: envsubst < workloads/dev/openclaw/crds/configmap.yaml | kubectl apply -f -
+# Apply via: envsubst < workloads/dev/openclaw/bootstrap/configmap.yaml | kubectl apply -f -
 #
 # Applied by scripts/seed-openclaw-aks.sh before ArgoCD sync.
 # Referenced in values.yaml via containers.main.envFrom[].configMapRef.

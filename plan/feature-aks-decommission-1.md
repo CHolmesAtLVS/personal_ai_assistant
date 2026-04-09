@@ -19,7 +19,7 @@ Remove the Azure Container Apps (ACA) runtime and its exclusive supporting resou
 
 ## 1. Requirements & Constraints
 
-- **REQ-001**: ACA decommission must be sequenced: dev first, then prod, with a minimum 7-day soak period after the dev ACA is removed before decommissioning prod ACA.
+- **REQ-001**: ACA decommission must be sequenced: dev first, then prod. A minimum 7-day soak period after the dev ACA is removed is recommended before decommissioning prod ACA; this may be waived by explicit operator decision recorded in the PR.
 - **REQ-002**: All persistent OpenClaw state from the SMB share must have already been copied to the NFS share (verified in SUB-003 TASK-025) before the SMB share is removed.
 - **REQ-003**: DNS records for `paa-dev.acmeadventure.ca` and `paa.acmeadventure.ca` must already point to the AKS Gateway LoadBalancer IPs (set during SUB-003) before ACA ingress is disabled.
 - **REQ-004**: Terraform is the mechanism for removing ACA resources. No manual `az containerapp delete` commands. Resources are removed by deleting the relevant Terraform resource blocks and running `terraform apply`.

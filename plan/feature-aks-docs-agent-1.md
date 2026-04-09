@@ -11,7 +11,7 @@ tags: [feature, migration, aks, documentation, agent, skills, operations]
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
 
 The OpenClaw operational agent (`openclaw-ops.agent.md`), its supporting skills (`openclaw-cli`, `openclaw-config`, `openclaw-troubleshoot`), the operational runbook, and the `openclaw-connect.sh` script all carry Azure Container Apps (ACA) assumptions as their primary operational model. The AKS migration plans (`feature-aks-migration-1.md` and subplans SUB-001 through SUB-004) replace ACA with AKS + ArgoCD + Helm + Workload Identity as the runtime. These files must be brought in line with that new approach so the agent and skills guide operators correctly once AKS is live (and do not direct users to issue `az containerapp` commands against a decommissioned resource).
 

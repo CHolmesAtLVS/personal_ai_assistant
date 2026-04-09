@@ -1,4 +1,5 @@
-# crds/ contains ${VAR} template files applied by scripts/seed-openclaw-aks.sh
-# via envsubst before ArgoCD sync. Do NOT include them in the Helm render or
-# ArgoCD sync — they hold unsubstituted placeholders and are not Helm CRDs.
+# bootstrap/ manifests are applied from workloads/prod/openclaw/bootstrap/*.yaml
+# by scripts/seed-openclaw-aks.sh before ArgoCD sync. Do NOT include crds/ in
+# the Helm render or ArgoCD sync — it holds unsubstituted placeholder files and
+# is not part of the bootstrap flow.
 crds/

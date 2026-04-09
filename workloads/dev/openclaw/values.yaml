@@ -1,13 +1,14 @@
 # Umbrella chart values for OpenClaw dev environment.
 # All values nested under the 'openclaw:' key (umbrella chart dependency convention).
 #
-# This file contains NO ${VAR} placeholders. Environment-specific values that
-# require substitution are injected via crds/ manifests applied by
-# scripts/seed-openclaw-aks.sh before ArgoCD sync:
-#   crds/serviceaccount.yaml  — SA with ${OPENCLAW_MI_CLIENT_ID} annotation
-#   crds/configmap.yaml       — ${AZURE_OPENAI_ENDPOINT}
-#   crds/pv.yaml              — ${NFS_STORAGE_ACCOUNT_NAME}
-#   crds/secretproviderclass.yaml — Key Vault wiring
+# This file embeds ${VAR} placeholders (e.g. ${OPENCLAW_GATEWAY_TOKEN},
+# ${AZURE_OPENAI_ENDPOINT}, ${AZURE_AI_API_KEY}) resolved by OpenClaw at runtime
+# from container environment variables injected via openclaw-env-secret and
+# openclaw-env-config. Additional environment-specific Kubernetes resources are
+# applied from bootstrap/ manifests before ArgoCD sync:
+#   bootstrap/serviceaccount.yaml      — SA with ${OPENCLAW_MI_CLIENT_ID} annotation
+#   bootstrap/configmap.yaml           — ${AZURE_OPENAI_ENDPOINT}
+#   bootstrap/secretproviderclass.yaml — Key Vault wiring
 
 openclaw:
   app-template:

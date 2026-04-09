@@ -10,6 +10,7 @@ spec:
     targetRevision: HEAD
     path: workloads/prod/openclaw
     helm:
+      releaseName: openclaw
       valueFiles:
         - values.yaml
   destination:

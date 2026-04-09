@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/CHolmesAtLVS/personal_ai_assistant.git
-    targetRevision: feat/plan-updates-aks-platform
+    targetRevision: HEAD
     path: workloads/dev/openclaw
     helm:
       releaseName: openclaw

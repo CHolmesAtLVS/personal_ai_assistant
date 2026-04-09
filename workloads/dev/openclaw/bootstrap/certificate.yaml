@@ -25,7 +25,7 @@ metadata:
 spec:
   secretName: paa-dev-tls
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
     - paa-dev.acmeadventure.ca

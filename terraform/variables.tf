@@ -90,23 +90,6 @@ variable "openclaw_image_tag" {
   }
 }
 
-variable "container_image" {
-  description = "Deprecated legacy image override. Leave unset; OpenClaw image is computed from openclaw_image_repository and openclaw_image_tag."
-  type        = string
-  default     = null
-
-  validation {
-    condition     = var.container_image == null
-    error_message = "container_image is deprecated. Use openclaw_image_repository and openclaw_image_tag instead."
-  }
-}
-
-variable "container_image_acr_server" {
-  description = "ACR login server to configure as a registry credential on the Container App. Set when container_image is sourced from ACR. Leave null when using a public image."
-  type        = string
-  default     = null
-}
-
 variable "openclaw_state_share_quota_gb" {
   description = "Quota in GiB for the Azure Files share mounted at /home/node/.openclaw."
   type        = number
@@ -115,17 +98,6 @@ variable "openclaw_state_share_quota_gb" {
   validation {
     condition     = var.openclaw_state_share_quota_gb >= 10 && var.openclaw_state_share_quota_gb <= 102400
     error_message = "openclaw_state_share_quota_gb must be between 10 and 102400."
-  }
-}
-
-variable "openclaw_backup_share_quota_gb" {
-  description = "Quota in GiB for the Azure Files share mounted at /mnt/openclaw-backup (backup output)."
-  type        = number
-  default     = 10
-
-  validation {
-    condition     = var.openclaw_backup_share_quota_gb >= 1 && var.openclaw_backup_share_quota_gb <= 102400
-    error_message = "openclaw_backup_share_quota_gb must be between 1 and 102400."
   }
 }
 

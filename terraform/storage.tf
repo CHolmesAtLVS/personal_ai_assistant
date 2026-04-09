@@ -1,44 +1,7 @@
-resource "azurerm_storage_account" "openclaw_state" {
-  name                     = local.openclaw_state_storage_account_name
-  resource_group_name      = module.resource_group.name
-  location                 = var.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  tags                     = local.common_tags
-
-  min_tls_version                 = "TLS1_2"
-  public_network_access_enabled   = true
-  https_traffic_only_enabled      = true
-  allow_nested_items_to_be_public = false
-  shared_access_key_enabled       = true
-}
-
-resource "azurerm_storage_share" "openclaw_state" {
-  name               = local.openclaw_state_file_share_name
-  storage_account_id = azurerm_storage_account.openclaw_state.id
-  quota              = var.openclaw_state_share_quota_gb
-}
-
-resource "azurerm_container_app_environment_storage" "openclaw_state" {
-  name                         = "openclaw-state"
-  container_app_environment_id = module.container_apps_environment.resource_id
-  account_name                 = azurerm_storage_account.openclaw_state.name
-  access_key                   = azurerm_storage_account.openclaw_state.primary_access_key
-  share_name                   = azurerm_storage_share.openclaw_state.name
-  access_mode                  = "ReadWrite"
-}
-
-resource "azurerm_storage_share" "openclaw_backup" {
-  name               = local.openclaw_backup_file_share_name
-  storage_account_id = azurerm_storage_account.openclaw_state.id
-  quota              = var.openclaw_backup_share_quota_gb
-}
-
-resource "azurerm_container_app_environment_storage" "openclaw_backup" {
-  name                         = "openclaw-backup"
-  container_app_environment_id = module.container_apps_environment.resource_id
-  account_name                 = azurerm_storage_account.openclaw_state.name
-  access_key                   = azurerm_storage_account.openclaw_state.primary_access_key
-  share_name                   = azurerm_storage_share.openclaw_backup.name
-  access_mode                  = "ReadWrite"
-}
+# storage.tf — ACA SMB storage account and shares removed 2026-04-09 (feature-aks-decommission-1.md TASK-011).
+# Resources destroyed: azurerm_storage_account.openclaw_state (paadevocstate),
+#   azurerm_storage_share.openclaw_state, azurerm_storage_share.openclaw_backup,
+#   azurerm_container_app_environment_storage.openclaw_state,
+#   azurerm_container_app_environment_storage.openclaw_backup.
+# Pre-decommission backup taken to /tmp/pre-aca-decommission-dev-20260409 (44 files).
+# NFS share (storage-aks.tf) is unaffected.

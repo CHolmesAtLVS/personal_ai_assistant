@@ -50,15 +50,15 @@ resource "azurerm_key_vault_secret" "openclaw_gateway_token" {
 
 resource "azurerm_key_vault_secret" "azure_ai_api_key" {
   name         = "azure-ai-api-key"
-  value        = var.azure_ai_api_key
+  value        = "placeholder-set-manually-in-azure-key-vault"
   key_vault_id = module.key_vault.resource_id
   content_type = "text/plain"
 
-  # The Azure AI Model Inference endpoint (used for Grok/MaaS models) does not
-  # support Azure AD bearer token / Managed Identity auth in the current API.
-  # The API key is the required auth mechanism (SEC-003). It is stored in Key
-  # Vault and injected into the Container App via secret reference — no static
-  # credential is placed in code or Terraform state.
+  # The azure-ai-api-key secret value is set manually in Azure Key Vault and
+  # is never written by Terraform after initial resource creation.
+  # ignore_changes = [value] ensures Terraform never overwrites the real key,
+  # and the placeholder above is only used when creating the secret for the
+  # first time in a fresh environment (it must then be updated manually).
   lifecycle {
     ignore_changes = [value]
   }

@@ -148,31 +148,6 @@ variable "embedding_model_capacity" {
   }
 }
 
-variable "azure_ai_api_key" {
-  description = <<-EOT
-    API key for the Azure AI Foundry account. Stored in Key Vault as 'azure-ai-api-key' and
-    injected into the Container App as AZURE_AI_API_KEY for use by the azure-foundry provider
-    in openclaw.json. Required because the Azure AI Model Inference endpoint (used for Grok/xAI
-    MaaS models) does not support Managed Identity in OpenClaw's azure-foundry provider.
-
-    CI source: GitHub Environment secret TF_VAR_AZURE_AI_API_KEY (both dev and prod environments).
-    Local source: TF_VAR_azure_ai_api_key entry in scripts/dev.tfvars or scripts/prod.tfvars.
-
-    IMPORTANT: Must be non-empty on every Terraform apply. The lifecycle { ignore_changes = [value] }
-    rule on the Key Vault secret prevents overwriting an existing key, but Terraform variable
-    validation still runs and will reject an empty value. In CI, a preflight secret check in the
-    GitHub Actions workflow will fail fast if this Environment secret is empty, before Terraform
-    validate/plan is executed.
-  EOT
-  type        = string
-  sensitive   = true
-
-  validation {
-    condition     = length(trimspace(var.azure_ai_api_key)) > 0
-    error_message = "azure_ai_api_key must not be empty. Set TF_VAR_AZURE_AI_API_KEY in the GitHub Environment secrets (Settings → Environments → <env> → Secrets), or TF_VAR_azure_ai_api_key in scripts/<env>.tfvars for local runs."
-  }
-}
-
 # vm_* variables removed — dev VM is no longer managed by Terraform.
 
 variable "aks_kubernetes_version" {

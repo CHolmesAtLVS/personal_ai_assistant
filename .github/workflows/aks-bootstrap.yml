@@ -154,6 +154,8 @@ jobs:
             --create-namespace \
             --version 9.4.17 \
             --set-string 'configs.params.server\.insecure=true' \
+            --set 'repoServer.livenessProbe.timeoutSeconds=10' \
+            --set 'repoServer.readinessProbe.timeoutSeconds=10' \
             --wait --timeout 10m
 
       - name: Bootstrap AKS — ArgoCD NetworkPolicy
@@ -282,6 +284,8 @@ jobs:
             --create-namespace \
             --version 9.4.17 \
             --set-string 'configs.params.server\.insecure=true' \
+            --set 'repoServer.livenessProbe.timeoutSeconds=10' \
+            --set 'repoServer.readinessProbe.timeoutSeconds=10' \
             --wait --timeout 10m
 
       - name: Bootstrap AKS — ArgoCD NetworkPolicy

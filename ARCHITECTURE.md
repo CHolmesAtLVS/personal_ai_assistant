@@ -29,7 +29,7 @@ Image versioning is controlled by the `openclaw_image_tag` Terraform variable. T
 ### Terraform Delivery Path
 
 - GitHub Actions authenticates to Azure with a Service Principal provided through GitHub environment secrets (credentials only — non-sensitive config lives in the central tfvars file)
-- Before each Terraform run, CI downloads the environment's central tfvars file from Azure Blob Storage (`{TFSTATE_CONTAINER}/tfvars/{env}.auto.tfvars`) and places it in the `terraform/` directory; Terraform loads it automatically
+- Before each Terraform run, CI downloads the environment's central tfvars file from Azure Blob Storage (`{TFSTATE_STORAGE_ACCOUNT}/tfvars/{env}.auto.tfvars`) and places it in the `terraform/` directory; Terraform loads it automatically
 - Terraform deploy workflow is split into explicit `dev` and `prod` jobs mapped to GitHub Environments with independent approvals and secret scopes
 - The `terraform-dev` job triggers on pull request events (opened, synchronize, reopened) targeting `main`; the `terraform-prod` job triggers on pull request merged to `main`
 - Azure CLI bootstraps Terraform remote state infrastructure (Resource Group, Storage Account, Blob Container) before Terraform backend initialization
@@ -52,8 +52,9 @@ Only true credentials and sensitive values are stored in GitHub Secrets. All non
 | `TFSTATE_RG` | Backend bootstrap | Yes — needed before tfvars available |
 | `TFSTATE_CONTAINER` | Backend init + tfvars download | Yes — needed before tfvars available |
 | `TFSTATE_LOCATION` | Backend bootstrap | Yes — needed before tfvars available |
-| `PUBLIC_IP` | Ingress IP restriction; CI exports it to Terraform as `TF_VAR_public_ip` | Yes — sensitive |
+| `TF_VAR_PUBLIC_IP` | Ingress IP restriction | Yes — sensitive |
 | `BUDGET_ALERT_EMAIL` | Cost alert delivery | Yes — sensitive |
+| `TF_VAR_AZURE_AI_API_KEY` | AI API key bootstrap | Yes — true secret |
 
 All other previously-stored variables (`TF_VAR_PROJECT`, `TF_VAR_LOCATION`, `TF_VAR_OWNER`, `TF_VAR_COST_CENTER`, model names and versions, image tag, quota, budget amount, `TF_VAR_OPENCLAW_INSTANCES`) are stored in the central tfvars file and no longer appear in GitHub Secrets or GitHub Variables.
 
@@ -62,7 +63,7 @@ All other previously-stored variables (`TF_VAR_PROJECT`, `TF_VAR_LOCATION`, `TF_
 #### Shared Infrastructure (per environment)
 
 - **AKS cluster** (free tier, 2 × `Standard_B2s` nodes, Azure CNI Overlay): shared runtime for all OpenClaw instances in the environment. One system node pool and one workload node pool. All instances schedule pods on this cluster.
-- **NGINX Gateway Fabric**: implements Kubernetes Gateway API (`GatewayClass: nginx`); provides a shared external LoadBalancer with one HTTPS listener per instance, using neutral hostname patterns such as `https-{instance}-{env}` → `{instance}.{env-domain}`.
+- **NGINX Gateway Fabric**: implements Kubernetes Gateway API (`GatewayClass: nginx`); provides a shared external LoadBalancer with one HTTPS listener per instance: `https-{instance}-dev` → `{instance}-paa-dev.acmeadventure.ca` or `https-{instance}-prod` → `{instance}-paa.acmeadventure.ca`.
 - **cert-manager + Let's Encrypt**: TLS certificates issued per instance hostname via HTTP-01 ACME challenge.
 - **Key Vault** (RBAC mode): one vault per environment holding all instance secrets, named with per-instance prefix (e.g. `ch-openclaw-gateway-token`). Shared `azure-ai-api-key` used by all instances.
 - **AI Services / AI Foundry**: one account and endpoint per environment, shared across all instances. Each instance's config points to the same endpoint.
@@ -85,7 +86,7 @@ Each instance `{inst}` in the `openclaw_instances` list produces the following i
 | SecretProviderClass | `openclaw-kv` in `openclaw-{inst}` | Syncs `{inst}-openclaw-gateway-token` + shared AI key |
 | ConfigMap `openclaw-env-config` | `openclaw-{inst}` namespace | Instance endpoint + app FQDN |
 | NetworkPolicy | `openclaw-{inst}` namespace | Ingress from `gateway-system` only; no cross-instance traffic |
-| HTTPS Gateway listener | `https-{inst}-{env}` | Hostname: `{inst}.{env-domain}` |
+| HTTPS Gateway listener | `https-{inst}-{env}` | Hostname: `{inst}-paa[-dev].acmeadventure.ca` |
 | HTTPRoute | `openclaw-{inst}-https` | Routes HTTPS traffic to instance service port 18789 |
 | ArgoCD Application | `{inst}-openclaw-{env}` | Tracks `workloads/{env}/openclaw-{inst}/` |
 | Role: KV Secrets User | Environment Key Vault | Scoped to this instance's MI |
@@ -142,12 +143,12 @@ Non-sensitive Terraform input variables are stored in an `.auto.tfvars` file in 
 
 The file contains all non-secret variables: `project`, `environment`, `location`, `owner`, `cost_center`, model names/versions/capacities, `openclaw_image_tag`, `openclaw_state_share_quota_gb`, `monthly_budget_amount`, and `openclaw_instances`. CI downloads the file using the Terraform state storage account credentials already available in GitHub Secrets and places it at `terraform/{env}.auto.tfvars` before running Terraform commands.
 
-`scripts/terraform-local.sh` downloads the central tfvars file from Blob Storage before running Terraform locally, using `az storage blob download --auth-mode login` authenticated via the existing `az login` CLI session.
+`scripts/terraform-local.sh` downloads the central tfvars file from Blob Storage before running Terraform locally, using `az storage blob download` authenticated via the existing CLI session.
 
 The `dev.tfvars` file in `scripts/` is reduced to only the credentials and bootstrap variables required before the central tfvars is available:
 - SP credentials (`AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`)
 - `TFSTATE_*` variables
-- `TF_VAR_public_ip`, `BUDGET_ALERT_EMAIL`
+- `TF_VAR_public_ip`, `BUDGET_ALERT_EMAIL`, `TF_VAR_azure_ai_api_key`
 
 ### Security and Configuration
 
@@ -226,7 +227,7 @@ Each instance MI receives these role assignments:
 8. The Secrets Store CSI volume mount triggers Key Vault secret sync → `openclaw-env-secret` Kubernetes Secret is created/updated per instance.
 9. The NFS Azure Files share (`openclaw-{inst}-nfs`) is mounted at `/home/node/.openclaw` for each pod, restoring all persistent state.
 10. OpenClaw starts with `gateway.bind=lan`, reads `OPENCLAW_GATEWAY_TOKEN` from the synced secret, and begins accepting connections.
-11. A user connects over HTTPS to `{inst}.{env-domain}`; the NGINX Gateway Fabric routes the request via the per-instance `HTTPRoute` to `openclaw-{inst}` service on port 18789.
+11. A user connects over HTTPS to `{inst}-paa-dev.acmeadventure.ca` or `{inst}-paa.acmeadventure.ca`; the NGINX Gateway Fabric routes the request via the per-instance `HTTPRoute` to `openclaw-{inst}` service on port 18789.
 12. OpenClaw authenticates to Azure AI Foundry via Workload Identity (per-instance MI OIDC token exchange).
 13. Operational telemetry flows to the shared Log Analytics Workspace; cost alerts fire via the Consumption Budget.
 
@@ -273,7 +274,7 @@ This gives a single declarative infrastructure source (Terraform), a single CI/C
 
 - OpenClaw runs correctly on AKS with `gateway.bind=lan` and the official security context (UID 1000, `readOnlyRootFilesystem`, drop ALL capabilities)
 - Azure AI Foundry is the selected LLM platform; the endpoint is shared across all instances
-- DNS for each instance hostname (`{inst}.{dev-domain}`, `{inst}.{prod-domain}`) is managed by the operator and points to the AKS Gateway LoadBalancer IP (all instance hostnames resolve to the same IP)
+- DNS for `{inst}-paa-dev.acmeadventure.ca` and `{inst}-paa.acmeadventure.ca` is managed by the operator and points to the AKS Gateway LoadBalancer IP (all instance hostnames resolve to the same IP)
 - Terraform remains the source of truth for Azure resource state; `openclaw_instances` is the single authoritative list of deployed instances
 - ArgoCD remains the source of truth for Kubernetes application state
 - The central tfvars file in Azure Blob Storage is the authoritative source for all non-secret Terraform inputs; it must be updated before adding or removing instances

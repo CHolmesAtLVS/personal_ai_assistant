@@ -66,4 +66,29 @@ else
   echo "BOOTSTRAP-STATE:CONTAINER_CREATED ${TFSTATE_CONTAINER}"
 fi
 
+# Grant the CI service principal Storage Blob Data Reader on the tfstate storage
+# account so it can download central tfvars with --auth-mode login.
+# Skipped when AZURE_CLIENT_ID is unset (local dev runs without a service principal).
+if [[ -n "${AZURE_CLIENT_ID:-}" ]]; then
+  SA_RESOURCE_ID="$(az storage account show \
+    --name "${TFSTATE_STORAGE_ACCOUNT}" \
+    --resource-group "${TFSTATE_RG}" \
+    --query id -o tsv)"
+  SP_OBJECT_ID="$(az ad sp show --id "${AZURE_CLIENT_ID}" --query id -o tsv)"
+  if az role assignment list \
+    --assignee "${SP_OBJECT_ID}" \
+    --role "Storage Blob Data Reader" \
+    --scope "${SA_RESOURCE_ID}" \
+    --query "[0].id" -o tsv 2>/dev/null | grep -q .; then
+    echo "BOOTSTRAP-STATE:SP_ROLE_EXISTS Storage Blob Data Reader on ${TFSTATE_STORAGE_ACCOUNT}"
+  else
+    az role assignment create \
+      --assignee "${SP_OBJECT_ID}" \
+      --role "Storage Blob Data Reader" \
+      --scope "${SA_RESOURCE_ID}" \
+      --output none
+    echo "BOOTSTRAP-STATE:SP_ROLE_CREATED Storage Blob Data Reader on ${TFSTATE_STORAGE_ACCOUNT}"
+  fi
+fi
+
 echo "BOOTSTRAP-STATE:DONE"

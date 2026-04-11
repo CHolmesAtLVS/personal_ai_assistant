@@ -1,26 +1,41 @@
 #!/usr/bin/env bash
-# seed-openclaw-aks.sh — Apply OpenClaw bootstrap manifests to AKS via envsubst before ArgoCD sync.
+# seed-openclaw-aks.sh — Seed one OpenClaw instance on AKS before ArgoCD sync.
 #
-# Applies all YAML files in workloads/<env>/openclaw/bootstrap/ after substituting
-# ${VAR} placeholders using environment variables. Must be run before applying the
-# ArgoCD Application (TASK-020) so the SecretProviderClass, SA, and ConfigMap
-# exist before the first pod start.
+# Applies shared templates from workloads/templates/ via envsubst, substituting
+# instance-specific variables. Must run before ArgoCD syncs so that the
+# SecretProviderClass, ServiceAccount, ConfigMap, HTTPRoute, Certificate, and
+# PersistentVolume exist before the first pod start.
 #
 # Usage:
-#   ./scripts/seed-openclaw-aks.sh [dev|prod]
+#   ./scripts/seed-openclaw-aks.sh <dev|prod> <inst>
 #
-# Required env vars (set from GitHub Secrets + Terraform outputs in CI):
-#   OPENCLAW_MI_CLIENT_ID    — Managed Identity client ID (terraform output instance_mi_client_ids[<inst>])
-#   KEY_VAULT_NAME           — Key Vault name (terraform output kv_name)
+# Example (all dev instances, from CI):
+#   MI_IDS=$(terraform output -json instance_mi_client_ids)
+#   for inst in ch jh; do
+#     export OPENCLAW_MI_CLIENT_ID
+#     OPENCLAW_MI_CLIENT_ID=$(echo "${MI_IDS}" | jq -r ".${inst}")
+#     ./scripts/seed-openclaw-aks.sh dev "${inst}"
+#   done
+#
+# Required env vars:
+#   OPENCLAW_MI_CLIENT_ID    — instance Managed Identity client ID (Terraform output)
+#   KEY_VAULT_NAME           — Key Vault name (Terraform output)
 #   AZURE_TENANT_ID          — Azure tenant ID (GitHub Secret)
-#   AZURE_OPENAI_ENDPOINT    — Azure AI Services endpoint URL (terraform output azure_openai_endpoint)
+#   AZURE_OPENAI_ENDPOINT    — Azure AI Services endpoint URL (Terraform output)
+#   NFS_STORAGE_ACCOUNT_NAME — NFS storage account name (Terraform output)
+#   RESOURCE_GROUP           — Resource group of the NFS storage account (Terraform output)
 #
-# SEC-001: Targets dev by default. Pass 'prod' explicitly and set ALLOW_PROD=true.
-# Never commit files with real substituted values.
+# Optional env vars:
+#   CERT_ISSUER  — cert-manager ClusterIssuer name (default: letsencrypt-staging)
+#   ALLOW_PROD   — must be "true" to allow prod operations (safety guard)
+#
+# SEC-001: Never commit files with real substituted values.
 
 set -euo pipefail
 
-ENV="${1:-dev}"
+ENV="${1:?ENV is required — pass 'dev' or 'prod' as first argument}"
+INST="${2:?INST is required — pass instance name as second argument (e.g. ch, jh, kjm)}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
@@ -29,7 +44,6 @@ if [[ "${ENV}" != "dev" && "${ENV}" != "prod" ]]; then
   exit 1
 fi
 
-# Safety guard — require explicit opt-in for production
 if [[ "${ENV}" == "prod" ]]; then
   if [[ "${ALLOW_PROD:-}" != "true" ]]; then
     echo "ERROR: Production deploy requires ALLOW_PROD=true to be set explicitly." >&2
@@ -41,45 +55,52 @@ fi
 : "${KEY_VAULT_NAME:?KEY_VAULT_NAME must be set}"
 : "${AZURE_TENANT_ID:?AZURE_TENANT_ID must be set}"
 : "${AZURE_OPENAI_ENDPOINT:?AZURE_OPENAI_ENDPOINT must be set}"
+: "${NFS_STORAGE_ACCOUNT_NAME:?NFS_STORAGE_ACCOUNT_NAME must be set}"
+: "${RESOURCE_GROUP:?RESOURCE_GROUP must be set}"
 
-CRD_DIR="${REPO_ROOT}/workloads/${ENV}/openclaw/bootstrap"
+# Compute instance-specific variables
+case "${ENV}" in
+  dev)  BASE_DOMAIN="paa-dev.acmeadventure.ca" ;;
+  prod) BASE_DOMAIN="paa.acmeadventure.ca" ;;
+esac
 
-if [[ ! -d "${CRD_DIR}" ]]; then
-  echo "ERROR: Bootstrap directory not found: ${CRD_DIR}" >&2
-  exit 1
-fi
+export INST
+export ENV
+export INST_FQDN="${INST}.${BASE_DOMAIN}"
+export CERT_SECRET_NAME="${INST}-${ENV}-tls"
+export CERT_ISSUER="${CERT_ISSUER:-letsencrypt-staging}"
 
-YAML_FILES=("${CRD_DIR}"/*.yaml)
-if [[ ! -e "${YAML_FILES[0]}" ]]; then
-  echo "No YAML files found in ${CRD_DIR}. Nothing to apply." >&2
-  exit 0
-fi
+BOOTSTRAP_TMPL="${REPO_ROOT}/workloads/templates/bootstrap"
+CRDS_TMPL="${REPO_ROOT}/workloads/templates/crds"
+NAMESPACE="openclaw-${INST}"
 
-echo "Ensuring namespace 'openclaw' exists for environment: ${ENV}"
-kubectl create namespace openclaw --dry-run=client -o yaml | kubectl apply -f -
+echo "Seeding instance '${INST}' in environment '${ENV}' (namespace: ${NAMESPACE})"
 
-echo "Applying OpenClaw bootstrap manifests for environment: ${ENV}"
-for f in "${YAML_FILES[@]}"; do
+echo "Ensuring namespace '${NAMESPACE}' exists..."
+kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+
+echo "Applying bootstrap templates..."
+for f in "${BOOTSTRAP_TMPL}"/*.yaml; do
   echo "  Applying: $(basename "${f}")"
   envsubst < "${f}" | kubectl apply -f -
 done
 
-echo "Done. Bootstrap manifests applied to AKS for environment: ${ENV}."
+echo "Applying CRD templates..."
+for f in "${CRDS_TMPL}"/*.yaml; do
+  echo "  Applying: $(basename "${f}")"
+  envsubst < "${f}" | kubectl apply -f -
+done
 
-# TASK-020: Apply ArgoCD Application manifest for the target environment.
-# This must run after bootstrap/ manifests are applied so bootstrap resources
-# (SecretProviderClass, ServiceAccount, ConfigMap) exist before the first pod
-# start triggered by ArgoCD sync.
-ARGOCD_APP="${REPO_ROOT}/argocd/apps/${ENV}-openclaw.yaml"
+ARGOCD_APP="${REPO_ROOT}/argocd/apps/${ENV}-openclaw-${INST}.yaml"
 if [[ ! -f "${ARGOCD_APP}" ]]; then
   echo "ERROR: ArgoCD Application manifest not found: ${ARGOCD_APP}" >&2
   exit 1
 fi
 
-echo "Applying ArgoCD Application for environment: ${ENV}"
+echo "Applying ArgoCD Application: ${INST}-openclaw-${ENV}..."
 kubectl apply -f "${ARGOCD_APP}"
 
-echo "Waiting for ArgoCD Application openclaw-${ENV} to sync (timeout 300s)..."
-argocd app wait "openclaw-${ENV}" --sync --timeout 300
+echo "Waiting for ArgoCD Application to sync (timeout 300s)..."
+argocd app wait "${INST}-openclaw-${ENV}" --sync --timeout 300
 
-echo "ArgoCD Application openclaw-${ENV} is synced."
+echo "Done. Instance '${INST}' seeded successfully."

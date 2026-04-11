@@ -1,3 +1,5 @@
+# DEPRECATED — retained during multi-instance migration (SUB-005 TASK-014).
+# Remove after ch-openclaw-prod is confirmed healthy and the openclaw namespace is decommissioned.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

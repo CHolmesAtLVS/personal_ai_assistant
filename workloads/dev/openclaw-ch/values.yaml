@@ -1,0 +1,118 @@
+# Umbrella chart values for OpenClaw dev environment — instance ch.
+# All values nested under the 'openclaw:' key (umbrella chart dependency convention).
+#
+# This file embeds ${VAR} placeholders resolved by OpenClaw at runtime from
+# container environment variables injected via openclaw-env-secret and
+# openclaw-env-config. Additional environment-specific Kubernetes resources are
+# applied from bootstrap/ manifests before ArgoCD sync:
+#   bootstrap/serviceaccount.yaml      — SA with ${OPENCLAW_MI_CLIENT_ID} annotation
+#   bootstrap/configmap.yaml           — ${AZURE_OPENAI_ENDPOINT}
+#   bootstrap/secretproviderclass.yaml — Key Vault wiring
+
+openclaw:
+  app-template:
+    # Image version — pinned, never 'latest' (REQ-001).
+    openclawVersion: "2026.4.8"
+
+    # Config mode: merge preserves paired devices and UI changes across pod restarts.
+    # Pair with ArgoCD ignoreDifferences on the openclaw ConfigMap.
+    configMode: merge
+
+    configMaps:
+      config:
+        data:
+          openclaw.json: |
+            {
+              "gateway": {
+                "mode": "local",
+                "port": 18789,
+                "bind": "lan",
+                "auth": {
+                  "mode": "token",
+                  "token": "${OPENCLAW_GATEWAY_TOKEN}"
+                },
+                "trustedProxies": []
+              },
+              "agents": {
+                "defaults": {
+                  "model": {
+                    "primary": "azure-openai/gpt-5.4-mini"
+                  }
+                }
+              },
+              "models": {
+                "providers": {
+                  "azure-openai": {
+                    "baseUrl": "${AZURE_OPENAI_ENDPOINT}/openai/deployments/gpt-5.4-mini",
+                    "apiKey": "${AZURE_AI_API_KEY}",
+                    "api": "openai-completions",
+                    "models": [
+                      {
+                        "id": "gpt-5.4-mini",
+                        "name": "GPT-5.4 Mini (Azure)",
+                        "contextWindow": 128000,
+                        "maxTokens": 16384
+                      }
+                    ]
+                  }
+                }
+              },
+              "update": {
+                "checkOnStart": false
+              },
+              "tools": {
+                "profile": "full"
+              }
+            }
+
+    defaultPodOptions:
+      labels:
+        azure.workload.identity/use: "true"
+
+    controllers:
+      main:
+        serviceAccount:
+          name: openclaw
+        containers:
+          main:
+            image:
+              repository: ghcr.io/openclaw/openclaw
+              tag: "2026.4.8"
+            envFrom:
+              - secretRef:
+                  name: openclaw-env-secret
+              - configMapRef:
+                  name: openclaw-env-config
+            env:
+              APP_FQDN: "https://ch.paa-dev.acmeadventure.ca"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
+    networkpolicies:
+      main:
+        enabled: true
+
+    persistence:
+      data:
+        accessMode: ReadWriteOnce
+        size: 10Gi
+        storageClass: managed-csi-premium
+
+      secrets:
+        type: custom
+        volumeSpec:
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: openclaw-kv
+        advancedMounts:
+          main:
+            main:
+              - path: /mnt/secrets-store
+                readOnly: true

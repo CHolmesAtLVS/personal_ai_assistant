@@ -1,0 +1,11 @@
+apiVersion: v2
+name: openclaw-kjm
+description: OpenClaw umbrella chart for prod — instance kjm
+type: application
+version: 1.0.0
+appVersion: "2026.4.8"
+
+dependencies:
+  - name: openclaw
+    version: 1.5.14
+    repository: https://serhanekicii.github.io/openclaw-helm

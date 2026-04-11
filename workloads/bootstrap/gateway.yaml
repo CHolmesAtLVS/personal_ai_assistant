@@ -4,25 +4,27 @@
 # Applied by the bootstrap CI job after NGINX Gateway Fabric is ready.
 #
 # Listeners:
-#   http       — port 80, all namespaces.  Used for HTTP-01 ACME challenges and
-#                HTTP→HTTPS redirects (handled by HTTPRoute resources in openclaw ns).
-#   https-dev  — port 443, hostname paa-dev.acmeadventure.ca. TLS terminated.
-#   https-prod — port 443, hostname paa.acmeadventure.ca. TLS terminated.
+#   http              — port 80, all namespaces. Used for HTTP-01 ACME challenges and
+#                       HTTP→HTTPS redirects (handled by HTTPRoute resources in openclaw-* ns).
+#   https-ch-dev      — port 443, hostname ch.paa-dev.acmeadventure.ca. TLS terminated.
+#   https-jh-dev      — port 443, hostname jh.paa-dev.acmeadventure.ca. TLS terminated.
+#   https-ch-prod     — port 443, hostname ch.paa.acmeadventure.ca. TLS terminated.
+#   https-jh-prod     — port 443, hostname jh.paa.acmeadventure.ca. TLS terminated.
+#   https-kjm-prod    — port 443, hostname kjm.paa.acmeadventure.ca. TLS terminated.
 #
-# cert-manager annotation: cert-manager watches this Gateway and issues a Certificate
-# for each HTTPS listener's hostname, storing it in the named certificateRefs secret.
-# Both environments use letsencrypt-staging until certificates are confirmed stable;
-# then update the annotation to letsencrypt-prod and re-apply.
-# Switch command:
-#   kubectl annotate gateway main-gateway -n gateway-system \
-#     cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite
+# Legacy listeners (https-dev, https-prod) are retained temporarily during migration.
+# Remove after per-instance routes are confirmed healthy (SUB-006 validation complete).
 #
-# HTTPRoutes in the openclaw namespace use sectionName to target the correct listener:
-#   sectionName: http       — for HTTP-01 ACME challenges and HTTP→HTTPS redirects
-#   sectionName: https-dev  — for dev HTTPS traffic
-#   sectionName: https-prod — for prod HTTPS traffic
+# cert-manager: explicit Certificate resources in each instance's bootstrap/certificate.yaml
+# trigger issuance (gateway-shim is not enabled). All new instance certs use
+# letsencrypt-staging until confirmed READY, then switch to letsencrypt-prod.
 #
-# No envsubst required — cert secret names are static.
+# HTTPRoutes in openclaw-{inst} namespaces use sectionName to target the correct listener:
+#   sectionName: http             — HTTP-01 ACME challenges and HTTP→HTTPS redirects
+#   sectionName: https-{inst}-dev — dev HTTPS traffic for that instance
+#   sectionName: https-{inst}-prod — prod HTTPS traffic for that instance
+#
+# No envsubst required — cert secret names and hostnames are static.
 #
 # REQ-003: GatewayClass named "nginx"  (created by NGINX Gateway Fabric)
 # REQ-007: Gateway in namespace gateway-system, ports 80 and 443
@@ -33,8 +35,8 @@ metadata:
   name: main-gateway
   namespace: gateway-system
   annotations:
-    # Use letsencrypt-staging for both environments until certificates are confirmed stable.
-    # Update to letsencrypt-prod once staging certs are READY (TASK-015).
+    # cert-manager annotation retained for legacy listener compatibility.
+    # New instance certificates are managed via explicit Certificate resources.
     cert-manager.io/cluster-issuer: letsencrypt-staging
 spec:
   gatewayClassName: nginx
@@ -46,6 +48,7 @@ spec:
         namespaces:
           from: All
 
+    # --- Legacy listeners — retained during migration; remove after SUB-006 validation ---
     - name: https-dev
       protocol: HTTPS
       port: 443
@@ -72,4 +75,76 @@ spec:
         certificateRefs:
           - kind: Secret
             name: paa-prod-tls
+            namespace: gateway-system
+
+    # --- Per-instance dev listeners ---
+    - name: https-ch-dev
+      protocol: HTTPS
+      port: 443
+      hostname: ch.paa-dev.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: ch-dev-tls
+            namespace: gateway-system
+
+    - name: https-jh-dev
+      protocol: HTTPS
+      port: 443
+      hostname: jh.paa-dev.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: jh-dev-tls
+            namespace: gateway-system
+
+    # --- Per-instance prod listeners ---
+    - name: https-ch-prod
+      protocol: HTTPS
+      port: 443
+      hostname: ch.paa.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: ch-prod-tls
+            namespace: gateway-system
+
+    - name: https-jh-prod
+      protocol: HTTPS
+      port: 443
+      hostname: jh.paa.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: jh-prod-tls
+            namespace: gateway-system
+
+    - name: https-kjm-prod
+      protocol: HTTPS
+      port: 443
+      hostname: kjm.paa.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: kjm-prod-tls
             namespace: gateway-system

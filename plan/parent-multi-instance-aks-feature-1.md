@@ -11,18 +11,18 @@ tags: [feature, architecture, aks, multi-instance, terraform, gitops]
 
 ![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
-This initiative extends the OpenClaw AKS deployment to support **multiple isolated instances** on a shared cluster. Each instance serves a named individual (`ch`, `jh`, `kjm`) in their own Kubernetes namespace with dedicated persistent storage, managed identity, gateway token, and DNS name. All instances share the AKS cluster, AI Services endpoint, Key Vault container, and Log Analytics workspace to keep infrastructure costs proportional to active usage.
+This initiative extends the OpenClaw AKS deployment to support **multiple isolated instances** on a shared cluster. Each instance serves a named individual (`ch`, `jh`, `kjm`) in their own Kubernetes namespace with dedicated persistent storage, managed identity, gateway token, and ingress hostname. All instances share the AKS cluster, AI Services endpoint, Key Vault container, and Log Analytics workspace to keep infrastructure costs proportional to active usage.
 
 **Validation targets:**
-- Dev: 2 instances — `ch`, `jh` → `ch-paa-dev.acmeadventure.ca`, `jh-paa-dev.acmeadventure.ca`
-- Prod: 3 instances — `ch`, `jh`, `kjm` → `ch-paa.acmeadventure.ca`, `jh-paa.acmeadventure.ca`, `kjm-paa.acmeadventure.ca`
+- Dev: 2 instances — `ch`, `jh` → `ch.{dev-domain}`, `jh.{dev-domain}`
+- Prod: 3 instances — `ch`, `jh`, `kjm` → `ch.{prod-domain}`, `jh.{prod-domain}`, `kjm.{prod-domain}`
 
 **Supporting change:** Non-sensitive Terraform inputs move from GitHub Secrets/Variables to a central `.auto.tfvars` file stored in Azure Blob Storage alongside the Terraform state, significantly reducing the GitHub Secrets surface.
 
 ## 1. Requirements & Constraints
 
 - **REQ-001**: Each instance must be isolated at the namespace, storage, identity, and secret levels; one instance pod cannot reach another instance's secrets or data.
-- **REQ-002**: DNS pattern: `{instance}-paa-dev.acmeadventure.ca` (dev), `{instance}-paa.acmeadventure.ca` (prod). Instance names are 2–3 lowercase letters.
+- **REQ-002**: DNS pattern: `{instance}.{dev-domain}` (dev), `{instance}.{prod-domain}` (prod). Instance names are 2–3 lowercase letters.
 - **REQ-003**: The authoritative instance list per environment lives in the central tfvars file in Azure Blob Storage. Adding an instance = one-line change + Terraform apply.
 - **REQ-004**: AKS resource efficiency — all instances share one 2-node cluster; pod resource requests must be sized to fit safely on `Standard_B2s` nodes.
 - **REQ-005**: GitHub Secrets must be reduced to credentials and true secrets only (≤ 11 entries per environment).
@@ -40,7 +40,7 @@ This initiative extends the OpenClaw AKS deployment to support **multiple isolat
 | ID      | Subplan File | Goal | Status |
 | ------- | ------------ | ---- | ------ |
 | SUB-001 | [sub-001-multi-instance-docs-feature-1.md](../plan/sub-001-multi-instance-docs-feature-1.md) | Update PRODUCT.md and ARCHITECTURE.md | Completed |
-| SUB-002 | [sub-002-multi-instance-tfvars-feature-1.md](../plan/sub-002-multi-instance-tfvars-feature-1.md) | Central tfvars in Blob Storage; reduce GitHub Secrets; update CI and terraform-local.sh | Planned |
+| SUB-002 | [sub-002-multi-instance-tfvars-feature-1.md](../plan/sub-002-multi-instance-tfvars-feature-1.md) | Central tfvars in Blob Storage; reduce GitHub Secrets; update CI and terraform-local.sh | Complete |
 | SUB-003 | [sub-003-multi-instance-terraform-feature-1.md](../plan/sub-003-multi-instance-terraform-feature-1.md) | Terraform per-instance resources via `for_each`; `openclaw_instances` variable | Planned |
 | SUB-004 | [sub-004-multi-instance-gateway-feature-1.md](../plan/sub-004-multi-instance-gateway-feature-1.md) | Gateway per-instance HTTPS listeners, HTTPRoutes, TLS certificates | Planned |
 | SUB-005 | [sub-005-multi-instance-workloads-feature-1.md](../plan/sub-005-multi-instance-workloads-feature-1.md) | Per-instance workloads directory, Helm values, ArgoCD apps, bootstrap manifests | Planned |

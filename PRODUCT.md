@@ -14,8 +14,8 @@ Instance names are short alphabetic identifiers (2–3 letters, e.g. `ch`, `jh`,
 
 | Environment | DNS pattern | Example |
 |---|---|---|
-| Production | `{instance}-paa.acmeadventure.ca` | `ch-paa.acmeadventure.ca` |
-| Dev | `{instance}-paa-dev.acmeadventure.ca` | `ch-paa-dev.acmeadventure.ca` |
+| Production | `{instance}.{prod-domain}` | `ch.{prod-domain}` |
+| Dev | `{instance}.{dev-domain}` | `ch.{dev-domain}` |
 
 The authoritative list of deployed instances per environment is stored in the central Terraform variables file (see [ARCHITECTURE.md](ARCHITECTURE.md)). Adding a new instance is a one-line change to that file.
 
@@ -145,7 +145,7 @@ Both mechanisms will operate without stopping the assistant.
 
 ### User Configuration (post-deploy)
 
-7. Access the OpenClaw web UI from `https://{instance}-paa.acmeadventure.ca` (or `https://{instance}-paa-dev.acmeadventure.ca` for dev).
+7. Access the OpenClaw web UI from `https://{instance}.{prod-domain}` (or `https://{instance}.{dev-domain}` for dev).
 8. Add messaging channels, custom agent personas, skills, and tool integrations.
 9. Most changes take effect immediately; no restart required.
 

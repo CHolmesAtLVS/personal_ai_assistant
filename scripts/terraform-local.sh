@@ -121,7 +121,7 @@ if ! az storage blob download \
     --container-name "${TFSTATE_CONTAINER}" \
     --name "tfvars/${ENV}.auto.tfvars" \
     --file "${TF_DIR}/${ENV}.auto.tfvars" \
-    --auth-mode login \
+    --auth-mode key \
     --output none 2>/dev/null; then
   echo "ERROR: central tfvars blob not found: tfvars/${ENV}.auto.tfvars"
   echo "Create it with: az storage blob upload --account-name '${TFSTATE_STORAGE_ACCOUNT}' --container-name '${TFSTATE_CONTAINER}' --name 'tfvars/${ENV}.auto.tfvars' --file /tmp/${ENV}.auto.tfvars --auth-mode login"

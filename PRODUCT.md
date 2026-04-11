@@ -6,17 +6,31 @@ OpenClaw is a personal AI assistant — an autonomous agent that connects to you
 
 The design goal is a **deploy-first, configure-after** baseline: everything needed to run OpenClaw is provisioned and configured automatically so it is functional on first boot. From that point, you personalize the assistant — adding communication channels, custom agent personas, skills, and integrations — while OpenClaw accumulates its own persistent state over time.
 
-## Primary User and Access Model
+## Multi-Instance Model
 
-### Primary User
+OpenClaw supports deploying multiple independent instances on a shared AKS cluster. Each instance belongs to a named individual and is fully isolated in its own Kubernetes namespace, with its own persistent storage, gateway token, and managed identity. All instances share the underlying AKS cluster, AI Services endpoint, and Log Analytics workspace, which keeps infrastructure costs proportional to active usage.
 
-- The home user who operates OpenClaw from an approved public IP address
+Instance names are short alphabetic identifiers (2–3 letters, e.g. `ch`, `jh`, `kjm`) assigned per individual. The full DNS name is formed by prepending the instance name to the environment base domain.
+
+| Environment | DNS pattern | Example |
+|---|---|---|
+| Production | `{instance}.{prod-domain}` | `ch.{prod-domain}` |
+| Dev | `{instance}.{dev-domain}` | `ch.{dev-domain}` |
+
+The authoritative list of deployed instances per environment is stored in the central Terraform variables file (see [ARCHITECTURE.md](ARCHITECTURE.md)). Adding a new instance is a one-line change to that file.
+
+### Per-Instance User Model
+
+- Each instance serves one named individual
+- Each individual connects only to their own instance URL from an approved shared home IP address
+- Each instance has its own gateway token; tokens are not shared across instances
+- Each individual's conversation history, device registrations, and workspace files are stored in a dedicated Azure Files NFS share and are inaccessible to other instances
 
 ### Access Constraints
 
-- The service is reachable over HTTPS at `paa-dev.acmeadventure.ca` (dev) and `paa.acmeadventure.ca` (prod)
-- Access is restricted to the user's approved home IP address
-- Gateway token authentication is required for all connections
+- All instance URLs are reachable over HTTPS only
+- Ingress IP restriction applies at the gateway (shared home IP covers all instances)
+- Gateway token authentication is required for all connections to any instance
 
 ## Baseline Definition
 
@@ -28,14 +42,13 @@ All required Azure cloud infrastructure is provisioned automatically via Terrafo
 
 ### Layer 2 — Pre-Configured Assistant Settings
 
-The assistant is pre-configured at deploy time with the minimum settings needed to connect to the AI backend and accept authenticated requests:
+Each instance is pre-configured at deploy time with the minimum settings needed to connect to the AI backend and accept authenticated requests. All instances share the same AI model endpoints but hold independent gateway tokens.
 
 | Configuration area | Baseline value |
 |---|---|
-| Authentication | Token-based; token stored in Azure Key Vault |
-| AI model provider | Azure AI Foundry |
-| Primary chat model | `grok-4-fast-reasoning` (falls back to `grok-3`) |
-| Lightweight model | `grok-3-mini` |
+| Authentication | Token-based; each instance's token stored independently in Azure Key Vault |
+| AI model provider | Azure AI Foundry (shared endpoint across all instances) |
+| Primary chat model | `gpt-5.4-mini` |
 | Tool access | Full — web, browser, filesystem, messaging, automation, canvas. Restrict specific tools post-deploy if needed. |
 | Automatic update checks | Disabled; image updates are applied deliberately via deployment |
 
@@ -123,23 +136,24 @@ Both mechanisms will operate without stopping the assistant.
 
 ### Deployment (first-time or update)
 
-1. Maintainer opens a PR with the desired change (infrastructure, image version, or configuration).
-2. CI/CD provisions or updates all Azure infrastructure and cluster platform tools automatically.
-3. ArgoCD detects the change in Git and deploys the updated assistant configuration.
-4. On first boot, the assistant loads its configuration, connects to the AI backend, and starts accepting requests.
-5. Run `openclaw doctor` to confirm everything is healthy.
+1. Maintainer opens a PR with the desired change (infrastructure, image version, configuration, or new instance).
+2. To add a new instance, add its short name to the `openclaw_instances` list in the environment's central Terraform variables file stored in Azure Blob Storage.
+3. CI/CD provisions or updates all Azure infrastructure automatically (per-instance namespaces, managed identities, NFS shares, Key Vault secrets, OIDC federation).
+4. ArgoCD detects the new or updated workload directory in Git and deploys the instance's Helm chart.
+5. On first boot, the assistant loads its configuration, connects to the AI backend, and starts accepting requests.
+6. Run `openclaw doctor` against the new instance's URL to confirm everything is healthy.
 
 ### User Configuration (post-deploy)
 
-6. Access the OpenClaw web UI from `https://paa.acmeadventure.ca`.
-7. Add messaging channels, custom agent personas, skills, and tool integrations.
-8. Most changes take effect immediately; no restart required.
+7. Access the OpenClaw web UI from `https://{instance}.{prod-domain}` (or `https://{instance}.{dev-domain}` for dev).
+8. Add messaging channels, custom agent personas, skills, and tool integrations.
+9. Most changes take effect immediately; no restart required.
 
 ### Ongoing Operation
 
-9. Interact with the assistant; conversation history, workspace files, and plugin state grow over time.
-10. Persistent state is backed up automatically (once backup is implemented).
-11. Monitor health and costs via `openclaw status` and Azure alerts.
+10. Interact with the assistant; conversation history, workspace files, and plugin state grow over time.
+11. Persistent state is isolated per instance and backed up automatically (once backup is implemented).
+12. Monitor health and costs via `openclaw status` and Azure alerts.
 
 ## Product Guardrails
 
@@ -151,7 +165,7 @@ Both mechanisms will operate without stopping the assistant.
 
 ## Near-Term Roadmap
 
-1. **ACA decommission** — remove Azure Container Apps runtime after AKS validation (dev then prod, 7-day soak). See [plan/feature-aks-decommission-1.md](plan/feature-aks-decommission-1.md). *(In Progress)*
+1. **Multi-instance AKS deployment** — per-instance isolation on a shared AKS cluster; central Terraform variables file; per-instance DNS, gateway token, NFS share, and Managed Identity. *(In Progress)*
 2. **Automated backup** — Azure Files share snapshots and Blob export scheduled via Terraform or a container sidecar.
 3. **Authentication layer** in front of OpenClaw (in addition to gateway token auth).
 4. **Image scanning** in CI pipeline.

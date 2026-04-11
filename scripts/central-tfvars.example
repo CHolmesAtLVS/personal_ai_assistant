@@ -1,0 +1,50 @@
+# central-tfvars.example — template for the central Terraform variables file stored
+# in Azure Blob Storage at: {TFSTATE_CONTAINER}/tfvars/{env}.auto.tfvars
+#
+# IMPORTANT: This file must NEVER contain secrets.
+# Do NOT include: public_ip, budget_alert_email, azure_ai_api_key, or any SP credentials.
+# Those remain in scripts/{env}.tfvars (git-ignored) and GitHub Secrets.
+#
+# To create or update the blob for an environment, write the file locally and upload:
+#   az storage blob upload \
+#     --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+#     --container-name "$TFSTATE_CONTAINER" \
+#     --name "tfvars/dev.auto.tfvars" \
+#     --file /tmp/dev.auto.tfvars \
+#     --auth-mode login \
+#     --overwrite
+#
+# Terraform picks this up automatically because the file is named *.auto.tfvars
+# and is downloaded to the terraform/ directory before each run.
+
+# ── Project identity ──────────────────────────────────────────────────────────
+project     = "<project-slug>"       # example: paa
+environment = "<env>"                 # dev | prod
+location    = "<azure-region>"        # example: eastus
+owner       = "<owner-name>"
+cost_center = "<cost-center>"
+
+# ── Primary AI model deployment ───────────────────────────────────────────────
+ai_model_name     = "gpt-5.4-mini"
+ai_model_version  = "2026-03-17"
+ai_model_capacity = 10               # tokens-per-minute capacity (thousands)
+
+# ── Embedding model deployment ────────────────────────────────────────────────
+embedding_model_name     = "text-embedding-3-large"
+embedding_model_version  = "1"
+embedding_model_capacity = 50        # tokens-per-minute capacity (thousands)
+
+# ── OpenClaw runtime ──────────────────────────────────────────────────────────
+openclaw_image_tag            = "2026.3.31"
+openclaw_state_share_quota_gb = 100  # GiB for the Azure Files share
+
+# ── Budget ────────────────────────────────────────────────────────────────────
+monthly_budget_amount = 25           # USD monthly budget cap
+
+# ── AKS cluster ───────────────────────────────────────────────────────────────
+aks_node_vm_size = "Standard_B2s"
+
+# ── OpenClaw instances ────────────────────────────────────────────────────────
+# List of instance slugs to deploy. Each slug maps to a separate OpenClaw pod.
+# Example: dev = ["ch", "jh"], prod = ["ch", "jh", "kjm"]
+openclaw_instances = ["<slug1>", "<slug2>"]

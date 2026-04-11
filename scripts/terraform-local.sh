@@ -9,8 +9,11 @@
 #
 # Setup:
 #   1. Copy scripts/dev.tfvars.example  -> scripts/dev.tfvars  and fill in values.
-#   2. Copy scripts/prod.tfvars.example -> scripts/prod.tfvars and fill in values.
-#   scripts/*.tfvars are git-ignored and must never be committed.
+#      scripts/*.tfvars are git-ignored and must never be committed.
+#   2. Ensure 'az login' is complete before running — the central tfvars file is
+#      downloaded automatically from Azure Blob Storage ({TFSTATE_CONTAINER}/tfvars/{env}.auto.tfvars)
+#      and placed at terraform/{env}.auto.tfvars for Terraform to auto-load.
+#      The file is deleted on script exit.
 #
 # Examples:
 #   ./scripts/terraform-local.sh prod plan
@@ -37,6 +40,12 @@ shift 2
 EXTRA_ARGS=("$@")
 
 VARS_FILE="${SCRIPT_DIR}/${ENV}.tfvars"
+
+# ── Cleanup trap — remove central tfvars download on exit ─────────────────────
+cleanup() {
+  rm -f "${TF_DIR}/${ENV}.auto.tfvars"
+}
+trap cleanup EXIT
 
 if [[ ! -f "${VARS_FILE}" ]]; then
   echo "ERROR: secret vars file not found: ${VARS_FILE}"
@@ -104,6 +113,29 @@ echo "LOCAL-TF: Azure auth OK (subscription: $(az account show --query id -o tsv
 echo "LOCAL-TF: bootstrapping Terraform backend..."
 chmod +x "${SCRIPT_DIR}/bootstrap-tfstate.sh"
 "${SCRIPT_DIR}/bootstrap-tfstate.sh"
+
+# ── Download central tfvars from Azure Blob Storage ───────────────────────────
+echo "LOCAL-TF: downloading central tfvars for ${ENV}..."
+AZ_BLOB_DOWNLOAD_ERROR_FILE="$(mktemp)"
+if ! az storage blob download \
+    --account-name "${TFSTATE_STORAGE_ACCOUNT}" \
+    --container-name "${TFSTATE_CONTAINER}" \
+    --name "tfvars/${ENV}.auto.tfvars" \
+    --file "${TF_DIR}/${ENV}.auto.tfvars" \
+    --auth-mode login \
+    --output none 2>"${AZ_BLOB_DOWNLOAD_ERROR_FILE}"; then
+  echo "ERROR: failed to download central tfvars blob: tfvars/${ENV}.auto.tfvars"
+  if [[ -s "${AZ_BLOB_DOWNLOAD_ERROR_FILE}" ]]; then
+    echo "Azure CLI error output:"
+    cat "${AZ_BLOB_DOWNLOAD_ERROR_FILE}"
+  fi
+  rm -f "${AZ_BLOB_DOWNLOAD_ERROR_FILE}"
+  echo "Create it with: az storage blob upload --account-name '${TFSTATE_STORAGE_ACCOUNT}' --container-name '${TFSTATE_CONTAINER}' --name 'tfvars/${ENV}.auto.tfvars' --file /tmp/${ENV}.auto.tfvars --auth-mode login"
+  echo "See scripts/central-tfvars.example for the required format."
+  exit 1
+fi
+rm -f "${AZ_BLOB_DOWNLOAD_ERROR_FILE}"
+echo "LOCAL-TF: central tfvars downloaded OK"
 
 # ── Terraform init ─────────────────────────────────────────────────────────────
 echo "LOCAL-TF: running terraform init..."

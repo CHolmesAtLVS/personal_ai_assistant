@@ -53,21 +53,8 @@ jobs:
       TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
       TFSTATE_KEY: terraform-dev.tfstate
       TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
-      TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
-      TF_VAR_environment: dev
-      TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
-      TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
-      TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.4-mini' }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2026-03-17' }}
-      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
-      TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
-      TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
-      TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
-      TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
-      TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
-      TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
+      ENVIRONMENT: dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -92,6 +79,18 @@ jobs:
         run: |
           chmod +x scripts/bootstrap-tfstate.sh
           ./scripts/bootstrap-tfstate.sh
+
+      - name: Download central tfvars
+        shell: bash
+        run: |
+          az storage blob download \
+            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+            --container-name "$TFSTATE_CONTAINER" \
+            --name "tfvars/${ENVIRONMENT}.auto.tfvars" \
+            --file "terraform/${ENVIRONMENT}.auto.tfvars" \
+            --auth-mode login \
+            --output none
+          echo "CI: central tfvars downloaded for ${ENVIRONMENT}"
 
       - name: Terraform Fmt
         run: terraform -chdir=terraform fmt -check -recursive
@@ -137,21 +136,8 @@ jobs:
       TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
       TFSTATE_KEY: terraform-prod.tfstate
       TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
-      TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
-      TF_VAR_environment: prod
-      TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
-      TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
-      TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.4-mini' }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2026-03-17' }}
-      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
-      TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
-      TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
-      TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
-      TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
-      TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
-      TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
+      ENVIRONMENT: prod
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -176,6 +162,18 @@ jobs:
         run: |
           chmod +x scripts/bootstrap-tfstate.sh
           ./scripts/bootstrap-tfstate.sh
+
+      - name: Download central tfvars
+        shell: bash
+        run: |
+          az storage blob download \
+            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+            --container-name "$TFSTATE_CONTAINER" \
+            --name "tfvars/${ENVIRONMENT}.auto.tfvars" \
+            --file "terraform/${ENVIRONMENT}.auto.tfvars" \
+            --auth-mode login \
+            --output none
+          echo "CI: central tfvars downloaded for ${ENVIRONMENT}"
 
       - name: Terraform Fmt
         run: terraform -chdir=terraform fmt -check -recursive
@@ -217,21 +215,8 @@ jobs:
       TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
       TFSTATE_KEY: terraform-prod.tfstate
       TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
-      TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
-      TF_VAR_environment: prod
-      TF_VAR_location: ${{ vars.TF_VAR_LOCATION }}
-      TF_VAR_owner: ${{ vars.TF_VAR_OWNER }}
-      TF_VAR_cost_center: ${{ vars.TF_VAR_COST_CENTER }}
-      TF_VAR_ai_model_name: ${{ vars.TF_VAR_AI_MODEL_NAME || 'gpt-5.4-mini' }}
-      TF_VAR_ai_model_version: ${{ vars.TF_VAR_AI_MODEL_VERSION || '2026-03-17' }}
-      TF_VAR_ai_model_capacity: ${{ vars.TF_VAR_AI_MODEL_CAPACITY || '10' }}
-      TF_VAR_openclaw_image_tag: ${{ vars.TF_VAR_OPENCLAW_IMAGE_TAG || '2026.3.31' }}
-      TF_VAR_openclaw_state_share_quota_gb: ${{ vars.TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB || '100' }}
-      TF_VAR_monthly_budget_amount: ${{ vars.TF_VAR_MONTHLY_BUDGET_AMOUNT || '25' }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
-      TF_VAR_embedding_model_name: ${{ vars.TF_VAR_EMBEDDING_MODEL_NAME || 'text-embedding-3-large' }}
-      TF_VAR_embedding_model_version: ${{ vars.TF_VAR_EMBEDDING_MODEL_VERSION || '1' }}
-      TF_VAR_embedding_model_capacity: ${{ vars.TF_VAR_EMBEDDING_MODEL_CAPACITY || '50' }}
+      ENVIRONMENT: prod
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -256,6 +241,18 @@ jobs:
         run: |
           chmod +x scripts/bootstrap-tfstate.sh
           ./scripts/bootstrap-tfstate.sh
+
+      - name: Download central tfvars
+        shell: bash
+        run: |
+          az storage blob download \
+            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+            --container-name "$TFSTATE_CONTAINER" \
+            --name "tfvars/${ENVIRONMENT}.auto.tfvars" \
+            --file "terraform/${ENVIRONMENT}.auto.tfvars" \
+            --auth-mode login \
+            --output none
+          echo "CI: central tfvars downloaded for ${ENVIRONMENT}"
 
       - name: Terraform Fmt
         run: terraform -chdir=terraform fmt -check -recursive

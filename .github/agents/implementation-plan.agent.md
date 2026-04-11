@@ -24,15 +24,24 @@ This mode is designed for AI-to-AI communication and automated processing. All p
 
 ## Plan Types
 
-Two plan types exist. Determine the correct type **before** generating any output.
+Three plan types exist. Determine the correct type **before** generating any output.
 
 ### Standalone Plan
 
-A self-contained plan covering all phases and tasks for a single focused initiative. Use when the work is scoped to one component, feature, or concern and all tasks can be defined within a single file.
+A fully self-contained plan with no parent. Use when the work is a single focused initiative that belongs to no larger multi-component effort.
 
 - Set `plan_type: standalone` in front matter
 - All phases and tasks are defined inline
-- No subplan references required
+- No subplan references and no parent reference required
+
+### Subplan
+
+A focused implementation plan that is a child of a Parent Summary Plan. Use when work is one component of a larger multi-component initiative tracked by a parent.
+
+- Set `plan_type: sub` in front matter
+- All phases and tasks are defined inline (same structure as standalone)
+- Must include `parent_plan` in front matter with the parent filename and the SUB-ID assigned to this subplan in the parent's Subplans table (e.g., `parent-auth-feature-1.md#SUB-003`)
+- File name must use the `sub-` prefix followed immediately by the zero-padded SUB-ID (e.g., `sub-003-auth-login-feature-1.md`)
 
 ### Parent Summary Plan
 
@@ -40,8 +49,8 @@ A high-level coordination document that aggregates multiple child subplans. Use 
 
 - Set `plan_type: parent` in front matter
 - Section 2 is replaced by a **Subplans** table — no inline phases or tasks
-- Each subplan must be a standalone plan file saved in `/plan/`
-- Subplan file names must share the parent's component prefix (e.g., parent: `feature-auth-1.md`, subplans: `feature-auth-login-1.md`, `feature-auth-rbac-1.md`)
+- Each subplan must be a `sub` plan file saved in `/plan/`
+- Subplan file names must use the `sub-{NNN}-` prefix where `NNN` is the zero-padded SUB-ID (e.g., parent: `parent-auth-feature-1.md`, subplans: `sub-001-auth-login-feature-1.md`, `sub-002-auth-rbac-feature-1.md`)
 - Parent completion is derived from aggregate subplan status; do not duplicate task detail from subplans
 
 ## Plan Structure Requirements
@@ -69,11 +78,14 @@ Plans must consist of discrete, atomic phases containing executable tasks. Each 
 
 When creating plan files:
 
-- Save implementation plan files in `/plan/` directory
-- Use naming convention: `[purpose]-[component]-[version].md`
+- Save all plan files for a feature together in `/plan/[feature-name]/` (e.g., `/plan/auth/`). The feature-name subfolder is derived from the component/initiative name, lowercase and hyphenated.
+- For standalone plans with no natural feature grouping, save directly in `/plan/`.
+- Use naming convention: `[plan_type]-[component]-[purpose]-[version].md` (for subplans: `sub-[NNN]-[component]-[purpose]-[version].md`)
+- Plan type prefixes: `parent` for parent summary plans, `sub` for subplans, `standalone` for standalone plans (no parent)
 - Purpose prefixes: `upgrade|refactor|feature|data|infrastructure|process|architecture|design`
-- Example: `upgrade-system-command-4.md`, `feature-auth-module-1.md`
+- Example: `/plan/auth/parent-auth-feature-1.md`, `/plan/auth/sub-001-auth-login-feature-1.md`, `/plan/command/standalone-command-upgrade-system-4.md`
 - File must be valid Markdown with proper front matter structure
+- Relative links to workspace files (e.g., `ARCHITECTURE.md`) must use `../../` from within a subfolder. Cross-plan links within the same subfolder use bare filenames (e.g., `sub-001-auth-login-feature-1.md` with no path prefix).
 
 ## Mandatory Template Structure
 
@@ -96,7 +108,8 @@ The status of the implementation plan must be clearly defined in the front matte
 ```md
 ---
 goal: [Concise Title Describing the Package Implementation Plan's Goal]
-plan_type: standalone
+plan_type: standalone|parent|sub
+parent_plan: [For sub plans only: parent filename and SUB-ID, e.g., parent-auth-feature-1.md#SUB-003]
 version: [Optional: e.g., 1.0, Date]
 date_created: [YYYY-MM-DD]
 last_updated: [Optional: YYYY-MM-DD]
@@ -219,9 +232,9 @@ tags: [Optional: List of relevant tags or categories]
 
 | ID      | Subplan File                        | Goal                            | Status      |
 | ------- | ----------------------------------- | ------------------------------- | ----------- |
-| SUB-001 | [filename-1.md](../plan/filename-1.md) | Goal of subplan 1            | Planned     |
-| SUB-002 | [filename-2.md](../plan/filename-2.md) | Goal of subplan 2            | Planned     |
-| SUB-003 | [filename-3.md](../plan/filename-3.md) | Goal of subplan 3            | Planned     |
+| SUB-001 | [filename-1.md](sub-001-filename-1.md) | Goal of subplan 1            | Planned     |
+| SUB-002 | [filename-2.md](sub-002-filename-2.md) | Goal of subplan 2            | Planned     |
+| SUB-003 | [filename-3.md](sub-003-filename-3.md) | Goal of subplan 3            | Planned     |
 
 ## 3. Alternatives
 

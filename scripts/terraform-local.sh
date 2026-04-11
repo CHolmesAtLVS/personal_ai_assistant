@@ -122,7 +122,7 @@ if ! az storage blob download \
     --container-name "${TFSTATE_CONTAINER}" \
     --name "tfvars/${ENV}.auto.tfvars" \
     --file "${TF_DIR}/${ENV}.auto.tfvars" \
-    --auth-mode key \
+    --auth-mode login \
     --output none 2>"${AZ_BLOB_DOWNLOAD_ERROR_FILE}"; then
   echo "ERROR: failed to download central tfvars blob: tfvars/${ENV}.auto.tfvars"
   if [[ -s "${AZ_BLOB_DOWNLOAD_ERROR_FILE}" ]]; then
@@ -130,7 +130,7 @@ if ! az storage blob download \
     cat "${AZ_BLOB_DOWNLOAD_ERROR_FILE}"
   fi
   rm -f "${AZ_BLOB_DOWNLOAD_ERROR_FILE}"
-  echo "Create it with: az storage blob upload --account-name '${TFSTATE_STORAGE_ACCOUNT}' --container-name '${TFSTATE_CONTAINER}' --name 'tfvars/${ENV}.auto.tfvars' --file /tmp/${ENV}.auto.tfvars --auth-mode key"
+  echo "Create it with: az storage blob upload --account-name '${TFSTATE_STORAGE_ACCOUNT}' --container-name '${TFSTATE_CONTAINER}' --name 'tfvars/${ENV}.auto.tfvars' --file /tmp/${ENV}.auto.tfvars --auth-mode login"
   echo "See scripts/central-tfvars.example for the required format."
   exit 1
 fi

@@ -54,7 +54,6 @@ Only true credentials and sensitive values are stored in GitHub Secrets. All non
 | `TFSTATE_LOCATION` | Backend bootstrap | Yes — needed before tfvars available |
 | `PUBLIC_IP` | Ingress IP restriction; CI exports it to Terraform as `TF_VAR_public_ip` | Yes — sensitive |
 | `BUDGET_ALERT_EMAIL` | Cost alert delivery | Yes — sensitive |
-| `TF_VAR_AZURE_AI_API_KEY` | AI API key bootstrap | Yes — true secret |
 
 All other previously-stored variables (`TF_VAR_PROJECT`, `TF_VAR_LOCATION`, `TF_VAR_OWNER`, `TF_VAR_COST_CENTER`, model names and versions, image tag, quota, budget amount, `TF_VAR_OPENCLAW_INSTANCES`) are stored in the central tfvars file and no longer appear in GitHub Secrets or GitHub Variables.
 
@@ -143,12 +142,12 @@ Non-sensitive Terraform input variables are stored in an `.auto.tfvars` file in 
 
 The file contains all non-secret variables: `project`, `environment`, `location`, `owner`, `cost_center`, model names/versions/capacities, `openclaw_image_tag`, `openclaw_state_share_quota_gb`, `monthly_budget_amount`, and `openclaw_instances`. CI downloads the file using the Terraform state storage account credentials already available in GitHub Secrets and places it at `terraform/{env}.auto.tfvars` before running Terraform commands.
 
-`scripts/terraform-local.sh` downloads the central tfvars file from Blob Storage before running Terraform locally, using `az storage blob download` authenticated via the existing CLI session.
+`scripts/terraform-local.sh` downloads the central tfvars file from Blob Storage before running Terraform locally, using `az storage blob download --auth-mode login` authenticated via the existing `az login` CLI session.
 
 The `dev.tfvars` file in `scripts/` is reduced to only the credentials and bootstrap variables required before the central tfvars is available:
 - SP credentials (`AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`)
 - `TFSTATE_*` variables
-- `TF_VAR_public_ip`, `BUDGET_ALERT_EMAIL`, `TF_VAR_azure_ai_api_key`
+- `TF_VAR_public_ip`, `BUDGET_ALERT_EMAIL`
 
 ### Security and Configuration
 

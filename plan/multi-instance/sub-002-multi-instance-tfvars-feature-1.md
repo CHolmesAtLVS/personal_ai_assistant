@@ -5,13 +5,13 @@ parent_plan: parent-multi-instance-aks-feature-1.md#SUB-002
 version: 1.0
 date_created: 2026-04-11
 last_updated: 2026-04-11
-status: 'Completed'
+status: 'Planned'
 tags: [terraform, ci, secrets, infrastructure]
 ---
 
 # Introduction
 
-![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
+![Status: Complete](https://img.shields.io/badge/status-Complete-brightgreen)
 
 Move all non-sensitive Terraform input variables from GitHub Secrets and GitHub Variables into a central `.auto.tfvars` file stored in Azure Blob Storage alongside the Terraform state file. CI downloads this file before each Terraform run. `scripts/terraform-local.sh` downloads it before local runs. GitHub Secrets are reduced to credentials and true secrets only.
 

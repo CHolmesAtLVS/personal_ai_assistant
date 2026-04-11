@@ -78,12 +78,14 @@ Plans must consist of discrete, atomic phases containing executable tasks. Each 
 
 When creating plan files:
 
-- Save implementation plan files in `/plan/` directory
+- Save all plan files for a feature together in `/plan/[feature-name]/` (e.g., `/plan/auth/`). The feature-name subfolder is derived from the component/initiative name, lowercase and hyphenated.
+- For standalone plans with no natural feature grouping, save directly in `/plan/`.
 - Use naming convention: `[plan_type]-[component]-[purpose]-[version].md` (for subplans: `sub-[NNN]-[component]-[purpose]-[version].md`)
 - Plan type prefixes: `parent` for parent summary plans, `sub` for subplans, `standalone` for standalone plans (no parent)
 - Purpose prefixes: `upgrade|refactor|feature|data|infrastructure|process|architecture|design`
-- Example: `standalone-command-upgrade-system-4.md`, `parent-auth-feature-1.md`, `sub-001-auth-login-feature-1.md`
+- Example: `/plan/auth/parent-auth-feature-1.md`, `/plan/auth/sub-001-auth-login-feature-1.md`, `/plan/command/standalone-command-upgrade-system-4.md`
 - File must be valid Markdown with proper front matter structure
+- Relative links to workspace files (e.g., `ARCHITECTURE.md`) must use `../../` from within a subfolder. Cross-plan links within the same subfolder use bare filenames (e.g., `sub-001-auth-login-feature-1.md` with no path prefix).
 
 ## Mandatory Template Structure
 
@@ -230,9 +232,9 @@ tags: [Optional: List of relevant tags or categories]
 
 | ID      | Subplan File                        | Goal                            | Status      |
 | ------- | ----------------------------------- | ------------------------------- | ----------- |
-| SUB-001 | [filename-1.md](../plan/filename-1.md) | Goal of subplan 1            | Planned     |
-| SUB-002 | [filename-2.md](../plan/filename-2.md) | Goal of subplan 2            | Planned     |
-| SUB-003 | [filename-3.md](../plan/filename-3.md) | Goal of subplan 3            | Planned     |
+| SUB-001 | [filename-1.md](sub-001-filename-1.md) | Goal of subplan 1            | Planned     |
+| SUB-002 | [filename-2.md](sub-002-filename-2.md) | Goal of subplan 2            | Planned     |
+| SUB-003 | [filename-3.md](sub-003-filename-3.md) | Goal of subplan 3            | Planned     |
 
 ## 3. Alternatives
 

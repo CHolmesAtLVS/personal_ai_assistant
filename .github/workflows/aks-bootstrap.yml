@@ -114,7 +114,8 @@ jobs:
             | kubectl apply -f -
 
       # ── Phase 3 — cert-manager ─────────────────────────────────────────────────
-      # Chart 1.20.1. Gateway API support is BETA and default-on in 1.20+.
+      # Chart 1.20.1. --enable-gateway-api is required for the gatewayHTTPRoute
+      # ACME solver — it is NOT default-on in 1.20.x and must be set explicitly.
       - name: Bootstrap AKS — cert-manager
         shell: bash
         run: |
@@ -126,6 +127,7 @@ jobs:
             --create-namespace \
             --version 1.20.1 \
             --set crds.enabled=true \
+            --set 'extraArgs={--enable-gateway-api}' \
             --wait --timeout 5m
 
       - name: Bootstrap AKS — ClusterIssuers
@@ -154,6 +156,8 @@ jobs:
             --create-namespace \
             --version 9.4.17 \
             --set-string 'configs.params.server\.insecure=true' \
+            --set 'repoServer.livenessProbe.timeoutSeconds=10' \
+            --set 'repoServer.readinessProbe.timeoutSeconds=10' \
             --wait --timeout 10m
 
       - name: Bootstrap AKS — ArgoCD NetworkPolicy
@@ -259,6 +263,7 @@ jobs:
             --create-namespace \
             --version 1.20.1 \
             --set crds.enabled=true \
+            --set 'extraArgs={--enable-gateway-api}' \
             --wait --timeout 5m
 
       - name: Bootstrap AKS — ClusterIssuers
@@ -282,6 +287,8 @@ jobs:
             --create-namespace \
             --version 9.4.17 \
             --set-string 'configs.params.server\.insecure=true' \
+            --set 'repoServer.livenessProbe.timeoutSeconds=10' \
+            --set 'repoServer.readinessProbe.timeoutSeconds=10' \
             --wait --timeout 10m
 
       - name: Bootstrap AKS — ArgoCD NetworkPolicy

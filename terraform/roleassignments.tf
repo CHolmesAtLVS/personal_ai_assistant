@@ -1,21 +1,26 @@
 # AcrPull is only created when ACR exists (prod only).
 resource "azurerm_role_assignment" "mi_acr_pull" {
-  count                = var.environment == "prod" ? 1 : 0
+  for_each             = var.environment == "prod" ? local.instances : toset([])
+
   scope                = module.acr[0].resource_id
   role_definition_name = "AcrPull"
-  principal_id         = module.identity.principal_id
+  principal_id         = module.identity[each.key].principal_id
 }
 
 resource "azurerm_role_assignment" "mi_kv_secrets_user" {
+  for_each             = local.instances
+
   scope                = module.key_vault.resource_id
   role_definition_name = "Key Vault Secrets User"
-  principal_id         = module.identity.principal_id
+  principal_id         = module.identity[each.key].principal_id
 }
 
 resource "azurerm_role_assignment" "mi_ai_openai_user" {
+  for_each             = local.instances
+
   scope                = module.ai_foundry.resource_id
   role_definition_name = "Cognitive Services OpenAI User"
-  principal_id         = module.identity.principal_id
+  principal_id         = module.identity[each.key].principal_id
 }
 
 # Grants the Managed Identity access to the Azure AI Model Inference endpoint
@@ -23,9 +28,11 @@ resource "azurerm_role_assignment" "mi_ai_openai_user" {
 # Cognitive Services OpenAI User only covers the openai.azure.com endpoint;
 # Cognitive Services User covers all Cognitive Services APIs including AI Inference.
 resource "azurerm_role_assignment" "mi_ai_inference_user" {
+  for_each             = local.instances
+
   scope                = module.ai_foundry.resource_id
   role_definition_name = "Cognitive Services User"
-  principal_id         = module.identity.principal_id
+  principal_id         = module.identity[each.key].principal_id
 }
 
 # Grants the CI/CD Service Principal write access to Key Vault secrets so

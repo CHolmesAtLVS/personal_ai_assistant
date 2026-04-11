@@ -26,3 +26,15 @@ locals {
   action_group_name                 = "${local.name_prefix}-ag-cost"
   openclaw_nfs_storage_account_name = substr(replace("${var.project}${var.environment}ocnfs", "-", ""), 0, 24)
 }
+
+locals {
+  instances = toset(var.openclaw_instances)
+
+  instance_identity_name = {
+    for inst in var.openclaw_instances : inst => "${local.name_prefix}-${inst}-id"
+  }
+
+  instance_nfs_share_name = {
+    for inst in var.openclaw_instances : inst => "openclaw-${inst}-nfs"
+  }
+}

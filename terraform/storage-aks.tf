@@ -20,7 +20,9 @@ resource "azurerm_storage_account" "openclaw_nfs" {
 }
 
 resource "azurerm_storage_share" "openclaw_nfs" {
-  name               = "openclaw-nfs"
+  for_each           = local.instances
+
+  name               = local.instance_nfs_share_name[each.key]
   storage_account_id = azurerm_storage_account.openclaw_nfs.id
   quota              = var.openclaw_state_share_quota_gb
   enabled_protocol   = "NFS"

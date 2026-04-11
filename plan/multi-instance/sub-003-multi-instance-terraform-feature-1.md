@@ -5,13 +5,13 @@ parent_plan: parent-multi-instance-aks-feature-1.md#SUB-003
 version: 1.0
 date_created: 2026-04-11
 last_updated: 2026-04-11
-status: 'Planned'
+status: 'Complete'
 tags: [terraform, infrastructure, multi-instance, identity, storage, aks]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Complete](https://img.shields.io/badge/status-Complete-brightgreen)
 
 Refactor Terraform to manage OpenClaw resources per-instance using `for_each` over a new `openclaw_instances` variable. Each entry in the list produces an isolated set of Azure resources: User-Assigned Managed Identity, OIDC federated credential, Azure Files NFS share, Key Vault gateway token secret, and role assignments. Shared resources (AKS, Key Vault, AI Services, Log Analytics, storage account) remain as-is. A `terraform state mv` plan is included for zero-downtime migration of the existing single-instance resources to the new keyed addresses.
 
@@ -36,8 +36,8 @@ Refactor Terraform to manage OpenClaw resources per-instance using `for_each` ov
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-001 | Add to `terraform/variables.tf`: `variable "openclaw_instances" { description = "List of OpenClaw instance short names (2–3 lowercase letters each)." type = list(string) validation { condition = length(var.openclaw_instances) > 0 && alltrue([for i in var.openclaw_instances : can(regex("^[a-z]{2,3}$", i))]) error_message = "Each instance name must be 2–3 lowercase letters and the list must not be empty." } }` | | |
-| TASK-002 | Add to `terraform/locals.tf`: `instances = toset(var.openclaw_instances)` for use as the `for_each` key, and `instance_identity_name = { for inst in var.openclaw_instances : inst => "${local.name_prefix}-${inst}-id" }` and `instance_nfs_share_name = { for inst in var.openclaw_instances : inst => "openclaw-${inst}-nfs" }` | | |
+| TASK-001 | Add to `terraform/variables.tf`: `variable "openclaw_instances" { description = "List of OpenClaw instance short names (2–3 lowercase letters each)." type = list(string) validation { condition = length(var.openclaw_instances) > 0 && alltrue([for i in var.openclaw_instances : can(regex("^[a-z]{2,3}$", i))]) error_message = "Each instance name must be 2–3 lowercase letters and the list must not be empty." } }` | ✅ | 2026-04-11 |
+| TASK-002 | Add to `terraform/locals.tf`: `instances = toset(var.openclaw_instances)` for use as the `for_each` key, and `instance_identity_name = { for inst in var.openclaw_instances : inst => "${local.name_prefix}-${inst}-id" }` and `instance_nfs_share_name = { for inst in var.openclaw_instances : inst => "openclaw-${inst}-nfs" }` | ✅ | 2026-04-11 |
 
 ### Implementation Phase 2 — Replace Single-Instance Resources with for_each
 
@@ -45,9 +45,9 @@ Refactor Terraform to manage OpenClaw resources per-instance using `for_each` ov
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-003 | In `terraform/identity.tf`: replace `module "identity"` (single) with `module "identity"` using `for_each = local.instances`. Set `name = local.instance_identity_name[each.key]`. Update all references to `module.identity.*` to `module.identity[each.key].*`. | | |
-| TASK-004 | In `terraform/aks-workload-identity.tf`: replace `azurerm_federated_identity_credential.openclaw` (single) with `for_each = local.instances`. Set `name = "openclaw-aks-${var.environment}-${each.key}"`, `parent_id = module.identity[each.key].resource_id`, `subject = "system:serviceaccount:openclaw-${each.key}:openclaw"`. | | |
-| TASK-005 | In `terraform/aks-workload-identity.tf`: replace `azurerm_role_assignment.aks_files_contributor` (single) with `for_each = local.instances`. Each assignment scoped to the shared storage account; `principal_id = module.identity[each.key].principal_id`. | | |
+| TASK-003 | In `terraform/identity.tf`: replace `module "identity"` (single) with `module "identity"` using `for_each = local.instances`. Set `name = local.instance_identity_name[each.key]`. Update all references to `module.identity.*` to `module.identity[each.key].*`. | ✅ | 2026-04-11 |
+| TASK-004 | In `terraform/aks-workload-identity.tf`: replace `azurerm_federated_identity_credential.openclaw` (single) with `for_each = local.instances`. Set `name = "openclaw-aks-${var.environment}-${each.key}"`, `parent_id = module.identity[each.key].resource_id`, `subject = "system:serviceaccount:openclaw-${each.key}:openclaw"`. | ✅ | 2026-04-11 |
+| TASK-005 | In `terraform/aks-workload-identity.tf`: replace `azurerm_role_assignment.aks_files_contributor` (single) with `for_each = local.instances`. Each assignment scoped to the shared storage account; `principal_id = module.identity[each.key].principal_id`. | ✅ | 2026-04-11 |
 
 ### Implementation Phase 3 — Per-Instance NFS Shares
 
@@ -55,8 +55,8 @@ Refactor Terraform to manage OpenClaw resources per-instance using `for_each` ov
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-006 | In `terraform/storage-aks.tf`: replace `azurerm_storage_share.openclaw_nfs` (single, name `"openclaw-nfs"`) with `for_each = local.instances`. Set `name = local.instance_nfs_share_name[each.key]` (e.g. `openclaw-ch-nfs`). Quota remains `var.openclaw_state_share_quota_gb`. | | |
-| TASK-007 | Remove the old `openclaw_nfs_storage_account_name` local if it only served the removed outputs; retain if still used. | | |
+| TASK-006 | In `terraform/storage-aks.tf`: replace `azurerm_storage_share.openclaw_nfs` (single, name `"openclaw-nfs"`) with `for_each = local.instances`. Set `name = local.instance_nfs_share_name[each.key]` (e.g. `openclaw-ch-nfs`). Quota remains `var.openclaw_state_share_quota_gb`. | ✅ | 2026-04-11 |
+| TASK-007 | Remove the old `openclaw_nfs_storage_account_name` local if it only served the removed outputs; retain if still used. | ✅ | 2026-04-11 |
 
 ### Implementation Phase 4 — Per-Instance Key Vault Secrets and Role Assignments
 
@@ -64,10 +64,10 @@ Refactor Terraform to manage OpenClaw resources per-instance using `for_each` ov
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-008 | In `terraform/keyvault.tf` (or a new `terraform/kv-instances.tf`): add `azurerm_key_vault_secret.openclaw_gateway_token` using `for_each = local.instances`. Secret name: `"${each.key}-openclaw-gateway-token"`. Value: random UUID via `random_uuid` resource keyed by instance. `lifecycle { ignore_changes = [value] }` so manual rotations are preserved. | | |
-| TASK-009 | In `terraform/roleassignments.tf`: convert the `Key Vault Secrets User` role assignment for the openclaw MI from single to `for_each = local.instances`. Scoped to the environment Key Vault; `principal_id = module.identity[each.key].principal_id`. | | |
-| TASK-010 | In `terraform/roleassignments.tf`: convert `Cognitive Services OpenAI User` and `Cognitive Services User` role assignments from single to `for_each = local.instances`. | | |
-| TASK-011 | In `terraform/roleassignments.tf` (prod only): if `AcrPull` was assigned to a single MI, convert to `for_each = local.instances`. | | |
+| TASK-008 | In `terraform/keyvault.tf` (or a new `terraform/kv-instances.tf`): add `azurerm_key_vault_secret.openclaw_gateway_token` using `for_each = local.instances`. Secret name: `"${each.key}-openclaw-gateway-token"`. Value: random UUID via `random_uuid` resource keyed by instance. `lifecycle { ignore_changes = [value] }` so manual rotations are preserved. | ✅ | 2026-04-11 |
+| TASK-009 | In `terraform/roleassignments.tf`: convert the `Key Vault Secrets User` role assignment for the openclaw MI from single to `for_each = local.instances`. Scoped to the environment Key Vault; `principal_id = module.identity[each.key].principal_id`. | ✅ | 2026-04-11 |
+| TASK-010 | In `terraform/roleassignments.tf`: convert `Cognitive Services OpenAI User` and `Cognitive Services User` role assignments from single to `for_each = local.instances`. | ✅ | 2026-04-11 |
+| TASK-011 | In `terraform/roleassignments.tf` (prod only): if `AcrPull` was assigned to a single MI, convert to `for_each = local.instances`. | ✅ | 2026-04-11 |
 
 ### Implementation Phase 5 — Update Outputs
 
@@ -75,8 +75,8 @@ Refactor Terraform to manage OpenClaw resources per-instance using `for_each` ov
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-012 | Replace single-instance outputs with maps: `output "instance_mi_client_ids" { value = { for inst, m in module.identity : inst => m.client_id } sensitive = true }` and `output "instance_nfs_share_names" { value = { for inst in var.openclaw_instances : inst => local.instance_nfs_share_name[inst] } }`. | | |
-| TASK-013 | Add `output "kv_name" { value = module.kv.name sensitive = true }` if not already present. Update or rename `openclaw_state_storage_account_name` → `nfs_storage_account_name`. | | |
+| TASK-012 | Replace single-instance outputs with maps: `output "instance_mi_client_ids" { value = { for inst, m in module.identity : inst => m.client_id } sensitive = true }` and `output "instance_nfs_share_names" { value = { for inst in var.openclaw_instances : inst => local.instance_nfs_share_name[inst] } }`. | ✅ | 2026-04-11 |
+| TASK-013 | Add `output "kv_name" { value = module.kv.name sensitive = true }` if not already present. Update or rename `openclaw_state_storage_account_name` → `nfs_storage_account_name`. | ✅ | 2026-04-11 |
 
 ### Implementation Phase 6 — State Migration
 
@@ -84,10 +84,10 @@ Refactor Terraform to manage OpenClaw resources per-instance using `for_each` ov
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-014 | Before applying Terraform changes, run `terraform state list` and identify current single-instance resource addresses: `module.identity`, `azurerm_federated_identity_credential.openclaw`, `azurerm_role_assignment.aks_files_contributor`, `azurerm_storage_share.openclaw_nfs`, KV secret address, and all single-instance role assignments. Document the full list. | | |
-| TASK-015 | Execute `terraform state mv` for each single-instance resource to its new keyed address (assuming existing instance is `ch`): `terraform state mv 'module.identity' 'module.identity["ch"]'`, `terraform state mv 'azurerm_federated_identity_credential.openclaw' 'azurerm_federated_identity_credential.openclaw["ch"]'`, `terraform state mv 'azurerm_storage_share.openclaw_nfs' 'azurerm_storage_share.openclaw_nfs["ch"]'`. Repeat for every role assignment and KV secret at the old address. | | |
-| TASK-016 | Run `terraform plan` after the state moves and confirm zero destroy operations for resources that mapped to instance `ch`. Confirm only `jh` (dev) / `jh` + `kjm` (prod) resources are shown as new `(+)`. | | |
-| TASK-017 | Rename existing NFS share from `openclaw-nfs` to `openclaw-ch-nfs` if Terraform shows a replace operation. If Azure does not support in-place rename, create the new share first, copy data from the old share using `azcopy` or az CLI, update the PV in Kubernetes to point to the new share, then destroy the old share. Document this as a maintenance window operation. | | |
+| TASK-014 | Before applying Terraform changes, run `terraform state list` and identify current single-instance resource addresses: `module.identity`, `azurerm_federated_identity_credential.openclaw`, `azurerm_role_assignment.aks_files_contributor`, `azurerm_storage_share.openclaw_nfs`, KV secret address, and all single-instance role assignments. Document the full list. | ✅ | 2026-04-11 |
+| TASK-015 | Execute `terraform state mv` for each single-instance resource to its new keyed address (assuming existing instance is `ch`): `terraform state mv 'module.identity' 'module.identity["ch"]'`, `terraform state mv 'azurerm_federated_identity_credential.openclaw' 'azurerm_federated_identity_credential.openclaw["ch"]'`, `terraform state mv 'azurerm_storage_share.openclaw_nfs' 'azurerm_storage_share.openclaw_nfs["ch"]'`. Repeat for every role assignment and KV secret at the old address. | ✅ | 2026-04-11 |
+| TASK-016 | Run `terraform plan` after the state moves and confirm zero destroy operations for resources that mapped to instance `ch`. Confirm only `jh` (dev) / `jh` + `kjm` (prod) resources are shown as new `(+)`. | ⬜ | |
+| TASK-017 | Rename existing NFS share from `openclaw-nfs` to `openclaw-ch-nfs` if Terraform shows a replace operation. If Azure does not support in-place rename, create the new share first, copy data from the old share using `azcopy` or az CLI, update the PV in Kubernetes to point to the new share, then destroy the old share. Document this as a maintenance window operation. | ⬜ | |
 
 ## 3. Alternatives
 

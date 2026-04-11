@@ -10,7 +10,7 @@
 #   ./scripts/seed-openclaw-aks.sh [dev|prod]
 #
 # Required env vars (set from GitHub Secrets + Terraform outputs in CI):
-#   OPENCLAW_MI_CLIENT_ID    — Managed Identity client ID (terraform output openclaw_mi_client_id)
+#   OPENCLAW_MI_CLIENT_ID    — Managed Identity client ID (terraform output instance_mi_client_ids[<inst>])
 #   KEY_VAULT_NAME           — Key Vault name (terraform output kv_name)
 #   AZURE_TENANT_ID          — Azure tenant ID (GitHub Secret)
 #   AZURE_OPENAI_ENDPOINT    — Azure AI Services endpoint URL (terraform output azure_openai_endpoint)

@@ -57,7 +57,7 @@ module "aks" {
 
   managed_identities = {
     system_assigned            = false
-    user_assigned_resource_ids = [module.identity.resource_id]
+    user_assigned_resource_ids = [for inst, m in module.identity : m.resource_id]
   }
 
   addon_profile_key_vault_secrets_provider = {

@@ -3,15 +3,15 @@ goal: Decommission Azure Container Apps instance after AKS deployment is fully v
 plan_type: standalone
 version: 1.0
 date_created: 2026-04-08
-last_updated: 2026-04-08
+last_updated: 2026-04-11
 owner: Platform
-status: 'Planned'
+status: 'Completed'
 tags: [feature, migration, aks, decommission, aca, terraform, cleanup]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
 
 Remove the Azure Container Apps (ACA) runtime and its exclusive supporting resources from both the dev and prod environments after AKS has been fully validated per SUB-003 (feature-aks-application-1.md) smoke tests. This subplan is a one-way operation — ACA resources are destroyed and the SMB Azure Files share is retired. It must not begin until AKS is confirmed healthy in the target environment. The shared infrastructure (Key Vault, AI Services, Log Analytics, Managed Identity, storage account, Premium NFS share) is retained.
 
@@ -60,7 +60,7 @@ Remove the Azure Container Apps (ACA) runtime and its exclusive supporting resou
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---- |
 | TASK-007 | In `terraform/containerapp.tf`, delete (or comment out and target for removal) the following resource blocks for the target environment: `azurerm_container_app_environment_storage` (ACA storage binding to SMB share), `module.container_app` (or `azurerm_container_app`), `module.container_app_environment` (or `azurerm_container_app_environment`). Leave all other resources intact. Do not remove the `azurerm_container_app_environment_storage` resource until after `module.container_app` is removed to avoid orphan storage binding errors. | ✅        | 2026-04-09 |
 | TASK-008 | Open a pull request with only the `terraform/containerapp.tf` changes from TASK-007. The PR description must state the environment, reference this plan task, and include the `terraform plan` output confirming: resources targeted for destroy, zero ACA resources created or updated, no changes to Key Vault / AI Services / LAW / Managed Identity / storage account / AKS resources.                                                                                  | ✅        | 2026-04-09 |
-| TASK-009 | After PR review and approval, merge to trigger `terraform apply` via CI. For prod, this requires the GitHub Environment protection approval. Monitor the apply output. Confirm the Azure Container App and Container Apps Environment are no longer listed: `az containerapp list --resource-group <env-rg> -o table` should return empty.                                                                                                                                  | ⏳        | — |
+| TASK-009 | After PR review and approval, merge to trigger `terraform apply` via CI. For prod, this requires the GitHub Environment protection approval. Monitor the apply output. Confirm the Azure Container App and Container Apps Environment are no longer listed: `az containerapp list --resource-group <env-rg> -o table` should return empty.                                                                                                                                  | ✅        | 2026-04-11 |
 
 ### Implementation Phase 4 — Remove SMB Storage Share from Terraform
 
@@ -78,7 +78,7 @@ Remove the Azure Container Apps (ACA) runtime and its exclusive supporting resou
 
 | Task     | Description                                                                                                                                                                                                                                                                                                                                         | Completed | Date |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---- |
-| TASK-013 | Run `terraform state list` for the target environment and confirm no ACA-related resources (`azurerm_container_app*`, `azurerm_container_app_environment*`) remain in state. If any stale entries exist (resources already deleted outside of Terraform), remove them with `terraform state rm <resource>` and document the action in the PR description. | ⏳        | — |
+| TASK-013 | Run `terraform state list` for the target environment and confirm no ACA-related resources (`azurerm_container_app*`, `azurerm_container_app_environment*`) remain in state. If any stale entries exist (resources already deleted outside of Terraform), remove them with `terraform state rm <resource>` and document the action in the PR description. | ✅        | 2026-04-11 |
 | TASK-014 | Remove or archive the `config/openclaw.batch.json` file if it was used exclusively for ACA config seeding and is superseded by the Helm chart `values.yaml` for AKS. If the file documents canonical config values still referenced by operators, retain it with a header comment noting it is an ACA-era reference only.                            | ✅        | 2026-04-09 |
 | TASK-015 | Remove references to ACA-specific scripts that are now obsolete: review `scripts/diagnose-containerapp.sh`, `scripts/seed-openclaw-config.sh`, `scripts/openclaw-connect.sh` and add a deprecation notice (header comment) to each noting it targets ACA and is superseded by AKS equivalents. Do not delete — they remain useful for historical reference and potential rollback scenarios during the soak period. | ✅        | 2026-04-09 |
 | TASK-016 | Update `docs/openclaw-containerapp-operations.md`: add a header notice at the top of the document stating ACA has been decommissioned for the applicable environment and linking to the new AKS operations section. Retain the full document body for historical reference and rollback documentation.                                               | ✅        | 2026-04-09 |
@@ -89,9 +89,9 @@ Remove the Azure Container Apps (ACA) runtime and its exclusive supporting resou
 
 | Task     | Description                                                                                                                                                                                                                                               | Completed | Date |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---- |
-| TASK-017 | Wait minimum 7 days after TASK-009 for dev completes. Confirm no regressions in dev AKS during the soak period (no pod restarts, no config drift, no AI failures).                                                                                       |           |      |
-| TASK-018 | Repeat TASK-001 through TASK-016 targeting the prod environment. For prod-specific considerations: GitHub Environment protection approval is required at TASK-009; be especially careful to confirm `terraform plan` shows no unintended changes to prod Key Vault or AI Services secrets. |           |      |
-| TASK-019 | After prod ACA is confirmed decommissioned and stable, update the parent plan [feature-aks-migration-1.md](../plan/feature-aks-migration-1.md) status to `Completed` and record completion dates for all four subplans.                                    |           |      |
+| TASK-017 | Wait minimum 7 days after TASK-009 for dev completes. Confirm no regressions in dev AKS during the soak period (no pod restarts, no config drift, no AI failures). **Soak period waived** — prod was decommissioned simultaneously with dev via PR #28 on 2026-04-09; operator decision to waive soak period recorded in this PR.                        | ✅        | 2026-04-11 |
+| TASK-018 | Repeat TASK-001 through TASK-016 targeting the prod environment. For prod-specific considerations: GitHub Environment protection approval is required at TASK-009; be especially careful to confirm `terraform plan` shows no unintended changes to prod Key Vault or AI Services secrets. Prod decommissioned simultaneously with dev via PR #28; confirmed the production Container Apps inventory returns empty and only the Premium NFS storage account remains. | ✅        | 2026-04-11 |
+| TASK-019 | After prod ACA is confirmed decommissioned and stable, update the parent plan [feature-aks-migration-1.md](../plan/feature-aks-migration-1.md) status to `Completed` and record completion dates for all four subplans.                                    | ✅        | 2026-04-11 |
 
 ## 3. Alternatives
 

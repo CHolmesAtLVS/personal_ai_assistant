@@ -38,7 +38,7 @@ Validate the complete multi-instance deployment by standing up all instances in 
 | ---- | ----------- | --------- | ---- |
 | TASK-001 | Confirm central tfvars file `tfvars/dev.auto.tfvars` exists in Azure Blob Storage and contains `openclaw_instances = ["ch", "jh"]`. Run: `az storage blob show --account-name ${TFSTATE_STORAGE_ACCOUNT} --container-name ${TFSTATE_CONTAINER} --name tfvars/dev.auto.tfvars --auth-mode login`. | | |
 | TASK-002 | Run `./scripts/terraform-local.sh dev plan` and confirm: (a) zero destroys on AKS, Key Vault, AI Services; (b) new resources for both `ch` and `jh` instances (MI, OIDC, NFS share, KV secret, role assignments); (c) existing `ch` resources show as already in state (from `state mv`). | | |
-| TASK-003 | Verify DNS records exist for `ch-paa-dev.acmeadventure.ca` and `jh-paa-dev.acmeadventure.ca` — both resolve to the Gateway LoadBalancer IP. | | |
+| TASK-003 | Verify DNS records exist for `inst1.{dev-domain}` and `inst2.{dev-domain}` — both resolve to the Gateway LoadBalancer IP. | | |
 
 ### Implementation Phase 2 — Dev Terraform Apply
 
@@ -67,9 +67,9 @@ Validate the complete multi-instance deployment by standing up all instances in 
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-011 | **HTTPS reachability**: `curl -v https://ch-paa-dev.acmeadventure.ca` from an approved IP — response is 200 or 401 (token required); TLS certificate is valid (staging or prod CA). | | |
-| TASK-012 | **HTTPS reachability**: `curl -v https://jh-paa-dev.acmeadventure.ca` — same pass criteria as TASK-011. | | |
-| TASK-013 | **Token isolation**: connect to `ch-paa-dev.acmeadventure.ca` with `jh`'s gateway token — connection must be rejected with 401/403. Connect with `ch`'s token — connection must succeed. Repeat in reverse. | | |
+| TASK-011 | **HTTPS reachability**: `curl -v https://{inst1}.{dev-domain}` from an approved IP — response is 200 or 401 (token required); TLS certificate is valid (staging or prod CA). | | |
+| TASK-012 | **HTTPS reachability**: `curl -v https://{inst2}.{dev-domain}` — same pass criteria as TASK-011. | | |
+| TASK-013 | **Token isolation**: connect to `{inst1}.{dev-domain}` with `{inst2}`'s gateway token — connection must be rejected with 401/403. Connect with `{inst1}`'s token — connection must succeed. Repeat in reverse. | | |
 | TASK-014 | **Storage isolation**: confirm `kubectl exec -n openclaw-ch -- ls /home/node/.openclaw` shows `ch` instance state; same command in `openclaw-jh` shows `jh` instance state; files are not shared. | | |
 | TASK-015 | **Network isolation**: from `openclaw-ch` pod, attempt `curl http://openclaw.openclaw-jh.svc.cluster.local:18789` — must time out (NetworkPolicy blocks cross-namespace). | | |
 | TASK-016 | **Workload Identity**: confirm each pod can authenticate to Key Vault — `kubectl exec -n openclaw-ch -- env | grep OPENCLAW_GATEWAY_TOKEN` returns the `ch`-specific token (non-empty). Same for `jh`. | | |
@@ -92,7 +92,7 @@ Validate the complete multi-instance deployment by standing up all instances in 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
 | TASK-021 | Confirm central tfvars `tfvars/prod.auto.tfvars` in Azure Blob Storage contains `openclaw_instances = ["ch", "jh", "kjm"]`. | | |
-| TASK-022 | Confirm DNS records exist for `ch-paa.acmeadventure.ca`, `jh-paa.acmeadventure.ca`, `kjm-paa.acmeadventure.ca`. | | |
+| TASK-022 | Confirm DNS records exist for `{inst1}.{prod-domain}`, `{inst2}.{prod-domain}`, `{inst3}.{prod-domain}`. | | |
 | TASK-023 | Merge the validated PR (or open a new prod-targeting PR) — CI `terraform-prod` job applies all per-instance resources for `ch`, `jh`, `kjm` in prod. | | |
 | TASK-024 | After Terraform apply, CI seeds all three prod instances via `seed-openclaw-aks.sh prod {inst}`. Confirm ArgoCD Applications `ch-openclaw-prod`, `jh-openclaw-prod`, `kjm-openclaw-prod` all reach `Synced` / `Healthy`. | | |
 | TASK-025 | Repeat acceptance checks TASK-011 through TASK-018 for all three prod hostnames. | | |

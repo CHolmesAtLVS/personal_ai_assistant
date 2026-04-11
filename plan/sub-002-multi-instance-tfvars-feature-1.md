@@ -5,13 +5,13 @@ parent_plan: parent-multi-instance-aks-feature-1.md#SUB-002
 version: 1.0
 date_created: 2026-04-11
 last_updated: 2026-04-11
-status: 'Complete'
+status: 'Planned'
 tags: [terraform, ci, secrets, infrastructure]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Complete](https://img.shields.io/badge/status-Complete-brightgreen)
 
 Move all non-sensitive Terraform input variables from GitHub Secrets and GitHub Variables into a central `.auto.tfvars` file stored in Azure Blob Storage alongside the Terraform state file. CI downloads this file before each Terraform run. `scripts/terraform-local.sh` downloads it before local runs. GitHub Secrets are reduced to credentials and true secrets only.
 
@@ -37,9 +37,9 @@ Move all non-sensitive Terraform input variables from GitHub Secrets and GitHub 
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-001 | Create `scripts/central-tfvars.example` as a documented template for the central tfvars file format, listing all variables that move out of GitHub: `project`, `environment`, `location`, `owner`, `cost_center`, `ai_model_name`, `ai_model_version`, `ai_model_capacity`, `openclaw_image_tag`, `openclaw_state_share_quota_gb`, `monthly_budget_amount`, `embedding_model_name`, `embedding_model_version`, `embedding_model_capacity`, `openclaw_instances` | Yes | 2026-04-11 |
-| TASK-002 | Upload `dev.auto.tfvars` to blob path `{TFSTATE_CONTAINER}/tfvars/dev.auto.tfvars` in the Terraform state storage account. Initial content: all non-secret dev values from `scripts/dev.tfvars`, plus `openclaw_instances = ["ch", "jh"]`. Do not include any secrets. | Yes | 2026-04-11 |
-| TASK-003 | Upload `prod.auto.tfvars` to blob path `{TFSTATE_CONTAINER}/tfvars/prod.auto.tfvars`. Initial content: prod non-secret values plus `openclaw_instances = ["ch", "jh", "kjm"]`. Do not include any secrets. | Yes | 2026-04-11 |
+| TASK-001 | Create `scripts/central-tfvars.example` as a documented template for the central tfvars file format, listing all variables that move out of GitHub: `project`, `environment`, `location`, `owner`, `cost_center`, `ai_model_name`, `ai_model_version`, `ai_model_capacity`, `openclaw_image_tag`, `openclaw_state_share_quota_gb`, `monthly_budget_amount`, `embedding_model_name`, `embedding_model_version`, `embedding_model_capacity`, `openclaw_instances` | | |
+| TASK-002 | Upload `dev.auto.tfvars` to blob path `{TFSTATE_CONTAINER}/tfvars/dev.auto.tfvars` in the Terraform state storage account. Initial content: all non-secret dev values from `scripts/dev.tfvars`, plus `openclaw_instances = ["ch", "jh"]`. Do not include any secrets. | | |
+| TASK-003 | Upload `prod.auto.tfvars` to blob path `{TFSTATE_CONTAINER}/tfvars/prod.auto.tfvars`. Initial content: prod non-secret values plus `openclaw_instances = ["ch", "jh", "kjm"]`. Do not include any secrets. | | |
 
 ### Implementation Phase 2 — Update CI Workflow
 
@@ -47,10 +47,10 @@ Move all non-sensitive Terraform input variables from GitHub Secrets and GitHub 
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-004 | In `.github/workflows/terraform-infra.yml`, add a "Download central tfvars" step in each job (`terraform-dev`, `terraform-prod-plan`, `terraform-prod`) immediately after Azure Login and before Terraform Init. Step: `az storage blob download --account-name "$TFSTATE_STORAGE_ACCOUNT" --container-name "$TFSTATE_CONTAINER" --name "tfvars/${ENVIRONMENT}.auto.tfvars" --file "terraform/${ENVIRONMENT}.auto.tfvars" --auth-mode login --output none`. Set `ENVIRONMENT: dev` or `prod` per job. | Yes | 2026-04-11 |
-| TASK-005 | Remove all non-secret `env:` variables from CI job definitions that now live in the central tfvars file: `TF_VAR_project`, `TF_VAR_environment`, `TF_VAR_location`, `TF_VAR_owner`, `TF_VAR_cost_center`, `TF_VAR_ai_model_name`, `TF_VAR_ai_model_version`, `TF_VAR_ai_model_capacity`, `TF_VAR_openclaw_image_tag`, `TF_VAR_openclaw_state_share_quota_gb`, `TF_VAR_monthly_budget_amount`, `TF_VAR_embedding_model_name`, `TF_VAR_embedding_model_version`, `TF_VAR_embedding_model_capacity`. | Yes | 2026-04-11 |
-| TASK-006 | Keep these secrets in CI job `env:` blocks (they cannot move to the central file): `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `TFSTATE_RG`, `TFSTATE_LOCATION`, `TFSTATE_STORAGE_ACCOUNT`, `TFSTATE_CONTAINER`, `TFSTATE_KEY`, `TF_VAR_PUBLIC_IP` → `TF_VAR_public_ip`, `BUDGET_ALERT_EMAIL` → `TF_VAR_budget_alert_email`, `TF_VAR_AZURE_AI_API_KEY` → `TF_VAR_azure_ai_api_key`. | Yes | 2026-04-11 |
-| TASK-007 | Add `terraform/{env}.auto.tfvars` to `.gitignore` to prevent accidental commit of the downloaded file. | Yes | 2026-04-11 |
+| TASK-004 | In `.github/workflows/terraform-infra.yml`, add a "Download central tfvars" step in each job (`terraform-dev`, `terraform-prod-plan`, `terraform-prod`) immediately after Azure Login and before Terraform Init. Step: `az storage blob download --account-name "$TFSTATE_STORAGE_ACCOUNT" --container-name "$TFSTATE_CONTAINER" --name "tfvars/${ENVIRONMENT}.auto.tfvars" --file "terraform/${ENVIRONMENT}.auto.tfvars" --auth-mode login --output none`. Set `ENVIRONMENT: dev` or `prod` per job. | | |
+| TASK-005 | Remove all non-secret `env:` variables from CI job definitions that now live in the central tfvars file: `TF_VAR_project`, `TF_VAR_environment`, `TF_VAR_location`, `TF_VAR_owner`, `TF_VAR_cost_center`, `TF_VAR_ai_model_name`, `TF_VAR_ai_model_version`, `TF_VAR_ai_model_capacity`, `TF_VAR_openclaw_image_tag`, `TF_VAR_openclaw_state_share_quota_gb`, `TF_VAR_monthly_budget_amount`, `TF_VAR_embedding_model_name`, `TF_VAR_embedding_model_version`, `TF_VAR_embedding_model_capacity`. | | |
+| TASK-006 | Keep these secrets in CI job `env:` blocks (they cannot move to the central file): `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `TFSTATE_RG`, `TFSTATE_LOCATION`, `TFSTATE_STORAGE_ACCOUNT`, `TFSTATE_CONTAINER`, `TFSTATE_KEY`, `TF_VAR_PUBLIC_IP` → `TF_VAR_public_ip`, `BUDGET_ALERT_EMAIL` → `TF_VAR_budget_alert_email`, `TF_VAR_AZURE_AI_API_KEY` → `TF_VAR_azure_ai_api_key`. | | |
+| TASK-007 | Add `terraform/{env}.auto.tfvars` to `.gitignore` to prevent accidental commit of the downloaded file. | | |
 
 ### Implementation Phase 3 — Update terraform-local.sh
 
@@ -58,9 +58,9 @@ Move all non-sensitive Terraform input variables from GitHub Secrets and GitHub 
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-008 | After loading the local `scripts/{env}.tfvars` file (which provides `TFSTATE_STORAGE_ACCOUNT` and `TFSTATE_CONTAINER`), add a block that runs: `az storage blob download --account-name "${TFSTATE_STORAGE_ACCOUNT}" --container-name "${TFSTATE_CONTAINER}" --name "tfvars/${ENV}.auto.tfvars" --file "${TF_DIR}/${ENV}.auto.tfvars" --auth-mode login --output none`. Print a status message on success. Exit with a clear error if the blob is not found (prompt to create it). | Yes | 2026-04-11 |
-| TASK-009 | Add a cleanup trap at the end of `terraform-local.sh` that removes `${TF_DIR}/${ENV}.auto.tfvars` on exit, ensuring it is never left on disk after the script completes. | Yes | 2026-04-11 |
-| TASK-010 | Update the script header comment to document the new setup step: "Central tfvars is downloaded automatically from Azure Blob Storage; ensure `az login` is complete before running." | Yes | 2026-04-11 |
+| TASK-008 | After loading the local `scripts/{env}.tfvars` file (which provides `TFSTATE_STORAGE_ACCOUNT` and `TFSTATE_CONTAINER`), add a block that runs: `az storage blob download --account-name "${TFSTATE_STORAGE_ACCOUNT}" --container-name "${TFSTATE_CONTAINER}" --name "tfvars/${ENV}.auto.tfvars" --file "${TF_DIR}/${ENV}.auto.tfvars" --auth-mode login --output none`. Print a status message on success. Exit with a clear error if the blob is not found (prompt to create it). | | |
+| TASK-009 | Add a cleanup trap at the end of `terraform-local.sh` that removes `${TF_DIR}/${ENV}.auto.tfvars` on exit, ensuring it is never left on disk after the script completes. | | |
+| TASK-010 | Update the script header comment to document the new setup step: "Central tfvars is downloaded automatically from Azure Blob Storage; ensure `az login` is complete before running." | | |
 
 ### Implementation Phase 4 — Reduce Local Secrets File
 
@@ -68,8 +68,8 @@ Move all non-sensitive Terraform input variables from GitHub Secrets and GitHub 
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-011 | Remove all non-secret TF_VAR entries from `scripts/dev.tfvars`. Keep: `AZURE_SUBSCRIPTION_ID`, `TFSTATE_*` variables, `TF_VAR_public_ip`, `TF_VAR_budget_alert_email`, `TF_VAR_azure_ai_api_key`. Add explanatory comment: "Non-secret variables (project, location, model config, instance list) are stored centrally in Azure Blob Storage and downloaded automatically." | Yes | 2026-04-11 |
-| TASK-012 | Update `scripts/prod.tfvars.example` — remove all non-secret TF_VAR lines, update header comment to describe the central tfvars approach, and add the blob download path. | Yes | 2026-04-11 |
+| TASK-011 | Remove all non-secret TF_VAR entries from `scripts/dev.tfvars`. Keep: `AZURE_SUBSCRIPTION_ID`, `TFSTATE_*` variables, `TF_VAR_public_ip`, `TF_VAR_budget_alert_email`, `TF_VAR_azure_ai_api_key`. Add explanatory comment: "Non-secret variables (project, location, model config, instance list) are stored centrally in Azure Blob Storage and downloaded automatically." | | |
+| TASK-012 | Update `scripts/prod.tfvars.example` — remove all non-secret TF_VAR lines, update header comment to describe the central tfvars approach, and add the blob download path. | | |
 
 ### Implementation Phase 5 — Remove Obsolete GitHub Secrets/Variables
 
@@ -77,8 +77,8 @@ Move all non-sensitive Terraform input variables from GitHub Secrets and GitHub 
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-013 | In GitHub repo settings → Environments → `dev`: delete GitHub Variables `TF_VAR_PROJECT`, `TF_VAR_LOCATION`, `TF_VAR_OWNER`, `TF_VAR_COST_CENTER`, `TF_VAR_AI_MODEL_NAME`, `TF_VAR_AI_MODEL_VERSION`, `TF_VAR_AI_MODEL_CAPACITY`, `TF_VAR_OPENCLAW_IMAGE_TAG`, `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB`, `TF_VAR_MONTHLY_BUDGET_AMOUNT`, `TF_VAR_EMBEDDING_MODEL_NAME`, `TF_VAR_EMBEDDING_MODEL_VERSION`, `TF_VAR_EMBEDDING_MODEL_CAPACITY`. | Yes | 2026-04-11 |
-| TASK-014 | Repeat TASK-013 for the `prod` environment. | Yes | 2026-04-11 |
+| TASK-013 | In GitHub repo settings → Environments → `dev`: delete GitHub Variables `TF_VAR_PROJECT`, `TF_VAR_LOCATION`, `TF_VAR_OWNER`, `TF_VAR_COST_CENTER`, `TF_VAR_AI_MODEL_NAME`, `TF_VAR_AI_MODEL_VERSION`, `TF_VAR_AI_MODEL_CAPACITY`, `TF_VAR_OPENCLAW_IMAGE_TAG`, `TF_VAR_OPENCLAW_STATE_SHARE_QUOTA_GB`, `TF_VAR_MONTHLY_BUDGET_AMOUNT`, `TF_VAR_EMBEDDING_MODEL_NAME`, `TF_VAR_EMBEDDING_MODEL_VERSION`, `TF_VAR_EMBEDDING_MODEL_CAPACITY`. | | |
+| TASK-014 | Repeat TASK-013 for the `prod` environment. | | |
 
 ## 3. Alternatives
 

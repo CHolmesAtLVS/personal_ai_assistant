@@ -23,7 +23,7 @@ Create per-instance workload directories and ArgoCD Application manifests for ea
 - **REQ-001**: Each instance's workload lives in `workloads/{env}/openclaw-{inst}/` — independent Chart.yaml, values.yaml, bootstrap/ directory, and crds/ directory.
 - **REQ-002**: Each instance's `serviceaccount.yaml` uses `${OPENCLAW_MI_CLIENT_ID}` sourced from the per-instance MI (Terraform output `instance_mi_client_ids[inst]`).
 - **REQ-003**: Each instance's `secretproviderclass.yaml` syncs `{inst}-openclaw-gateway-token` (not the old shared name) and `azure-ai-api-key` from the shared Key Vault.
-- **REQ-004**: Each instance's `configmap.yaml` sets `APP_FQDN` to `{inst}-paa-dev.acmeadventure.ca` (dev) or `{inst}-paa.acmeadventure.ca` (prod).
+- **REQ-004**: Each instance's `configmap.yaml` sets `APP_FQDN` to `{inst}.{dev-domain}` (dev) or `{inst}.{prod-domain}` (prod).
 - **REQ-005**: Each instance's Helm `values.yaml` references the instance-specific NFS share name (`openclaw-{inst}-nfs`) in the PV configuration.
 - **REQ-006**: Each ArgoCD Application manifest (`argocd/apps/{env}-openclaw-{inst}.yaml`) tracks `workloads/{env}/openclaw-{inst}/` with `configMode: merge` and appropriate `ignoreDifferences` for the ConfigMap.
 - **REQ-007**: `scripts/seed-openclaw-aks.sh` must accept an instance name as a second parameter and apply the correct `workloads/{env}/openclaw-{inst}/bootstrap/` directory. It must also support iterating over all instances in the environment.
@@ -40,12 +40,12 @@ Create per-instance workload directories and ArgoCD Application manifests for ea
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
 | TASK-001 | Create `workloads/dev/openclaw-ch/Chart.yaml` — copy from `workloads/dev/openclaw/Chart.yaml`; update `name: openclaw-ch`. | | |
-| TASK-002 | Create `workloads/dev/openclaw-ch/values.yaml` — copy from `workloads/dev/openclaw/values.yaml`; update `openclawVersion` as needed; update the PV share name to `openclaw-ch-nfs`; update `APP_FQDN` to `ch-paa-dev.acmeadventure.ca`. Set `resources.requests: {cpu: 100m, memory: 256Mi}` and `resources.limits: {cpu: 500m, memory: 512Mi}`. | | |
+| TASK-002 | Create `workloads/dev/openclaw-ch/values.yaml` — copy from `workloads/dev/openclaw/values.yaml`; update `openclawVersion` as needed; update the PV share name to `openclaw-ch-nfs`; update `APP_FQDN` to `ch.{dev-domain}`. Set `resources.requests: {cpu: 100m, memory: 256Mi}` and `resources.limits: {cpu: 500m, memory: 512Mi}`. | | |
 | TASK-003 | Create `workloads/dev/openclaw-ch/bootstrap/serviceaccount.yaml` — copy from existing; keep `${OPENCLAW_MI_CLIENT_ID}` placeholder (CI will substitute the `ch` instance MI client ID). Namespace: `openclaw-ch`. | | |
 | TASK-004 | Create `workloads/dev/openclaw-ch/bootstrap/secretproviderclass.yaml` — copy from existing; update `objectName: ${INST}-openclaw-gateway-token` where `${INST}` is substituted to `ch` at seed time. Namespace: `openclaw-ch`. | | |
-| TASK-005 | Create `workloads/dev/openclaw-ch/bootstrap/configmap.yaml` — copy from existing; set `AZURE_OPENAI_ENDPOINT: "${AZURE_OPENAI_ENDPOINT}"` (shared endpoint) and `APP_FQDN: "ch-paa-dev.acmeadventure.ca"` (hard-coded, not substituted). Namespace: `openclaw-ch`. | | |
+| TASK-005 | Create `workloads/dev/openclaw-ch/bootstrap/configmap.yaml` — copy from existing; set `AZURE_OPENAI_ENDPOINT: "${AZURE_OPENAI_ENDPOINT}"` (shared endpoint) and `APP_FQDN: "ch.{dev-domain}"` (hard-coded, not substituted). Namespace: `openclaw-ch`. | | |
 | TASK-006 | Create `workloads/dev/openclaw-ch/crds/pv.yaml` — copy from existing; update NFS share name to `openclaw-ch-nfs`; update PV name to `openclaw-ch-nfs-pv`. | | |
-| TASK-007 | Repeat TASK-001 through TASK-006 for instance `jh`: `workloads/dev/openclaw-jh/`, NFS share `openclaw-jh-nfs`, namespace `openclaw-jh`, FQDN `jh-paa-dev.acmeadventure.ca`. | | |
+| TASK-007 | Repeat TASK-001 through TASK-006 for instance `jh`: `workloads/dev/openclaw-jh/`, NFS share `openclaw-jh-nfs`, namespace `openclaw-jh`, FQDN `jh.{dev-domain}`. | | |
 
 ### Implementation Phase 2 — Prod Instance Directories
 
@@ -53,9 +53,9 @@ Create per-instance workload directories and ArgoCD Application manifests for ea
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-008 | Create `workloads/prod/openclaw-ch/` — copy from `workloads/prod/openclaw/`; update for instance `ch`, NFS share `openclaw-ch-nfs`, namespace `openclaw-ch`, FQDN `ch-paa.acmeadventure.ca`. | | |
-| TASK-009 | Create `workloads/prod/openclaw-jh/` — same pattern for instance `jh`, FQDN `jh-paa.acmeadventure.ca`. | | |
-| TASK-010 | Create `workloads/prod/openclaw-kjm/` — same pattern for instance `kjm`, FQDN `kjm-paa.acmeadventure.ca`. | | |
+| TASK-008 | Create `workloads/prod/openclaw-ch/` — copy from `workloads/prod/openclaw/`; update for instance `ch`, NFS share `openclaw-ch-nfs`, namespace `openclaw-ch`, FQDN `ch.{prod-domain}`. | | |
+| TASK-009 | Create `workloads/prod/openclaw-jh/` — same pattern for instance `jh`, FQDN `jh.{prod-domain}`. | | |
+| TASK-010 | Create `workloads/prod/openclaw-kjm/` — same pattern for instance `kjm`, FQDN `kjm.{prod-domain}`. | | |
 
 ### Implementation Phase 3 — ArgoCD Application Manifests
 

@@ -24,7 +24,7 @@ This mode is designed for AI-to-AI communication and automated processing. All p
 
 ## Plan Types
 
-Two plan types exist. Determine the correct type **before** generating any output.
+Three plan types exist. Determine the correct type **before** generating any output.
 
 ### Standalone Plan
 
@@ -106,7 +106,7 @@ The status of the implementation plan must be clearly defined in the front matte
 ```md
 ---
 goal: [Concise Title Describing the Package Implementation Plan's Goal]
-plan_type: standalone|sub
+plan_type: standalone|parent|sub
 parent_plan: [For sub plans only: parent filename and SUB-ID, e.g., parent-auth-feature-1.md#SUB-003]
 version: [Optional: e.g., 1.0, Date]
 date_created: [YYYY-MM-DD]

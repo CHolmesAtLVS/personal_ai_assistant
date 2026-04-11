@@ -116,18 +116,25 @@ chmod +x "${SCRIPT_DIR}/bootstrap-tfstate.sh"
 
 # ── Download central tfvars from Azure Blob Storage ───────────────────────────
 echo "LOCAL-TF: downloading central tfvars for ${ENV}..."
+AZ_BLOB_DOWNLOAD_ERROR_FILE="$(mktemp)"
 if ! az storage blob download \
     --account-name "${TFSTATE_STORAGE_ACCOUNT}" \
     --container-name "${TFSTATE_CONTAINER}" \
     --name "tfvars/${ENV}.auto.tfvars" \
     --file "${TF_DIR}/${ENV}.auto.tfvars" \
     --auth-mode key \
-    --output none 2>/dev/null; then
-  echo "ERROR: central tfvars blob not found: tfvars/${ENV}.auto.tfvars"
-  echo "Create it with: az storage blob upload --account-name '${TFSTATE_STORAGE_ACCOUNT}' --container-name '${TFSTATE_CONTAINER}' --name 'tfvars/${ENV}.auto.tfvars' --file /tmp/${ENV}.auto.tfvars --auth-mode login"
+    --output none 2>"${AZ_BLOB_DOWNLOAD_ERROR_FILE}"; then
+  echo "ERROR: failed to download central tfvars blob: tfvars/${ENV}.auto.tfvars"
+  if [[ -s "${AZ_BLOB_DOWNLOAD_ERROR_FILE}" ]]; then
+    echo "Azure CLI error output:"
+    cat "${AZ_BLOB_DOWNLOAD_ERROR_FILE}"
+  fi
+  rm -f "${AZ_BLOB_DOWNLOAD_ERROR_FILE}"
+  echo "Create it with: az storage blob upload --account-name '${TFSTATE_STORAGE_ACCOUNT}' --container-name '${TFSTATE_CONTAINER}' --name 'tfvars/${ENV}.auto.tfvars' --file /tmp/${ENV}.auto.tfvars --auth-mode key"
   echo "See scripts/central-tfvars.example for the required format."
   exit 1
 fi
+rm -f "${AZ_BLOB_DOWNLOAD_ERROR_FILE}"
 echo "LOCAL-TF: central tfvars downloaded OK"
 
 # ── Terraform init ─────────────────────────────────────────────────────────────

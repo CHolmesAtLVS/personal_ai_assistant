@@ -2,9 +2,9 @@
 
 Use these documents as the primary project context:
 
-- [Product functionality](../PRODUCT.md)
-- [System architecture](../ARCHITECTURE.md)
-- [Contribution standards](../CONTRIBUTING.md)
+- [Product functionality](../PRODUCT.md): Describe the product features, user experience, and high-level design goals. This is the primary source for understanding what the product does and how it should behave.  Technical detials should be limited.
+- [System architecture](../ARCHITECTURE.md): Describe the system's architectural design, including components, interactions, and technology choices. This is the primary source for understanding how the product is built and how its parts fit together.
+- [Contribution standards](../CONTRIBUTING.md): Describe the contribution process, coding standards, review expectations, and other guidelines for contributing to the project. This is the primary source for understanding how to contribute effectively and in alignment with project norms.
 
 ## Project Context
 
@@ -12,7 +12,6 @@ Use these documents as the primary project context:
 - Runtime is an Ubuntu-based Docker container.
 - Terraform is the authoritative infrastructure mechanism.
 - Azure AI Foundry is the LLM backend.
-- Access is restricted to the approved home public IP via HTTPS ingress.
 
 ## Non-Negotiable Rules
 
@@ -28,7 +27,7 @@ Use these documents as the primary project context:
 
 - Always reference environment variables explicitly in `openclaw.json` using `${VAR_NAME}` substitution (e.g. `"token": "${OPENCLAW_GATEWAY_TOKEN}"`, `"apiKey": "${CUSTOM_API_KEY}"`). This makes the mapping between env vars and config values clear and auditable.
 - For openclaw CLI usage (connecting to the remote gateway, diagnostics, config changes, device pairing): load the `openclaw-cli` skill (`.github/skills/openclaw-cli/SKILL.md`). The local CLI is preferred over `az containerapp exec`.
-- For `openclaw.json` schema, env vars, and triage commands: load the `openclaw-config` skill (`.github/skills/openclaw-config/SKILL.md`).
+- Openclaw security is paramount. For any configuration changes that could impact security (e.g. changing ingress from private to public, modifying authentication settings, altering network rules), explicitly call out the security implications in the output and require confirmation before proceeding.
 
 ## Implementation Guidance
 

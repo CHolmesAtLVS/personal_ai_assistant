@@ -22,8 +22,6 @@
 #   KEY_VAULT_NAME           — Key Vault name (Terraform output)
 #   AZURE_TENANT_ID          — Azure tenant ID (GitHub Secret)
 #   AZURE_OPENAI_ENDPOINT    — Azure AI Services endpoint URL (Terraform output)
-#   NFS_STORAGE_ACCOUNT_NAME — NFS storage account name (Terraform output)
-#   RESOURCE_GROUP           — Resource group of the NFS storage account (Terraform output)
 #
 # Optional env vars:
 #   CERT_ISSUER  — cert-manager ClusterIssuer name (default: letsencrypt-staging)
@@ -55,8 +53,6 @@ fi
 : "${KEY_VAULT_NAME:?KEY_VAULT_NAME must be set}"
 : "${AZURE_TENANT_ID:?AZURE_TENANT_ID must be set}"
 : "${AZURE_OPENAI_ENDPOINT:?AZURE_OPENAI_ENDPOINT must be set}"
-: "${NFS_STORAGE_ACCOUNT_NAME:?NFS_STORAGE_ACCOUNT_NAME must be set}"
-: "${RESOURCE_GROUP:?RESOURCE_GROUP must be set}"
 
 # Compute instance-specific variables
 case "${ENV}" in
@@ -71,7 +67,6 @@ export CERT_SECRET_NAME="${INST}-${ENV}-tls"
 export CERT_ISSUER="${CERT_ISSUER:-letsencrypt-staging}"
 
 BOOTSTRAP_TMPL="${REPO_ROOT}/workloads/templates/bootstrap"
-CRDS_TMPL="${REPO_ROOT}/workloads/templates/crds"
 NAMESPACE="openclaw-${INST}"
 
 echo "Seeding instance '${INST}' in environment '${ENV}' (namespace: ${NAMESPACE})"
@@ -81,12 +76,6 @@ kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply
 
 echo "Applying bootstrap templates..."
 for f in "${BOOTSTRAP_TMPL}"/*.yaml; do
-  echo "  Applying: $(basename "${f}")"
-  envsubst < "${f}" | kubectl apply -f -
-done
-
-echo "Applying CRD templates..."
-for f in "${CRDS_TMPL}"/*.yaml; do
   echo "  Applying: $(basename "${f}")"
   envsubst < "${f}" | kubectl apply -f -
 done

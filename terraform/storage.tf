@@ -5,4 +5,4 @@
 #   azurerm_storage_share.openclaw_backup
 #   azurerm_container_app_environment_storage.openclaw_state
 #   azurerm_container_app_environment_storage.openclaw_backup
-# NFS share configuration in storage-aks.tf is unchanged.
+# NFS storage (storage-aks.tf) removed 2026-04-12 — pods use managed-csi-premium; NFS was never mounted.

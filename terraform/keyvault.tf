@@ -28,7 +28,7 @@ module "key_vault" {
 # unless explicitly replaced. Manual KV rotation is preserved by the
 # ignore_changes lifecycle rule on the secret resources.
 resource "random_id" "openclaw_gateway_token" {
-  for_each    = local.instances
+  for_each = local.instances
 
   byte_length = 24
 }

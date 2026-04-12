@@ -39,18 +39,6 @@ output "aks_node_resource_group" {
   value       = module.aks.node_resource_group_name
 }
 
-output "openclaw_nfs_storage_account_name" {
-  description = "Name of the Premium FileStorage account hosting the OpenClaw NFS shares."
-  sensitive   = false
-  value       = azurerm_storage_account.openclaw_nfs.name
-}
-
-output "instance_nfs_share_names" {
-  description = "Map of instance name to Azure Files NFS share name (openclaw-{inst}-nfs)."
-  sensitive   = false
-  value       = { for inst in var.openclaw_instances : inst => local.instance_nfs_share_name[inst] }
-}
-
 output "instance_mi_client_ids" {
   description = "Map of instance name to Managed Identity client ID."
   sensitive   = true

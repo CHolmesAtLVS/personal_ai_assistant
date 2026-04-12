@@ -1,6 +1,6 @@
 # AcrPull is only created when ACR exists (prod only).
 resource "azurerm_role_assignment" "mi_acr_pull" {
-  for_each             = var.environment == "prod" ? local.instances : toset([])
+  for_each = var.environment == "prod" ? local.instances : toset([])
 
   scope                = module.acr[0].resource_id
   role_definition_name = "AcrPull"
@@ -8,7 +8,7 @@ resource "azurerm_role_assignment" "mi_acr_pull" {
 }
 
 resource "azurerm_role_assignment" "mi_kv_secrets_user" {
-  for_each             = local.instances
+  for_each = local.instances
 
   scope                = module.key_vault.resource_id
   role_definition_name = "Key Vault Secrets User"
@@ -16,7 +16,7 @@ resource "azurerm_role_assignment" "mi_kv_secrets_user" {
 }
 
 resource "azurerm_role_assignment" "mi_ai_openai_user" {
-  for_each             = local.instances
+  for_each = local.instances
 
   scope                = module.ai_foundry.resource_id
   role_definition_name = "Cognitive Services OpenAI User"
@@ -28,7 +28,7 @@ resource "azurerm_role_assignment" "mi_ai_openai_user" {
 # Cognitive Services OpenAI User only covers the openai.azure.com endpoint;
 # Cognitive Services User covers all Cognitive Services APIs including AI Inference.
 resource "azurerm_role_assignment" "mi_ai_inference_user" {
-  for_each             = local.instances
+  for_each = local.instances
 
   scope                = module.ai_foundry.resource_id
   role_definition_name = "Cognitive Services User"

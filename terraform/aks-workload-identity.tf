@@ -1,5 +1,5 @@
 resource "azurerm_federated_identity_credential" "openclaw" {
-  for_each            = local.instances
+  for_each = local.instances
 
   name                = "openclaw-aks-${var.environment}-${each.key}"
   resource_group_name = module.resource_group.name
@@ -12,14 +12,3 @@ resource "azurerm_federated_identity_credential" "openclaw" {
 # The Managed Identity already holds Key Vault Secrets User (see roleassignments.tf).
 # No new Key Vault role assignment is required for Workload Identity — the existing
 # role binding applies via the same MI client ID when tokens are exchanged via OIDC.
-
-# Azure Files NFS shares use network-level (POSIX) authentication, not Azure RBAC data-plane
-# roles. Storage Account Contributor is granted so the CSI driver can enumerate file shares
-# and retrieve account metadata when establishing the NFS mount via Workload Identity.
-resource "azurerm_role_assignment" "aks_files_contributor" {
-  for_each             = local.instances
-
-  scope                = azurerm_storage_account.openclaw_nfs.id
-  role_definition_name = "Storage Account Contributor"
-  principal_id         = module.identity[each.key].principal_id
-}

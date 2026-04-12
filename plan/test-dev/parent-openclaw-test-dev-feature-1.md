@@ -48,9 +48,11 @@ Guarantee that every change — workload manifests, Helm values, Terraform infra
 
 - **DEP-001**: GitHub repository branch protection settings — `dev` branch must be created and protected; `main` must only accept PRs from `dev` (or feature branches via `dev`).
 - **DEP-002**: All existing workflow secrets (`AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, etc.) are already present in both `dev` and `prod` GitHub Actions environments.
+- **DEP-003**: ApplicationSet plan (`plan/argocd-appset/standalone-argocd-applicationset-feature-1.md`) — must complete before SUB-001 TASK-003 can target the ApplicationSet generator for `targetRevision` changes.
 
 ## 5. Execution Order
 
+- **ORD-000**: The ApplicationSet plan (`plan/argocd-appset/standalone-argocd-applicationset-feature-1.md`) must complete before SUB-001 begins. SUB-001 TASK-003 targets `targetRevision` in the ApplicationSet generator list — that generator does not exist until the ApplicationSet plan is applied. If the ApplicationSet plan has not run, SUB-001 TASK-003 must instead edit the per-instance `Application` YAML files (see `sub-001-dev-branch-argocd-feature-1.md` TASK-003 conditional note).
 - **ORD-001**: SUB-001 must complete before SUB-002 begins. The `dev` branch must exist before workflow triggers are changed to target it; otherwise CI breaks immediately.
 - **ORD-002**: SUB-002 must complete before SUB-003 begins. The test workflow triggers on the new `Terraform Dev` workflow name defined in SUB-002; it will not fire correctly until that workflow exists.
 
@@ -65,6 +67,7 @@ Guarantee that every change — workload manifests, Helm values, Terraform infra
 
 - [ArgoCD dev app definition](../argocd/apps/dev-openclaw.yaml)
 - [ArgoCD prod app definition](../argocd/apps/prod-openclaw.yaml)
+- [ApplicationSet plan](../plan/argocd-appset/standalone-argocd-applicationset-feature-1.md)
 - [Terraform Infrastructure workflow](../.github/workflows/terraform-infra.yml)
 - [AKS Bootstrap workflow](../.github/workflows/aks-bootstrap.yml)
 

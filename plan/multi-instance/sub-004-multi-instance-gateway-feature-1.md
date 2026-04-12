@@ -61,8 +61,8 @@ Update the shared Kubernetes Gateway and create per-instance HTTPRoute resources
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-009 | Retrieve the current Gateway LoadBalancer IP: `kubectl get svc -n gateway-system`. Note the `EXTERNAL-IP` of the NGINX Gateway Fabric service. | | |
-| TASK-010 | In the DNS provider, create A records for each instance hostname (dev: `{inst}.{dev-domain}`; prod: `{inst}.{prod-domain}`) — all pointing to the same LoadBalancer IP as the existing gateway records. | | |
+| TASK-009 | Retrieve the current Gateway LoadBalancer IP: `kubectl get svc -n gateway-system`. Note the `EXTERNAL-IP` of the NGINX Gateway Fabric service. | ✅ | 2026-04-12 |
+| TASK-010 | In the DNS provider, create A records for each instance hostname (dev: `{inst}.{dev-domain}`; prod: `{inst}.{prod-domain}`) — all pointing to the same LoadBalancer IP as the existing gateway records. | ✅ | 2026-04-12 |
 | TASK-011 | Verify DNS propagation using `dig {inst}.{dev-domain}` from the dev environment; confirm the IP matches the Gateway LoadBalancer IP. | | |
 
 ### Implementation Phase 4 — Certificate Verification

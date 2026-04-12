@@ -23,17 +23,21 @@ module "key_vault" {
   }
 }
 
-# Generates a stable 48-character hex token on first deploy.
-# The value is stored in Terraform state (sensitive) and never regenerated
-# unless this resource is explicitly replaced. Manual KV rotation is
-# preserved by the ignore_changes lifecycle rule on the secret resource.
+# Generates a stable 48-character hex token per instance on first deploy.
+# Values are stored in Terraform state (sensitive) and never regenerated
+# unless explicitly replaced. Manual KV rotation is preserved by the
+# ignore_changes lifecycle rule on the secret resources.
 resource "random_id" "openclaw_gateway_token" {
+  for_each = local.instances
+
   byte_length = 24
 }
 
 resource "azurerm_key_vault_secret" "openclaw_gateway_token" {
-  name         = "openclaw-gateway-token"
-  value        = random_id.openclaw_gateway_token.hex
+  for_each = local.instances
+
+  name         = "${each.key}-openclaw-gateway-token"
+  value        = random_id.openclaw_gateway_token[each.key].hex
   key_vault_id = module.key_vault.resource_id
   content_type = "text/plain"
 

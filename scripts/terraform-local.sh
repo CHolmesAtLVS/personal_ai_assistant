@@ -123,6 +123,7 @@ if ! az storage blob download \
     --name "tfvars/${ENV}.auto.tfvars" \
     --file "${TF_DIR}/${ENV}.auto.tfvars" \
     --auth-mode login \
+    --overwrite \
     --output none 2>"${AZ_BLOB_DOWNLOAD_ERROR_FILE}"; then
   echo "ERROR: failed to download central tfvars blob: tfvars/${ENV}.auto.tfvars"
   if [[ -s "${AZ_BLOB_DOWNLOAD_ERROR_FILE}" ]]; then

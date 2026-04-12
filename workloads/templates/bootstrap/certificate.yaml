@@ -1,0 +1,22 @@
+# TEMPLATE — applied by scripts/seed-openclaw-aks.sh via envsubst. Not committed per-instance.
+# Applied to namespace gateway-system (namespace is declared in the manifest itself).
+#
+# Variables substituted at seed time:
+#   CERT_SECRET_NAME — TLS secret name, pattern {inst}-{env}-tls (e.g. ch-dev-tls)
+#   CERT_ISSUER      — ClusterIssuer name (letsencrypt-staging or letsencrypt-prod)
+#   INST_FQDN        — instance hostname, no scheme (e.g. ch.paa-dev.acmeadventure.ca)
+#
+# gateway-shim is not enabled; explicit Certificate resources are required.
+# Use letsencrypt-staging until READY confirmed, then re-issue with letsencrypt-prod.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ${CERT_SECRET_NAME}
+  namespace: gateway-system
+spec:
+  secretName: ${CERT_SECRET_NAME}
+  issuerRef:
+    name: ${CERT_ISSUER}
+    kind: ClusterIssuer
+  dnsNames:
+    - ${INST_FQDN}

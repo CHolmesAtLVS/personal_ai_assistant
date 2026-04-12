@@ -76,10 +76,11 @@ Create a `dev` long-lived integration branch, change `argocd/apps/dev-openclaw.y
 
 - **DEP-001**: GitHub repository must support Rulesets (available on GitHub Free/Pro/Team for public repos; GitHub Team/Enterprise for private — confirm repo visibility and plan tier before TASK-005).
 - **DEP-002**: SUB-002 and SUB-003 must be merged before TASK-006 (required status check name is not registered until the test workflow runs).
+- **DEP-003**: The ApplicationSet plan (`plan/argocd-appset/standalone-argocd-applicationset-feature-1.md`) should complete before TASK-003 executes. If it has not, TASK-003 must target the individual per-instance `Application` YAML files instead (see TASK-003 conditional note).
 
 ## 5. Files
 
-- **FILE-001**: `argocd/apps/dev-openclaw.yaml` — `targetRevision` changed from `HEAD` to `dev`.
+- **FILE-001**: `argocd/apps/openclaw-appset.yaml` — dev generator rows updated: `targetRevision` changed from `HEAD` to `dev` (when the ApplicationSet plan is applied first); OR `argocd/apps/dev-openclaw-ch.yaml` and `argocd/apps/dev-openclaw-jh.yaml` — `targetRevision` changed from `HEAD` to `dev` in each file (when the ApplicationSet plan has NOT been applied). The deprecated `argocd/apps/dev-openclaw.yaml` is not modified.
 - **FILE-002**: `CONTRIBUTING.md` — new Branch Model section + updated PR flow bullets.
 - **FILE-003**: `.github/copilot-instructions.md` — branch model note added under Project Context.
 

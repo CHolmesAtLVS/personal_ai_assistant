@@ -15,14 +15,21 @@ locals {
   # Resource name locals.
   # Key Vault constraint: 3-24 chars, alphanumeric and hyphens only.
   # ACR constraint: 5-50 chars, alphanumeric only (no hyphens).
-  law_name                          = "${local.name_prefix}-law"
-  identity_name                     = "${local.name_prefix}-id"
-  kv_name                           = "${local.name_prefix}-kv"
-  acr_name                          = "${replace(var.project, "-", "")}sharedacr"
-  shared_rg_name                    = "${var.project}-shared-rg"
-  ai_hub_name                       = "${local.name_prefix}-hub"
-  ai_project_name                   = "${local.name_prefix}-proj"
-  budget_name                       = "${local.name_prefix}-budget"
-  action_group_name                 = "${local.name_prefix}-ag-cost"
-  openclaw_nfs_storage_account_name = substr(replace("${var.project}${var.environment}ocnfs", "-", ""), 0, 24)
+  law_name          = "${local.name_prefix}-law"
+  identity_name     = "${local.name_prefix}-id"
+  kv_name           = "${local.name_prefix}-kv"
+  acr_name          = "${replace(var.project, "-", "")}sharedacr"
+  shared_rg_name    = "${var.project}-shared-rg"
+  ai_hub_name       = "${local.name_prefix}-hub"
+  ai_project_name   = "${local.name_prefix}-proj"
+  budget_name       = "${local.name_prefix}-budget"
+  action_group_name = "${local.name_prefix}-ag-cost"
+}
+
+locals {
+  instances = toset(var.openclaw_instances)
+
+  instance_identity_name = {
+    for inst in var.openclaw_instances : inst => "${local.name_prefix}-${inst}-id"
+  }
 }

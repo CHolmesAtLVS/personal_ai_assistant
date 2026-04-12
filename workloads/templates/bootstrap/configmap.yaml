@@ -1,0 +1,12 @@
+# TEMPLATE — applied by scripts/seed-openclaw-aks.sh via envsubst. Not committed per-instance.
+#
+# Variables substituted at seed time:
+#   INST                  — instance name (e.g. ch, jh, kjm)
+#   AZURE_OPENAI_ENDPOINT — Azure AI Services endpoint URL (Terraform output)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-env-config
+  namespace: openclaw-${INST}
+data:
+  AZURE_OPENAI_ENDPOINT: "${AZURE_OPENAI_ENDPOINT}"

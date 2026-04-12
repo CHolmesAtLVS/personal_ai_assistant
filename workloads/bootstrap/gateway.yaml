@@ -12,9 +12,6 @@
 #   https-jh-prod     — port 443, hostname jh.paa.acmeadventure.ca. TLS terminated.
 #   https-kjm-prod    — port 443, hostname kjm.paa.acmeadventure.ca. TLS terminated.
 #
-# Legacy listeners (https-dev, https-prod) are retained temporarily during migration.
-# Remove after per-instance routes are confirmed healthy (SUB-006 validation complete).
-#
 # cert-manager: explicit Certificate resources in each instance's bootstrap/certificate.yaml
 # trigger issuance (gateway-shim is not enabled). All new instance certs use
 # letsencrypt-staging until confirmed READY, then switch to letsencrypt-prod.
@@ -35,8 +32,7 @@ metadata:
   name: main-gateway
   namespace: gateway-system
   annotations:
-    # cert-manager annotation retained for legacy listener compatibility.
-    # New instance certificates are managed via explicit Certificate resources.
+    # cert-manager: explicit Certificate resources per instance manage issuance.
     cert-manager.io/cluster-issuer: letsencrypt-staging
 spec:
   gatewayClassName: nginx
@@ -47,35 +43,6 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
-
-    # --- Legacy listeners — retained during migration; remove after SUB-006 validation ---
-    - name: https-dev
-      protocol: HTTPS
-      port: 443
-      hostname: paa-dev.acmeadventure.ca
-      allowedRoutes:
-        namespaces:
-          from: All
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: paa-dev-tls
-            namespace: gateway-system
-
-    - name: https-prod
-      protocol: HTTPS
-      port: 443
-      hostname: paa.acmeadventure.ca
-      allowedRoutes:
-        namespaces:
-          from: All
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: paa-prod-tls
-            namespace: gateway-system
 
     # --- Per-instance dev listeners ---
     - name: https-ch-dev

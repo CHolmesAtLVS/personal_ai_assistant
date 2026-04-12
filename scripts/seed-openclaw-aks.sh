@@ -3,8 +3,9 @@
 #
 # Applies shared templates from workloads/templates/ via envsubst, substituting
 # instance-specific variables. Must run before ArgoCD syncs so that the
-# SecretProviderClass, ServiceAccount, ConfigMap, HTTPRoute, Certificate, and
-# PersistentVolume exist before the first pod start.
+# SecretProviderClass, ServiceAccount, ConfigMap, HTTPRoute, and Certificate
+# exist before the first pod start. Persistent storage is provisioned
+# dynamically by the workload's configured storage class when the PVC is created.
 #
 # Usage:
 #   ./scripts/seed-openclaw-aks.sh <dev|prod> <inst>
@@ -33,6 +34,11 @@ set -euo pipefail
 
 ENV="${1:?ENV is required — pass 'dev' or 'prod' as first argument}"
 INST="${2:?INST is required — pass instance name as second argument (e.g. ch, jh, kjm)}"
+
+if ! [[ "${INST}" =~ ^[a-z]{2,3}$ ]]; then
+  echo "ERROR: INST must be 2-3 lowercase letters (e.g. ch, jh, kjm); got '${INST}'" >&2
+  exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"

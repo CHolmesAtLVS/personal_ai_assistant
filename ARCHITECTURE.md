@@ -209,9 +209,7 @@ Each instance MI receives these role assignments:
 | `aks_node_resource_group` | Node resource group created by AKS | no |
 | `ai_services_endpoint` | Endpoint URL of the AI Services account | yes |
 | `acr_login_server` | ACR login server (null in non-prod) | yes |
-| `nfs_storage_account_name` | Storage account name hosting all instance NFS shares | no |
 | `instance_mi_client_ids` | Map of `{instance} → MI client ID` for OIDC seeding | yes |
-| `instance_nfs_share_names` | Map of `{instance} → NFS share name` | no |
 | `kv_name` | Key Vault name for bootstrap scripts | yes |
 
 ## End-to-End Deployment and Runtime Flow

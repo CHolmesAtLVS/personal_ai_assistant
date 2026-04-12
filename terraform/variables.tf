@@ -156,6 +156,11 @@ variable "openclaw_instances" {
     condition     = length(var.openclaw_instances) > 0 && alltrue([for i in var.openclaw_instances : can(regex("^[a-z]{2,3}$", i))])
     error_message = "Each instance name must be 2-3 lowercase letters and the list must not be empty."
   }
+
+  validation {
+    condition     = length(var.openclaw_instances) == length(toset(var.openclaw_instances))
+    error_message = "openclaw_instances must contain unique instance names."
+  }
 }
 
 # vm_* variables removed — dev VM is no longer managed by Terraform.

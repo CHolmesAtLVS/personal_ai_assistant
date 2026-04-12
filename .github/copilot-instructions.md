@@ -27,7 +27,7 @@ Use these documents as the primary project context:
 ## OpenClaw Configuration Preferences
 
 - Always reference environment variables explicitly in `openclaw.json` using `${VAR_NAME}` substitution (e.g. `"token": "${OPENCLAW_GATEWAY_TOKEN}"`, `"apiKey": "${CUSTOM_API_KEY}"`). This makes the mapping between env vars and config values clear and auditable.
-- For openclaw CLI usage (connecting to the remote gateway, diagnostics, config changes, device pairing): load the `openclaw-cli` skill (`.github/skills/openclaw-cli/SKILL.md`). The local CLI is preferred over `az containerapp exec`.
+- For openclaw CLI usage (connecting to the remote gateway, diagnostics, config changes, device pairing): load the `openclaw-cli` skill (`.github/skills/openclaw-cli/SKILL.md`). The local CLI is preferred over `kubectl exec ...` when an AKS fallback is required.
 - OpenClaw security is paramount. For any configuration changes that could impact security (e.g. changing ingress from private to public, modifying authentication settings, altering network rules), explicitly call out the security implications in the output and require confirmation before proceeding.
 
 ## Implementation Guidance

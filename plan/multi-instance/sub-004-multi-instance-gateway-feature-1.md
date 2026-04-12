@@ -4,14 +4,14 @@ plan_type: sub
 parent_plan: parent-multi-instance-aks-feature-1.md#SUB-004
 version: 1.0
 date_created: 2026-04-11
-last_updated: 2026-04-11
-status: 'Planned'
+last_updated: 2026-04-12
+status: 'In progress'
 tags: [kubernetes, gateway, dns, tls, networking]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
 Update the shared Kubernetes Gateway and create per-instance HTTPRoute resources to route HTTPS traffic to each OpenClaw instance at its unique DNS hostname. Each instance gets one HTTPS Gateway listener, one TLS certificate (issued by cert-manager via Let's Encrypt HTTP-01), and one HTTPRoute in its own namespace. The HTTP listener (port 80) remains shared for ACME HTTP-01 challenges and HTTP→HTTPS redirects.
 
@@ -61,8 +61,8 @@ Update the shared Kubernetes Gateway and create per-instance HTTPRoute resources
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-009 | Retrieve the current Gateway LoadBalancer IP: `kubectl get svc -n gateway-system`. Note the `EXTERNAL-IP` of the NGINX Gateway Fabric service. | | |
-| TASK-010 | In the DNS provider, create A records for each instance hostname (dev: `{inst}.{dev-domain}`; prod: `{inst}.{prod-domain}`) — all pointing to the same LoadBalancer IP as the existing gateway records. | | |
+| TASK-009 | Retrieve the current Gateway LoadBalancer IP: `kubectl get svc -n gateway-system`. Note the `EXTERNAL-IP` of the NGINX Gateway Fabric service. | ✅ | 2026-04-12 |
+| TASK-010 | In the DNS provider, create A records for each instance hostname (dev: `{inst}.{dev-domain}`; prod: `{inst}.{prod-domain}`) — all pointing to the same LoadBalancer IP as the existing gateway records. | ✅ | 2026-04-12 |
 | TASK-011 | Verify DNS propagation using `dig {inst}.{dev-domain}` from the dev environment; confirm the IP matches the Gateway LoadBalancer IP. | | |
 
 ### Implementation Phase 4 — Certificate Verification

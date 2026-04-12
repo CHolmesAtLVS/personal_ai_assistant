@@ -1,7 +1,7 @@
 ---
 goal: Multi-Instance OpenClaw on AKS — parent coordination plan
 plan_type: parent
-version: 1.0
+version: 1.1
 date_created: 2026-04-11
 status: 'In progress'
 tags: [feature, architecture, aks, multi-instance, terraform, gitops]
@@ -42,8 +42,8 @@ This initiative extends the OpenClaw AKS deployment to support **multiple isolat
 | SUB-001 | [sub-001-multi-instance-docs-feature-1.md](sub-001-multi-instance-docs-feature-1.md) | Update PRODUCT.md and ARCHITECTURE.md | Completed |
 | SUB-002 | [sub-002-multi-instance-tfvars-feature-1.md](sub-002-multi-instance-tfvars-feature-1.md) | Central tfvars in Blob Storage; reduce GitHub Secrets; update CI and terraform-local.sh | Complete |
 | SUB-003 | [sub-003-multi-instance-terraform-feature-1.md](sub-003-multi-instance-terraform-feature-1.md) | Terraform per-instance resources via `for_each`; `openclaw_instances` variable | Complete |
-| SUB-004 | [sub-004-multi-instance-gateway-feature-1.md](sub-004-multi-instance-gateway-feature-1.md) | Gateway per-instance HTTPS listeners, HTTPRoutes, TLS certificates | Planned |
-| SUB-005 | [sub-005-multi-instance-workloads-feature-1.md](sub-005-multi-instance-workloads-feature-1.md) | Per-instance workloads directory, Helm values, ArgoCD apps, bootstrap manifests | Planned |
+| SUB-004 | [sub-004-multi-instance-gateway-feature-1.md](sub-004-multi-instance-gateway-feature-1.md) | Gateway per-instance HTTPS listeners, HTTPRoutes, TLS certificates | In progress |
+| SUB-005 | [sub-005-multi-instance-workloads-feature-1.md](sub-005-multi-instance-workloads-feature-1.md) | Per-instance workloads directory, Helm values, ArgoCD apps, bootstrap manifests | Complete |
 | SUB-006 | [sub-006-multi-instance-validation-feature-1.md](sub-006-multi-instance-validation-feature-1.md) | End-to-end validation: 2 instances in dev, 3 instances in prod | Planned |
 
 ## 3. Alternatives

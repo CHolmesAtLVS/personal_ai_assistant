@@ -4,14 +4,14 @@ plan_type: sub
 parent_plan: parent-multi-instance-aks-feature-1.md#SUB-005
 version: 1.0
 date_created: 2026-04-11
-last_updated: 2026-04-11
-status: 'Planned'
+last_updated: 2026-04-12
+status: 'Complete'
 tags: [kubernetes, argocd, helm, gitops, multi-instance]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Complete](https://img.shields.io/badge/status-Complete-brightgreen)
 
 Create per-instance workload directories and ArgoCD Application manifests for each OpenClaw instance in each environment. The existing single-instance `workloads/{env}/openclaw/` structure is cloned into `workloads/{env}/openclaw-{inst}/` with instance-specific values. Bootstrap manifests (`serviceaccount.yaml`, `secretproviderclass.yaml`, `configmap.yaml`) are updated to reference per-instance resource names. `scripts/seed-openclaw-aks.sh` is extended to accept an instance parameter and iterate over all instances.
 

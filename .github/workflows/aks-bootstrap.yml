@@ -101,13 +101,12 @@ jobs:
             --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
 
       # ── Phase 2 — Gateway manifest ─────────────────────────────────────────────
-      # Uses the dev-specific gateway file — only dev instance listeners.
-      # cert-manager gateway-shim manages certs for https-ch-dev and https-jh-dev.
+      # Uses the shared gateway manifest — covers all dev and prod listeners.
       - name: Bootstrap AKS — Gateway manifest
         shell: bash
         run: |
           set -euo pipefail
-          kubectl apply -f workloads/bootstrap/gateway-dev.yaml
+          kubectl apply -f workloads/bootstrap/gateway.yaml
 
       # ── Phase 3 — cert-manager ─────────────────────────────────────────────────
       # Chart 1.20.1. --enable-gateway-api is required for the gatewayHTTPRoute
@@ -238,13 +237,12 @@ jobs:
           kubectl get svc -n gateway-system ngf-nginx-gateway-fabric \
             --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
 
-      # Uses the prod-specific gateway file — only prod instance listeners.
-      # cert-manager gateway-shim manages certs for https-ch-prod, https-jh-prod, https-kjm-prod.
+      # Uses the shared gateway manifest — covers all dev and prod listeners.
       - name: Bootstrap AKS — Gateway manifest
         shell: bash
         run: |
           set -euo pipefail
-          kubectl apply -f workloads/bootstrap/gateway-prod.yaml
+          kubectl apply -f workloads/bootstrap/gateway.yaml
 
       - name: Bootstrap AKS — cert-manager
         shell: bash

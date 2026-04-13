@@ -95,8 +95,8 @@ resource "azurerm_automation_schedule" "nightly_stop" {
   frequency               = "Day"
   interval                = 1
   timezone                = "America/Denver"
-  # Computed to always be > 5 min in the future on first apply; ignored on subsequent applies.
-  start_time = formatdate("YYYY-MM-DDT02:00:00-06:00", timeadd(plantimestamp(), "24h"))
+  # Always > 5 min in the future on first apply; ignored on subsequent applies.
+  start_time = timeadd(plantimestamp(), "24h")
 
   lifecycle {
     ignore_changes = [start_time]
@@ -112,8 +112,8 @@ resource "azurerm_automation_schedule" "morning_start" {
   frequency               = "Week"
   interval                = 1
   timezone                = "America/Denver"
-  # Computed to always be > 5 min in the future on first apply; ignored on subsequent applies.
-  start_time = formatdate("YYYY-MM-DDT07:00:00-06:00", timeadd(plantimestamp(), "24h"))
+  # Always > 5 min in the future on first apply; ignored on subsequent applies.
+  start_time = timeadd(plantimestamp(), "24h")
   week_days  = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
   lifecycle {

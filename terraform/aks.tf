@@ -70,6 +70,10 @@ module "aks" {
 
   addon_profile_oms_agent = {
     enabled = false
+    config = {
+      log_analytics_workspace_resource_id = module.logging.resource_id
+      use_aad_auth                        = true
+    }
   }
 
   api_server_access_profile = length(var.aks_api_authorized_ips) > 0 ? {

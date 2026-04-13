@@ -69,10 +69,7 @@ module "aks" {
   }
 
   addon_profile_oms_agent = {
-    enabled = true
-    config = {
-      log_analytics_workspace_resource_id = module.logging.resource_id
-    }
+    enabled = false
   }
 
   api_server_access_profile = length(var.aks_api_authorized_ips) > 0 ? {
@@ -87,11 +84,9 @@ module "aks" {
         "kube-apiserver",
         "kube-controller-manager",
         "kube-scheduler",
-        "kube-audit",
-        "kube-audit-admin",
       ]
       log_groups        = []
-      metric_categories = ["AllMetrics"]
+      metric_categories = []
     }
   }
 }

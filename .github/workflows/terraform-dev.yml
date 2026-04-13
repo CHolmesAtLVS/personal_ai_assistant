@@ -1,38 +1,39 @@
-name: Terraform Infrastructure
+name: Terraform Dev
 
 # Triggers:
-# - push to main (merged PR): plan + apply to prod.
-# - workflow_dispatch: manual prod apply.
+# - pull_request (opened/synchronize/reopened targeting dev): plan + apply to dev.
+# - workflow_dispatch: manual dev apply.
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Target environment (prod manual apply)"
+        description: "Target environment (dev only)"
         required: false
-        default: "prod"
+        default: "dev"
         type: choice
         options:
-          - prod
-  push:
-    branches: [main]
+          - dev
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [dev]
     paths:
       - "terraform/**"
       - "scripts/bootstrap-tfstate.sh"
-      - ".github/workflows/terraform-infra.yml"
+      - ".github/workflows/terraform-dev.yml"
 
 # Minimal permissions: only read repo contents. Secrets are passed explicitly via env.
 permissions:
   contents: read
 
 jobs:
-  # ── Prod apply: triggered by push to main (i.e., merged PR) ──────────────────
-  terraform-prod:
-    name: Terraform Prod
-    if: >
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      github.event_name == 'workflow_dispatch'
+  # ── Dev: plan + apply on every PR targeting dev ───────────────────────────────
+  terraform-dev:
+    name: Terraform Dev
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    environment: prod
+    environment: dev
     env:
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
@@ -42,10 +43,10 @@ jobs:
       TFSTATE_LOCATION: ${{ secrets.TFSTATE_LOCATION }}
       TFSTATE_STORAGE_ACCOUNT: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
       TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
-      TFSTATE_KEY: terraform-prod.tfstate
+      TFSTATE_KEY: terraform-dev.tfstate
       TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
-      ENVIRONMENT: prod
+      ENVIRONMENT: dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,7 +104,7 @@ jobs:
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-prod
+          name: terraform-plan-dev
           path: terraform/tfplan
 
       - name: Terraform Apply

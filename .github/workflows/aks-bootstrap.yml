@@ -1,15 +1,15 @@
 name: AKS Bootstrap
 
-# Triggered automatically after Terraform Infrastructure succeeds, and manually
-# via workflow_dispatch for re-runs or one-off config seeds.
+# Triggered automatically after Terraform Dev or Terraform Infrastructure succeeds,
+# and manually via workflow_dispatch for re-runs or one-off config seeds.
 #
-# Dev bootstrap runs after a successful pull_request terraform run.
-# Prod bootstrap runs after a successful push-to-main terraform run.
+# Dev bootstrap runs after a successful Terraform Dev run (PR to dev).
+# Prod bootstrap runs after a successful Terraform Infrastructure run (push to main).
 #
 # All steps are idempotent (helm upgrade --install, kubectl apply).
 on:
   workflow_run:
-    workflows: ["Terraform Infrastructure"]
+    workflows: ["Terraform Dev", "Terraform Infrastructure"]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -27,15 +27,15 @@ permissions:
 
 jobs:
   # ── Dev bootstrap ─────────────────────────────────────────────────────────────
-  # Runs after a successful dev terraform apply (triggered by pull_request), or
-  # manually via workflow_dispatch.
+  # Runs after a successful Terraform Dev run (PR to dev), or manually via
+  # workflow_dispatch.
   bootstrap-dev:
     name: Bootstrap Dev
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev') ||
       (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'pull_request')
+       github.event.workflow_run.name == 'Terraform Dev' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     environment: dev
     env:
@@ -101,17 +101,13 @@ jobs:
             --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
 
       # ── Phase 2 — Gateway manifest ─────────────────────────────────────────────
-      # CERT_SECRET_NAME is substituted by envsubst before kubectl apply.
-      # The TLS secret is created by cert-manager in Phase 3.
+      # Uses the dev-specific gateway file — only dev instance listeners.
+      # cert-manager gateway-shim manages certs for https-ch-dev and https-jh-dev.
       - name: Bootstrap AKS — Gateway manifest
         shell: bash
-        env:
-          CERT_SECRET_NAME: ${{ format('{0}-dev-tls', vars.TF_VAR_PROJECT) }}
         run: |
           set -euo pipefail
-          envsubst '${CERT_SECRET_NAME}' \
-            < workloads/bootstrap/gateway.yaml \
-            | kubectl apply -f -
+          kubectl apply -f workloads/bootstrap/gateway-dev.yaml
 
       # ── Phase 3 — cert-manager ─────────────────────────────────────────────────
       # Chart 1.20.1. --enable-gateway-api is required for the gatewayHTTPRoute
@@ -185,8 +181,8 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod') ||
       (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push')
+       github.event.workflow_run.name == 'Terraform Infrastructure' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     environment: prod
     env:
@@ -242,15 +238,13 @@ jobs:
           kubectl get svc -n gateway-system ngf-nginx-gateway-fabric \
             --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
 
+      # Uses the prod-specific gateway file — only prod instance listeners.
+      # cert-manager gateway-shim manages certs for https-ch-prod, https-jh-prod, https-kjm-prod.
       - name: Bootstrap AKS — Gateway manifest
         shell: bash
-        env:
-          CERT_SECRET_NAME: ${{ format('{0}-prod-tls', vars.TF_VAR_PROJECT) }}
         run: |
           set -euo pipefail
-          envsubst '${CERT_SECRET_NAME}' \
-            < workloads/bootstrap/gateway.yaml \
-            | kubectl apply -f -
+          kubectl apply -f workloads/bootstrap/gateway-prod.yaml
 
       - name: Bootstrap AKS — cert-manager
         shell: bash

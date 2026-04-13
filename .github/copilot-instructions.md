@@ -13,6 +13,7 @@ Use these documents as the primary project context:
 - Terraform is the authoritative infrastructure mechanism.
 - Azure AI Foundry is the LLM backend.
 - Ingress is IP-restricted HTTPS via NGINX Gateway Fabric; preserve these controls unless explicitly asked to change them.
+- **Branch model:** `dev` is the integration branch. PRs target `dev`. Only a `dev` → `main` PR promotes to production. AI agents must generate PRs targeting `dev` unless explicitly asked to create a production promote PR (`dev` → `main`).
 
 ## Non-Negotiable Rules
 

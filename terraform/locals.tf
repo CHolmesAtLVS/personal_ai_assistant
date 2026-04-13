@@ -12,7 +12,7 @@ locals {
 }
 
 locals {
-  # Resource name locals.
+  # Resource name locals derived from name_prefix = "{project}-{environment}".
   # Key Vault constraint: 3-24 chars, alphanumeric and hyphens only.
   # ACR constraint: 5-50 chars, alphanumeric only (no hyphens).
   law_name          = "${local.name_prefix}-law"

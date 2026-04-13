@@ -30,8 +30,12 @@ jobs:
       TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
       TF_VAR_environment: dev
     steps:
+      # Check out the exact commit that triggered Terraform Dev (not default branch HEAD).
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name || github.repository }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Azure Login (Service Principal)
         shell: bash
@@ -53,58 +57,109 @@ jobs:
             --name "${TF_VAR_project}-${TF_VAR_environment}-aks" \
             --overwrite-existing
 
-      - name: Install openclaw CLI
-        run: npm install -g openclaw
-
       - name: Install jq
-        run: sudo apt-get install -y jq
+        run: sudo apt-get update -y && sudo apt-get install -y jq
 
+      # Wait for ArgoCD to sync all dev Application instances and their pods to be ready.
+      # Dev apps are ch-openclaw-dev (ns: openclaw-ch) and jh-openclaw-dev (ns: openclaw-jh).
       - name: Wait — ArgoCD sync + pod readiness
         shell: bash
         run: |
           set -euo pipefail
           TIMEOUT=600
           INTERVAL=15
-          ELAPSED=0
+          APPS=(ch-openclaw-dev jh-openclaw-dev)
 
-          echo "Waiting for ArgoCD to sync openclaw-dev..."
-          until kubectl get application openclaw-dev -n argocd \
-                -o jsonpath='{.status.sync.status}' 2>/dev/null \
-                | grep -q "Synced"; do
-            if [[ $ELAPSED -ge $TIMEOUT ]]; then
-              echo "Timeout waiting for ArgoCD sync after ${TIMEOUT}s"; exit 1
-            fi
-            sleep $INTERVAL
-            ELAPSED=$(( ELAPSED + INTERVAL ))
+          for APP in "${APPS[@]}"; do
+            ELAPSED=0
+            echo "Waiting for ArgoCD to sync ${APP}..."
+            until [[ "$(kubectl get application "${APP}" -n argocd \
+                  -o jsonpath='{.status.sync.status}' 2>/dev/null || true)" == "Synced" ]]; do
+              if [[ $ELAPSED -ge $TIMEOUT ]]; then
+                echo "Timeout waiting for ArgoCD sync for ${APP} after ${TIMEOUT}s"; exit 1
+              fi
+              sleep $INTERVAL
+              ELAPSED=$(( ELAPSED + INTERVAL ))
+            done
+            echo "ArgoCD sync for ${APP}: Synced"
+
+            TARGET_NS="$(kubectl get application "${APP}" -n argocd \
+              -o jsonpath='{.spec.destination.namespace}')"
+            echo "Waiting for OpenClaw pod readiness in namespace ${TARGET_NS}..."
+            kubectl rollout status deployment/openclaw -n "${TARGET_NS}" --timeout=5m
+            echo "OpenClaw pod in ${TARGET_NS}: Ready"
           done
-          echo "ArgoCD sync: Synced"
 
-          echo "Waiting for OpenClaw pod readiness..."
-          kubectl rollout status deployment/openclaw -n openclaw --timeout=5m
-          echo "OpenClaw pod: Ready"
-
+      # Health validation using kubectl port-forward + HTTP probes.
+      # The test scripts (test-multi-model.sh, test-openclaw-config.sh) use
+      # az containerapp exec which targets Azure Container Apps, not AKS.
+      # Use kubectl-based checks here; update the scripts when they are AKS-ported.
       - name: Run OpenClaw health tests
         id: health
         shell: bash
         run: |
+          set -euo pipefail
           echo "## OpenClaw Dev Integration Tests — $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_STEP_SUMMARY"
-          export CI=true
-          bash scripts/test-multi-model.sh dev | tee /tmp/health-out.txt
+          {
+            for NS in openclaw-ch openclaw-jh; do
+              echo "--- Namespace: ${NS} ---"
+              kubectl get svc openclaw -n "${NS}"
+              READY="$(kubectl get endpoints openclaw -n "${NS}" \
+                -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null | wc -l)"
+              if [[ "${READY}" -lt 1 ]]; then
+                echo "FAIL: no ready endpoints for openclaw in ${NS}"; exit 1
+              fi
+              echo "Ready endpoints in ${NS}: ${READY}"
+
+              PORT="$(kubectl get svc openclaw -n "${NS}" \
+                -o jsonpath='{.spec.ports[0].port}')"
+              kubectl port-forward "svc/openclaw" -n "${NS}" "18080:${PORT}" \
+                >/tmp/pf-${NS}.log 2>&1 &
+              PF_PID=$!
+              trap 'kill ${PF_PID} >/dev/null 2>&1 || true' EXIT
+
+              HEALTH_OK=0
+              for _ in $(seq 1 15); do
+                if curl -fsS http://127.0.0.1:18080/healthz >/dev/null 2>&1; then
+                  HEALTH_OK=1; break
+                fi
+                sleep 2
+              done
+              kill "${PF_PID}" >/dev/null 2>&1 || true
+              if [[ "${HEALTH_OK}" -ne 1 ]]; then
+                echo "FAIL: /healthz did not respond in ${NS}"
+                cat "/tmp/pf-${NS}.log" || true
+                exit 1
+              fi
+              echo "PASS: /healthz responded in ${NS}"
+            done
+          } | tee /tmp/health-out.txt
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           cat /tmp/health-out.txt >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-
-      # az containerapp exec is rate-limited (~5 sessions / 10 min).
-      # Sleep 120s to avoid hitting the rate limit immediately after bootstrap's seed step.
-      - name: Wait before config validation (avoid az containerapp exec rate limit)
-        run: sleep 120
 
       - name: Run OpenClaw config validation
         id: config
         shell: bash
         run: |
+          set -euo pipefail
           echo "## Config Validation" >> "$GITHUB_STEP_SUMMARY"
-          bash scripts/test-openclaw-config.sh dev | tee /tmp/config-out.txt
+          {
+            for NS in openclaw-ch openclaw-jh; do
+              echo "--- Namespace: ${NS} ---"
+              DEP="$(kubectl get deployment openclaw -n "${NS}" -o json)"
+              IMAGE="$(echo "${DEP}" | jq -r '.spec.template.spec.containers[0].image // empty')"
+              [[ -n "${IMAGE}" ]] || { echo "FAIL: no image in ${NS}"; exit 1; }
+              echo "Image: ${IMAGE}"
+              ENV_COUNT="$(echo "${DEP}" | jq '[.spec.template.spec.containers[0].env[]?] | length')"
+              ENVFROM_COUNT="$(echo "${DEP}" | jq '[.spec.template.spec.containers[0].envFrom[]?] | length')"
+              MOUNTS="$(echo "${DEP}" | jq '[.spec.template.spec.containers[0].volumeMounts[]?] | length')"
+              if [[ "${ENV_COUNT}" -eq 0 && "${ENVFROM_COUNT}" -eq 0 && "${MOUNTS}" -eq 0 ]]; then
+                echo "FAIL: no env/envFrom/volumeMounts in ${NS}"; exit 1
+              fi
+              echo "env=${ENV_COUNT} envFrom=${ENVFROM_COUNT} mounts=${MOUNTS}"
+            done
+          } | tee /tmp/config-out.txt
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           cat /tmp/config-out.txt >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"

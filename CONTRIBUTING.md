@@ -30,7 +30,7 @@ This project deploys OpenClaw to Azure Kubernetes Service (AKS) using Terraform,
 - Image version bump: update `image.tag` in `workloads/<env>/openclaw/values.yaml` and open a PR to `dev` so ArgoCD syncs only the tag change. Never use `latest`.
 - Infrastructure changes: update Terraform and document impact; open a PR to `dev`.
 - Deployment changes: update GitHub Actions workflow, `scripts/bootstrap-aks-platform.sh`, or Helm chart values and document the rollout; open a PR to `dev`.
-- Helm values changes: update `workloads/<env>/openclaw/values.yaml` and open a PR to `dev`; ArgoCD will detect and sync automatically after the `dev` → `main` promote.
+- Helm values changes: update `workloads/<env>/openclaw/values.yaml` and open a PR to `dev`; ArgoCD dev will detect and sync the change after it merges to `dev`, and ArgoCD prod will pick it up after the `dev` → `main` promote is merged.
 - ArgoCD Application changes: update `argocd/apps/<env>-openclaw.yaml` and open a PR to `dev`; re-apply via `kubectl apply` or the bootstrap script after sync.
 
 ## Environment Safety

@@ -7,12 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Target environment (dev only; prod deploys via push to main)"
+        description: "Target environment (prod manual apply)"
         required: false
-        default: "dev"
+        default: "prod"
         type: choice
         options:
-          - dev
+          - prod
   push:
     branches: [main]
     paths:
@@ -28,7 +28,9 @@ jobs:
   # ── Prod apply: triggered by push to main (i.e., merged PR) ──────────────────
   terraform-prod:
     name: Terraform Prod
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: prod
     env:

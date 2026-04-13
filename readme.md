@@ -107,6 +107,41 @@ Update `TF_VAR_OPENCLAW_IMAGE_TAG` in the GitHub Environment variable and open a
 - Terraform is the authoritative source of truth for all Azure resources
 - Azure deployment identifiers (tenant, subscription, DNS names) are treated as secret operational metadata and are not documented here
 
+## Dev Environment Schedule
+
+The dev AKS cluster is automatically stopped and started by an Azure Automation Account to reduce overnight compute costs:
+
+| Event | Time | Days |
+|---|---|---|
+| Cluster stop | 02:00 Mountain Time (America/Denver) | Daily |
+| Cluster start | 07:00 Mountain Time (America/Denver) | Monday–Friday |
+
+The schedule honours daylight saving time automatically via the `America/Denver` IANA timezone ID. The cluster remains stopped on weekends.
+
+**To start or stop the cluster manually:**
+
+```bash
+# Start
+az aks start --resource-group <dev-resource-group> --name <dev-cluster-name>
+
+# Stop
+az aks stop --resource-group <dev-resource-group> --name <dev-cluster-name>
+
+# Check status
+az aks show --resource-group <dev-resource-group> --name <dev-cluster-name> --query powerState.code
+```
+
+Alternatively, navigate to the Azure Portal → Automation Account → Runbooks and trigger `*-start-cluster` or `*-stop-cluster` manually.
+
+**Dev desktop Windows VM:** The dev desktop VM is not managed by Terraform. To align its shutdown with the cluster stop, configure a Windows Task Scheduler task manually:
+
+1. Open Task Scheduler → Create Basic Task.
+2. Trigger: Daily at 02:00.
+3. Action: Start a Program → `shutdown.exe` with arguments `/s /t 60 /c "Nightly scheduled shutdown"`.
+4. Set "Run whether user is logged on or not."
+
+This is a one-time manual step. If the VM is reimaged, the task must be reconfigured.
+
 ## Further Reading
 
 - [PRODUCT.md](PRODUCT.md) — what the assistant does and how to use it

@@ -69,9 +69,10 @@ module "aks" {
   }
 
   addon_profile_oms_agent = {
-    enabled = true
+    enabled = false
     config = {
       log_analytics_workspace_resource_id = module.logging.resource_id
+      use_aad_auth                        = true
     }
   }
 
@@ -87,11 +88,9 @@ module "aks" {
         "kube-apiserver",
         "kube-controller-manager",
         "kube-scheduler",
-        "kube-audit",
-        "kube-audit-admin",
       ]
       log_groups        = []
-      metric_categories = ["AllMetrics"]
+      metric_categories = []
     }
   }
 }

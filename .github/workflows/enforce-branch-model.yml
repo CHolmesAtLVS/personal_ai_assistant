@@ -1,0 +1,24 @@
+name: Enforce Branch Model
+
+# Fails any PR to main that does not originate from the dev branch.
+# Add job check-source-branch as a required status check on the main branch Ruleset.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require source branch to be dev
+        run: |
+          if [[ "${{ github.head_ref }}" != "dev" ]]; then
+            echo "ERROR: PRs to main must come from the 'dev' branch."
+            echo "Got: ${{ github.head_ref }}"
+            echo "Open your PR targeting 'dev' instead, or promote via a dev → main PR."
+            exit 1
+          fi
+          echo "Source branch is 'dev' — OK"

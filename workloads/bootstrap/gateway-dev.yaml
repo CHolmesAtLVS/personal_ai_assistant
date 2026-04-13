@@ -1,0 +1,69 @@
+---
+# Gateway resource for the dev cluster (paa-dev-aks).
+# Namespace: gateway-system (created by NGINX Gateway Fabric Helm install).
+# Applied by the bootstrap CI job (bootstrap-dev) after NGINX Gateway Fabric is ready.
+#
+# Listeners:
+#   http          — port 80, all namespaces. Used for HTTP-01 ACME challenges and
+#                   HTTP→HTTPS redirects (handled by HTTPRoute resources in openclaw-* ns).
+#   https-ch-dev  — port 443, hostname ch.paa-dev.acmeadventure.ca. TLS terminated.
+#   https-jh-dev  — port 443, hostname jh.paa-dev.acmeadventure.ca. TLS terminated.
+#
+# cert-manager gateway-shim is enabled (--enable-gateway-api flag on cert-manager controller).
+# The cert-manager.io/cluster-issuer annotation causes cert-manager to manage Certificate
+# resources for each HTTPS listener automatically. Explicit Certificate resources in
+# workloads/templates/bootstrap/certificate.yaml are applied by seed-openclaw-aks.sh and
+# serve as the authoritative cert spec; cert-manager reconciles them.
+#
+# HTTPRoutes in openclaw-{inst} namespaces use sectionName to target the correct listener:
+#   sectionName: http            — HTTP-01 ACME challenges and HTTP→HTTPS redirects
+#   sectionName: https-{inst}-dev — dev HTTPS traffic for that instance
+#
+# REQ-003: GatewayClass named "nginx" (created by NGINX Gateway Fabric)
+# REQ-007: Gateway in namespace gateway-system, ports 80 and 443
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: main-gateway
+  namespace: gateway-system
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  gatewayClassName: nginx
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # --- Per-instance dev listeners ---
+    - name: https-ch-dev
+      protocol: HTTPS
+      port: 443
+      hostname: ch.paa-dev.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: ch-dev-tls
+            namespace: gateway-system
+
+    - name: https-jh-dev
+      protocol: HTTPS
+      port: 443
+      hostname: jh.paa-dev.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: jh-dev-tls
+            namespace: gateway-system

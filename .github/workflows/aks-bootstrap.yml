@@ -101,17 +101,13 @@ jobs:
             --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
 
       # ── Phase 2 — Gateway manifest ─────────────────────────────────────────────
-      # CERT_SECRET_NAME is substituted by envsubst before kubectl apply.
-      # The TLS secret is created by cert-manager in Phase 3.
+      # Uses the dev-specific gateway file — only dev instance listeners.
+      # cert-manager gateway-shim manages certs for https-ch-dev and https-jh-dev.
       - name: Bootstrap AKS — Gateway manifest
         shell: bash
-        env:
-          CERT_SECRET_NAME: ${{ format('{0}-dev-tls', vars.TF_VAR_PROJECT) }}
         run: |
           set -euo pipefail
-          envsubst '${CERT_SECRET_NAME}' \
-            < workloads/bootstrap/gateway.yaml \
-            | kubectl apply -f -
+          kubectl apply -f workloads/bootstrap/gateway-dev.yaml
 
       # ── Phase 3 — cert-manager ─────────────────────────────────────────────────
       # Chart 1.20.1. --enable-gateway-api is required for the gatewayHTTPRoute
@@ -242,15 +238,13 @@ jobs:
           kubectl get svc -n gateway-system ngf-nginx-gateway-fabric \
             --output jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
 
+      # Uses the prod-specific gateway file — only prod instance listeners.
+      # cert-manager gateway-shim manages certs for https-ch-prod, https-jh-prod, https-kjm-prod.
       - name: Bootstrap AKS — Gateway manifest
         shell: bash
-        env:
-          CERT_SECRET_NAME: ${{ format('{0}-prod-tls', vars.TF_VAR_PROJECT) }}
         run: |
           set -euo pipefail
-          envsubst '${CERT_SECRET_NAME}' \
-            < workloads/bootstrap/gateway.yaml \
-            | kubectl apply -f -
+          kubectl apply -f workloads/bootstrap/gateway-prod.yaml
 
       - name: Bootstrap AKS — cert-manager
         shell: bash

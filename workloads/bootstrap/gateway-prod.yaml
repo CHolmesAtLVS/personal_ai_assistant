@@ -1,0 +1,84 @@
+---
+# Gateway resource for the prod cluster (paa-prod-aks).
+# Namespace: gateway-system (created by NGINX Gateway Fabric Helm install).
+# Applied by the bootstrap CI job (bootstrap-prod) after NGINX Gateway Fabric is ready.
+#
+# Listeners:
+#   http           — port 80, all namespaces. Used for HTTP-01 ACME challenges and
+#                    HTTP→HTTPS redirects (handled by HTTPRoute resources in openclaw-* ns).
+#   https-ch-prod  — port 443, hostname ch.paa.acmeadventure.ca. TLS terminated.
+#   https-jh-prod  — port 443, hostname jh.paa.acmeadventure.ca. TLS terminated.
+#   https-kjm-prod — port 443, hostname kjm.paa.acmeadventure.ca. TLS terminated.
+#
+# cert-manager gateway-shim is enabled (--enable-gateway-api flag on cert-manager controller).
+# The cert-manager.io/cluster-issuer annotation causes cert-manager to manage Certificate
+# resources for each HTTPS listener automatically. Explicit Certificate resources in
+# workloads/templates/bootstrap/certificate.yaml are applied by seed-openclaw-aks.sh and
+# serve as the authoritative cert spec; cert-manager reconciles them.
+#
+# HTTPRoutes in openclaw-{inst} namespaces use sectionName to target the correct listener:
+#   sectionName: http             — HTTP-01 ACME challenges and HTTP→HTTPS redirects
+#   sectionName: https-{inst}-prod — prod HTTPS traffic for that instance
+#
+# REQ-003: GatewayClass named "nginx" (created by NGINX Gateway Fabric)
+# REQ-007: Gateway in namespace gateway-system, ports 80 and 443
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: main-gateway
+  namespace: gateway-system
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  gatewayClassName: nginx
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # --- Per-instance prod listeners ---
+    - name: https-ch-prod
+      protocol: HTTPS
+      port: 443
+      hostname: ch.paa.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: ch-prod-tls
+            namespace: gateway-system
+
+    - name: https-jh-prod
+      protocol: HTTPS
+      port: 443
+      hostname: jh.paa.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: jh-prod-tls
+            namespace: gateway-system
+
+    - name: https-kjm-prod
+      protocol: HTTPS
+      port: 443
+      hostname: kjm.paa.acmeadventure.ca
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: kjm-prod-tls
+            namespace: gateway-system

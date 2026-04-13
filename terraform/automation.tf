@@ -65,7 +65,7 @@ resource "azurerm_automation_runbook" "stop_dev_cluster" {
   location                = var.location
   resource_group_name     = module.resource_group.name
   automation_account_name = azurerm_automation_account.dev_cluster_scheduler[0].name
-  runbook_type            = "PowerShell"
+  runbook_type            = "PowerShell72"
   log_verbose             = false
   log_progress            = false
   content                 = file("${path.module}/../scripts/automation/stop-dev-cluster.ps1")
@@ -79,7 +79,7 @@ resource "azurerm_automation_runbook" "start_dev_cluster" {
   location                = var.location
   resource_group_name     = module.resource_group.name
   automation_account_name = azurerm_automation_account.dev_cluster_scheduler[0].name
-  runbook_type            = "PowerShell"
+  runbook_type            = "PowerShell72"
   log_verbose             = false
   log_progress            = false
   content                 = file("${path.module}/../scripts/automation/start-dev-cluster.ps1")
@@ -95,7 +95,12 @@ resource "azurerm_automation_schedule" "nightly_stop" {
   frequency               = "Day"
   interval                = 1
   timezone                = "America/Denver"
-  start_time              = "2026-04-15T02:00:00-06:00"
+  # Computed to always be > 5 min in the future on first apply; ignored on subsequent applies.
+  start_time = formatdate("YYYY-MM-DDT02:00:00-06:00", timeadd(plantimestamp(), "24h"))
+
+  lifecycle {
+    ignore_changes = [start_time]
+  }
 }
 
 resource "azurerm_automation_schedule" "morning_start" {
@@ -107,8 +112,13 @@ resource "azurerm_automation_schedule" "morning_start" {
   frequency               = "Week"
   interval                = 1
   timezone                = "America/Denver"
-  start_time              = "2026-04-15T07:00:00-06:00"
-  week_days               = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+  # Computed to always be > 5 min in the future on first apply; ignored on subsequent applies.
+  start_time = formatdate("YYYY-MM-DDT07:00:00-06:00", timeadd(plantimestamp(), "24h"))
+  week_days  = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+
+  lifecycle {
+    ignore_changes = [start_time]
+  }
 }
 
 resource "azurerm_automation_job_schedule" "stop_link" {

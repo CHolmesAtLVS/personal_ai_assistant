@@ -13,7 +13,7 @@ tags: [cost, logging, aks, log-analytics, diagnostics]
 
 ![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
 
-AKS diagnostic settings currently ship five log categories to Log Analytics, including `kube-audit` and `kube-audit-admin` — the two highest-volume categories by far. This subplan removes those two categories from the AKS diagnostic settings block, disables the OMS Agent (Container Insights) add-on entirely to eliminate its ingestion volume, reduces the Log Analytics workspace retention from 30 days to 7 days (Azure minimum), and adds a daily ingestion cap to prevent cost spikes.
+AKS diagnostic settings currently ship five log categories to Log Analytics, including `kube-audit` and `kube-audit-admin` — the two highest-volume categories by far. This subplan removes those two categories from the AKS diagnostic settings block, disables the OMS Agent (Container Insights) add-on entirely to eliminate its ingestion volume, and retains the Log Analytics workspace at 30 days (the minimum enforced by the `avm-res-operationalinsights-workspace ~> 0.4` module). A daily ingestion cap (`daily_quota_gb`) is not yet implemented; it is tracked as a TODO in `logging.tf` pending a module version upgrade.
 
 These changes apply to both `dev` and `prod` Terraform configurations, since Log Analytics costs accumulate in both environments.
 
@@ -22,10 +22,10 @@ These changes apply to both `dev` and `prod` Terraform configurations, since Log
 - **REQ-001**: Remove `kube-audit` and `kube-audit-admin` from the AKS `diagnostic_settings.log_categories` list in `terraform/aks.tf`.
 - **REQ-002**: Retain `kube-apiserver`, `kube-controller-manager`, and `kube-scheduler` log categories to preserve minimum operational observability.
 - **REQ-003**: Disable the OMS Agent (`addon_profile_oms_agent`) on the AKS cluster to eliminate Container Insights ingestion entirely.
-- **REQ-004**: Reduce `log_analytics_workspace_retention_in_days` in `terraform/logging.tf` from `30` to `7`.
-- **REQ-005**: Add a daily ingestion cap (`daily_quota_gb`) to the Log Analytics workspace in `terraform/logging.tf` to bound unexpected cost spikes.
+- **REQ-004**: Retain `log_analytics_workspace_retention_in_days` at `30` days in `terraform/logging.tf` — this is the minimum enforced by the AVM module `~> 0.4`. A lower value causes Terraform to fail at plan time.
+- **REQ-005**: Track addition of a daily ingestion cap (`daily_quota_gb = 0.5`) as a follow-up TODO; blocked on upgrading `avm-res-operationalinsights-workspace` to a version that exposes this variable.
 - **REQ-006**: All changes must be delivered via Terraform; no manual portal changes.
-- **CON-001**: Azure Log Analytics minimum retention is 7 days. Values below 7 are rejected by the API.
+- **CON-001**: The `avm-res-operationalinsights-workspace ~> 0.4` module enforces a `retention_in_days` range of 30–730 days. Setting a value below 30 causes a Terraform plan error. The retention cannot be reduced below 30 days without a module upgrade.
 - **CON-002**: Removing `kube-audit` and `kube-audit-admin` eliminates user and admin API server audit trails from Log Analytics. Security audit coverage for the cluster is reduced. This is a deliberate cost trade-off; document it explicitly.
 - **CON-003**: Disabling the OMS Agent removes all Container Insights node/pod-level metrics and log streams from Log Analytics. Basic pod-level visibility via `kubectl` and ArgoCD remains available; Log Analytics metrics will no longer be available.
 - **CON-004**: The `AllMetrics` metric category in the AKS diagnostic settings is also removed (TASK-002) as it is redundant once Container Insights is disabled.

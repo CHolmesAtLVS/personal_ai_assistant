@@ -15,9 +15,9 @@ tags: [cost, infrastructure, aks, logging, automation]
 Two targeted infrastructure changes to reduce ongoing Azure spend:
 
 1. **Dev cluster nightly shutdown** — An Azure Automation Account with a PowerShell runbook stops the dev AKS cluster on a nightly schedule, eliminating compute costs during off-hours. A companion wake-up schedule restarts it each morning.
-2. **Log Analytics cost reduction** — AKS diagnostic settings are trimmed to remove high-volume audit log categories, Log Analytics retention is reduced to the minimum (7 days), and a daily ingestion cap is applied to prevent unexpected spikes.
+2. **Log Analytics cost reduction** — AKS diagnostic settings are trimmed to remove high-volume audit log categories, the OMS Agent (Container Insights) is disabled, and Log Analytics retention is kept at 30 days (the AVM module minimum; a `daily_quota_gb` cap is tracked as a follow-up pending a module version upgrade).
 
-Neither change affects the `prod` environment. Each subplan is independently deployable via the existing Terraform CI/CD pipeline.
+The dev cluster automation (SUB-001) is scoped to the `dev` environment only. The Log Analytics changes (SUB-002) — removing audit log categories, disabling OMS Agent, and retention settings — apply to **both** `dev` and `prod` environments, since Log Analytics costs accumulate in both.
 
 ## 1. Requirements & Constraints
 
@@ -28,7 +28,7 @@ Neither change affects the `prod` environment. Each subplan is independently dep
 - **REQ-005**: All infrastructure changes must be delivered through Terraform; no manual portal changes.
 - **SEC-001**: Automation Account identity must be granted least-privilege RBAC (stop/start action only, scoped to the AKS cluster resource).
 - **CON-001**: AKS Free tier is in use; stop/start is supported on Free tier clusters.
-- **CON-002**: Log Analytics minimum retention is 7 days; this is the floor for both changes.
+- **CON-002**: Log Analytics minimum retention enforced by the `avm-res-operationalinsights-workspace ~> 0.4` module is 30 days; values below 30 are rejected by the module. A daily ingestion cap (`daily_quota_gb`) requires a module version upgrade and is tracked as a TODO in `logging.tf`.
 - **CON-003**: Disabling the OMS Agent (Container Insights) entirely eliminates cluster-level metrics from Log Analytics; this is an acceptable trade-off for dev but must be called out explicitly.
 - **GUD-001**: All new Terraform resources must follow existing `local.name_prefix` naming conventions and carry `local.common_tags`.
 - **GUD-002**: Terraform changes must be environment-conditioned using `count` or variable-based guards to ensure `prod` is unaffected.

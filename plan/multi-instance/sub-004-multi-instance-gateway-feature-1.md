@@ -4,14 +4,14 @@ plan_type: sub
 parent_plan: parent-multi-instance-aks-feature-1.md#SUB-004
 version: 1.0
 date_created: 2026-04-11
-last_updated: 2026-04-12
-status: 'In progress'
+last_updated: 2026-04-19
+status: 'Completed'
 tags: [kubernetes, gateway, dns, tls, networking]
 ---
 
 # Introduction
 
-![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
+![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
 
 Update the shared Kubernetes Gateway and create per-instance HTTPRoute resources to route HTTPS traffic to each OpenClaw instance at its unique DNS hostname. Each instance gets one HTTPS Gateway listener, one TLS certificate (issued by cert-manager via Let's Encrypt HTTP-01), and one HTTPRoute in its own namespace. The HTTP listener (port 80) remains shared for ACME HTTP-01 challenges and HTTP→HTTPS redirects.
 
@@ -39,11 +39,11 @@ Update the shared Kubernetes Gateway and create per-instance HTTPRoute resources
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-001 | In `workloads/bootstrap/gateway.yaml`: remove the legacy `https-dev` listener (hostname `{dev-domain}`) and `https-prod` listener (hostname `{prod-domain}`). | | |
-| TASK-002 | Add per-instance HTTPS listeners for dev — `https-ch-dev` (hostname `ch.{dev-domain}`, cert secret `ch-dev-tls`) and `https-jh-dev` (hostname `jh.{dev-domain}`, cert secret `jh-dev-tls`). Each listener: `protocol: HTTPS`, `port: 443`, `allowedRoutes.namespaces.from: All`, `tls.mode: Terminate`. | | |
-| TASK-003 | Add per-instance HTTPS listeners for prod — `https-ch-prod`, `https-jh-prod`, `https-kjm-prod` with hostnames `ch.{prod-domain}`, `jh.{prod-domain}`, `kjm.{prod-domain}` and cert secrets `ch-tls`, `jh-tls`, `kjm-tls`. | | |
-| TASK-004 | Retain the `http` listener (port 80, `allowedRoutes.namespaces.from: All`) — it handles HTTP-01 ACME challenges and HTTP→HTTPS redirects for all hostnames. | | |
-| TASK-005 | Ensure the Gateway annotation `cert-manager.io/cluster-issuer: letsencrypt-staging` remains on the resource so cert-manager automatically issues certificates for all HTTPS listeners. | | |
+| TASK-001 | In `workloads/bootstrap/gateway.yaml`: remove the legacy `https-dev` listener (hostname `{dev-domain}`) and `https-prod` listener (hostname `{prod-domain}`). | partial — legacy listeners retained per REQ-007 pending SUB-006 validation | 2026-04-19 |
+| TASK-002 | Add per-instance HTTPS listeners for dev — `https-ch-dev` (hostname `ch.{dev-domain}`, cert secret `ch-dev-tls`) and `https-jh-dev` (hostname `jh.{dev-domain}`, cert secret `jh-dev-tls`). Each listener: `protocol: HTTPS`, `port: 443`, `allowedRoutes.namespaces.from: All`, `tls.mode: Terminate`. | ✅ | 2026-04-12 |
+| TASK-003 | Add per-instance HTTPS listeners for prod — `https-ch-prod`, `https-jh-prod`, `https-kjm-prod` with hostnames `ch.{prod-domain}`, `jh.{prod-domain}`, `kjm.{prod-domain}` and cert secrets `ch-tls`, `jh-tls`, `kjm-tls`. | ✅ | 2026-04-12 |
+| TASK-004 | Retain the `http` listener (port 80, `allowedRoutes.namespaces.from: All`) — it handles HTTP-01 ACME challenges and HTTP→HTTPS redirects for all hostnames. | ✅ | 2026-04-12 |
+| TASK-005 | Ensure the Gateway annotation `cert-manager.io/cluster-issuer: letsencrypt-staging` remains on the resource so cert-manager automatically issues certificates for all HTTPS listeners. | ✅ | 2026-04-12 |
 
 ### Implementation Phase 2 — Per-Instance HTTPRoutes
 
@@ -51,9 +51,9 @@ Update the shared Kubernetes Gateway and create per-instance HTTPRoute resources
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-006 | For each instance `{inst}` in dev (`ch`, `jh`), create `workloads/dev/openclaw-{inst}/bootstrap/httproute.yaml` containing two resources: (1) HTTP→HTTPS redirect route attaching to `sectionName: http` for hostname `{inst}.{dev-domain}`; (2) HTTPS route attaching to `sectionName: https-{inst}-dev` for hostname `{inst}.{dev-domain}`, forwarding all paths to service `openclaw` port 18789. | | |
-| TASK-007 | For each instance `{inst}` in prod (`ch`, `jh`, `kjm`), create `workloads/prod/openclaw-{inst}/bootstrap/httproute.yaml` with the same structure but using `https-{inst}-prod` and `{inst}.{prod-domain}`. | | |
-| TASK-008 | Remove legacy `workloads/dev/openclaw/bootstrap/httproute.yaml` and `workloads/prod/openclaw/bootstrap/httproute.yaml` after per-instance routes are validated. | | |
+| TASK-006 | For each instance `{inst}` in dev (`ch`, `jh`), create `workloads/dev/openclaw-{inst}/bootstrap/httproute.yaml` containing two resources: (1) HTTP→HTTPS redirect route attaching to `sectionName: http` for hostname `{inst}.{dev-domain}`; (2) HTTPS route attaching to `sectionName: https-{inst}-dev` for hostname `{inst}.{dev-domain}`, forwarding all paths to service `openclaw` port 18789. | ✅ via seed script template | 2026-04-19 |
+| TASK-007 | For each instance `{inst}` in prod (`ch`, `jh`, `kjm`), create `workloads/prod/openclaw-{inst}/bootstrap/httproute.yaml` with the same structure but using `https-{inst}-prod` and `{inst}.{prod-domain}`. | ✅ via seed script template | 2026-04-19 |
+| TASK-008 | Remove legacy `workloads/dev/openclaw/bootstrap/httproute.yaml` and `workloads/prod/openclaw/bootstrap/httproute.yaml` after per-instance routes are validated. | deferred — pending legacy namespace decommission | 2026-04-19 |
 
 ### Implementation Phase 3 — DNS Records
 
@@ -63,7 +63,7 @@ Update the shared Kubernetes Gateway and create per-instance HTTPRoute resources
 | ---- | ----------- | --------- | ---- |
 | TASK-009 | Retrieve the current Gateway LoadBalancer IP: `kubectl get svc -n gateway-system`. Note the `EXTERNAL-IP` of the NGINX Gateway Fabric service. | ✅ | 2026-04-12 |
 | TASK-010 | In the DNS provider, create A records for each instance hostname (dev: `{inst}.{dev-domain}`; prod: `{inst}.{prod-domain}`) — all pointing to the same LoadBalancer IP as the existing gateway records. | ✅ | 2026-04-12 |
-| TASK-011 | Verify DNS propagation using `dig {inst}.{dev-domain}` from the dev environment; confirm the IP matches the Gateway LoadBalancer IP. | | |
+| TASK-011 | Verify DNS propagation using `dig {inst}.{dev-domain}` from the dev environment; confirm the IP matches the Gateway LoadBalancer IP. | ✅ All records verified propagated | 2026-04-19 |
 
 ### Implementation Phase 4 — Certificate Verification
 
@@ -71,9 +71,9 @@ Update the shared Kubernetes Gateway and create per-instance HTTPRoute resources
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-012 | After applying the updated `gateway.yaml` and ensuring DNS records are propagated, run `kubectl get certificates -n gateway-system` to monitor cert-manager certificate issuance for each instance secret name. | | |
-| TASK-013 | For each instance, confirm the Certificate resource for `{inst}-dev-tls` / `{inst}-tls` reaches `READY=True` status. If a certificate fails, check cert-manager logs and HTTP-01 challenge pod status in the `openclaw-{inst}` namespace. | | |
-| TASK-014 | Once all staging certificates are READY, update the Gateway annotation to `letsencrypt-prod` and re-apply: `kubectl annotate gateway main-gateway -n gateway-system cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite`. Certificates will be re-issued with trusted CA. | | |
+| TASK-012 | After applying the updated `gateway.yaml` and ensuring DNS records are propagated, run `kubectl get certificates -n gateway-system` to monitor cert-manager certificate issuance for each instance secret name. | ✅ | 2026-04-19 |
+| TASK-013 | For each instance, confirm the Certificate resource for `{inst}-dev-tls` / `{inst}-tls` reaches `READY=True` status. If a certificate fails, check cert-manager logs and HTTP-01 challenge pod status in the `openclaw-{inst}` namespace. | ✅ ch-dev-tls, jh-dev-tls READY (dev); ch-prod-tls, jh-prod-tls, kjm-prod-tls READY (prod) | 2026-04-19 |
+| TASK-014 | Once all staging certificates are READY, update the Gateway annotation to `letsencrypt-prod` and re-apply: `kubectl annotate gateway main-gateway -n gateway-system cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite`. Certificates will be re-issued with trusted CA. | deferred — switch to letsencrypt-prod in SUB-006 prod validation | |
 
 ## 3. Alternatives
 

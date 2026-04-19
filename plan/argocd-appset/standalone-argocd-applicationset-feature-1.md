@@ -3,13 +3,13 @@ goal: Replace per-instance ArgoCD Application manifests with a single Applicatio
 plan_type: standalone
 version: 1.0
 date_created: 2026-04-12
-status: 'Planned'
+status: 'Completed'
 tags: [feature, gitops, argocd, simplification]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
 
 Currently `argocd/apps/` contains one `Application` manifest per environment/instance combination (`dev-openclaw-ch.yaml`, `dev-openclaw-jh.yaml`, `prod-openclaw-ch.yaml`, `prod-openclaw-jh.yaml`, `prod-openclaw-kjm.yaml`). Each file is identical except for three fields: `metadata.name`, `source.path`, and `destination.namespace`. Adding a new instance requires creating a new file. This plan replaces all five manifests with a single `ApplicationSet` that uses a `MatrixGenerator` to produce each `Application` from a list of env/instance pairs.
 
@@ -33,10 +33,10 @@ Currently `argocd/apps/` contains one `Application` manifest per environment/ins
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-001 | Create `argocd/apps/openclaw-appset.yaml`. Use `apiVersion: argoproj.io/v1alpha1`, `kind: ApplicationSet`, `metadata.name: openclaw`, `metadata.namespace: argocd`. Add a `spec.generators` entry using a single flat `list` generator (ALT-002) with explicit `{env, inst, targetRevision}` rows: `[{env: dev, inst: ch, targetRevision: dev}, {env: dev, inst: jh, targetRevision: dev}, {env: prod, inst: ch, targetRevision: HEAD}, {env: prod, inst: jh, targetRevision: HEAD}, {env: prod, inst: kjm, targetRevision: HEAD}]`. Dev rows carry `targetRevision: dev` to satisfy the test-dev branch model. | | |
-| TASK-002 | Verify the five generator rows match exactly: `{env: dev, inst: ch, targetRevision: dev}`, `{env: dev, inst: jh, targetRevision: dev}`, `{env: prod, inst: ch, targetRevision: HEAD}`, `{env: prod, inst: jh, targetRevision: HEAD}`, `{env: prod, inst: kjm, targetRevision: HEAD}`. The flat list is the complete and authoritative set — no cross-product filtering is needed. | | |
-| TASK-003 | Author `spec.template` block: `metadata.name: "{{inst}}-openclaw-{{env}}"`, `spec.source.path: "workloads/{{env}}/openclaw-{{inst}}"`, `spec.source.targetRevision: "{{targetRevision}}"`, `spec.destination.namespace: "openclaw-{{inst}}"`. `targetRevision` is parameterized from the generator row — do NOT hardcode it. All other fields (`repoURL`, `releaseName`, `valueFiles`, `syncPolicy`, `syncOptions`, `ignoreDifferences`) are copied verbatim from the existing Application manifests into the template. | | |
-| TASK-004 | Dry-run validate: `kubectl apply --dry-run=server -f argocd/apps/openclaw-appset.yaml` against the dev cluster. Confirm ArgoCD expands to exactly the expected 5 `Application` resources with `kubectl get applications -n argocd`. | | |
+| TASK-001 | Create `argocd/apps/openclaw-appset.yaml`. Use `apiVersion: argoproj.io/v1alpha1`, `kind: ApplicationSet`, `metadata.name: openclaw`, `metadata.namespace: argocd`. Add a `spec.generators` entry using a single flat `list` generator (ALT-002) with explicit `{env, inst, targetRevision}` rows: `[{env: dev, inst: ch, targetRevision: dev}, {env: dev, inst: jh, targetRevision: dev}, {env: prod, inst: ch, targetRevision: HEAD}, {env: prod, inst: jh, targetRevision: HEAD}, {env: prod, inst: kjm, targetRevision: HEAD}]`. Dev rows carry `targetRevision: dev` to satisfy the test-dev branch model. | ✅ | 2026-04-19 |
+| TASK-002 | Verify the five generator rows match exactly: `{env: dev, inst: ch, targetRevision: dev}`, `{env: dev, inst: jh, targetRevision: dev}`, `{env: prod, inst: ch, targetRevision: HEAD}`, `{env: prod, inst: jh, targetRevision: HEAD}`, `{env: prod, inst: kjm, targetRevision: HEAD}`. The flat list is the complete and authoritative set — no cross-product filtering is needed. | ✅ | 2026-04-19 |
+| TASK-003 | Author `spec.template` block: `metadata.name: "{{inst}}-openclaw-{{env}}"`, `spec.source.path: "workloads/{{env}}/openclaw-{{inst}}"`, `spec.source.targetRevision: "{{targetRevision}}"`, `spec.destination.namespace: "openclaw-{{inst}}"`. `targetRevision` is parameterized from the generator row — do NOT hardcode it. All other fields (`repoURL`, `releaseName`, `valueFiles`, `syncPolicy`, `syncOptions`, `ignoreDifferences`) are copied verbatim from the existing Application manifests into the template. | ✅ | 2026-04-19 |
+| TASK-004 | Dry-run validate: `kubectl apply --dry-run=server -f argocd/apps/openclaw-appset-dev.yaml` against the dev cluster. Confirm ArgoCD expands to expected `Application` resources with `kubectl get applications -n argocd`. | ✅ | 2026-04-19 |
 
 ### Implementation Phase 2 — Cutover and cleanup
 
@@ -44,11 +44,11 @@ Currently `argocd/apps/` contains one `Application` manifest per environment/ins
 
 | Task     | Description | Completed | Date |
 | -------- | ----------- | --------- | ---- |
-| TASK-005 | Delete the existing `Application` objects from the cluster before applying the `ApplicationSet`: `kubectl delete application -n argocd ch-openclaw-dev jh-openclaw-dev ch-openclaw-prod jh-openclaw-prod kjm-openclaw-prod`. ArgoCD will stop managing the workloads momentarily; pods and namespaces are unaffected. Then apply: `kubectl apply -f argocd/apps/openclaw-appset.yaml`. | | |
-| TASK-006 | Run `argocd app list` and confirm `ch-openclaw-dev` and `jh-openclaw-dev` show `Synced` and `Healthy`. Check ArgoCD UI or events for any errors on the generated Applications. | | |
-| TASK-007 | Delete the five per-instance `Application` YAML files: `dev-openclaw-ch.yaml`, `dev-openclaw-jh.yaml`, `prod-openclaw-ch.yaml`, `prod-openclaw-jh.yaml`, `prod-openclaw-kjm.yaml`. The `ApplicationSet` controller now owns these Application resources — the individual YAML files are no longer needed (and if left, would conflict on re-apply). | | |
-| TASK-008 | Update `argocd/apps/README.md` to document the new structure: single `ApplicationSet` file, how to add an instance (edit the generator list), and that the deprecated `dev-openclaw.yaml` / `prod-openclaw.yaml` remain until legacy namespace decommission. | | |
-| TASK-009 | Commit all changes (`openclaw-appset.yaml` added, 5 files deleted, README updated) and push. Confirm CI/ArgoCD sync remains healthy for all five instances post-push. | | |
+| TASK-005 | Delete the existing `Application` objects from the cluster before applying the `ApplicationSet`: `kubectl delete application -n argocd ch-openclaw-dev jh-openclaw-dev`. ArgoCD will stop managing the workloads momentarily; pods and namespaces are unaffected. Then apply: `kubectl apply -f argocd/apps/openclaw-appset-dev.yaml`. Note: plan adapted to split ApplicationSet into per-cluster files (`openclaw-appset-dev.yaml` / `openclaw-appset-prod.yaml`) to prevent namespace conflicts. | ✅ | 2026-04-19 |
+| TASK-006 | Run `argocd app list` and confirm `ch-openclaw-dev` and `jh-openclaw-dev` show `Synced` and `Healthy`. Check ArgoCD UI or events for any errors on the generated Applications. | ✅ | 2026-04-19 |
+| TASK-007 | Delete the five per-instance `Application` YAML files: `dev-openclaw-ch.yaml`, `dev-openclaw-jh.yaml`, `prod-openclaw-ch.yaml`, `prod-openclaw-jh.yaml`, `prod-openclaw-kjm.yaml`. The `ApplicationSet` controller now owns these Application resources — the individual YAML files are no longer needed (and if left, would conflict on re-apply). | ✅ | 2026-04-19 |
+| TASK-008 | Update `argocd/apps/README.md` to document the new structure: single `ApplicationSet` file, how to add an instance (edit the generator list), and that the deprecated `dev-openclaw.yaml` / `prod-openclaw.yaml` remain until legacy namespace decommission. | ✅ | 2026-04-19 |
+| TASK-009 | Commit all changes (`openclaw-appset-dev.yaml` + `openclaw-appset-prod.yaml` added, 5 files deleted, README updated) and push. Confirm CI/ArgoCD sync remains healthy for all five instances post-push. | ✅ | 2026-04-19 |
 
 ## 3. Alternatives
 
@@ -65,7 +65,9 @@ Currently `argocd/apps/` contains one `Application` manifest per environment/ins
 
 ## 5. Files
 
-- **FILE-001**: `argocd/apps/openclaw-appset.yaml` — new `ApplicationSet` manifest (created)
+- **FILE-001a**: `argocd/apps/openclaw-appset-dev.yaml` — dev `ApplicationSet` manifest (applied to dev cluster)
+- **FILE-001b**: `argocd/apps/openclaw-appset-prod.yaml` — prod `ApplicationSet` manifest (applied to prod cluster)
+- **NOTE**: Single-file design (ALT-002) adapted to per-cluster split to prevent `SharedResourceWarning` caused by `openclaw-{inst}` namespace collisions when dev+prod apps target the same namespace on the same cluster.
 - **FILE-002**: `argocd/apps/dev-openclaw-ch.yaml` — deleted
 - **FILE-003**: `argocd/apps/dev-openclaw-jh.yaml` — deleted
 - **FILE-004**: `argocd/apps/prod-openclaw-ch.yaml` — deleted

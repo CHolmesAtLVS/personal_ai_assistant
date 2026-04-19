@@ -17,7 +17,7 @@ locals {
   # ACR constraint: 5-50 chars, alphanumeric only (no hyphens).
   law_name          = "${local.name_prefix}-law"
   identity_name     = "${local.name_prefix}-id"
-  kv_name           = "${local.name_prefix}-kv"
+  kv_name           = "${local.name_prefix}-kv2"
   acr_name          = "${replace(var.project, "-", "")}sharedacr"
   shared_rg_name    = "${var.project}-shared-rg"
   ai_hub_name       = "${local.name_prefix}-hub"

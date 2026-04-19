@@ -4,13 +4,13 @@ plan_type: parent
 version: 1.0
 date_created: 2026-04-13
 owner: CHolmesAtLVS
-status: 'Planned'
+status: 'In progress'
 tags: [cost, infrastructure, aks, logging, automation]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
 Two targeted infrastructure changes to reduce ongoing Azure spend:
 
@@ -37,7 +37,7 @@ The dev cluster automation (SUB-001) is scoped to the `dev` environment only. Th
 
 | ID      | Subplan File                                                                                    | Goal                                                        | Status  |
 | ------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------- |
-| SUB-001 | [sub-001-dev-cluster-shutdown-feature-1.md](sub-001-dev-cluster-shutdown-feature-1.md)         | Nightly stop/morning start of dev AKS via Automation Runbook | Planned |
+| SUB-001 | [sub-001-dev-cluster-shutdown-feature-1.md](sub-001-dev-cluster-shutdown-feature-1.md)         | Nightly stop/morning start of dev AKS via Automation Runbook | Completed |
 | SUB-002 | [sub-002-reduce-log-analytics-feature-1.md](sub-002-reduce-log-analytics-feature-1.md)         | Reduce AKS diagnostic log categories and LAW retention      | Planned |
 
 ## 3. Alternatives

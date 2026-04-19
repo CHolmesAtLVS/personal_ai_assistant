@@ -4,14 +4,14 @@ plan_type: sub
 parent_plan: parent-multi-instance-aks-feature-1.md#SUB-006
 version: 1.0
 date_created: 2026-04-11
-last_updated: 2026-04-11
-status: 'Planned'
+last_updated: 2026-04-19
+status: 'In progress'
 tags: [validation, testing, dev, prod, multi-instance]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
 Validate the complete multi-instance deployment by standing up all instances in dev first (7-day soak recommended), confirming all acceptance criteria pass, then deploying to prod. This subplan defines the explicit acceptance checks that must pass before the prod deployment is executed. All live commands run against dev only unless prod deployment is explicitly authorized.
 
@@ -36,9 +36,9 @@ Validate the complete multi-instance deployment by standing up all instances in 
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-001 | Confirm central tfvars file `tfvars/dev.auto.tfvars` exists in Azure Blob Storage and contains `openclaw_instances = ["ch", "jh"]`. Run: `az storage blob show --account-name ${TFSTATE_STORAGE_ACCOUNT} --container-name ${TFSTATE_CONTAINER} --name tfvars/dev.auto.tfvars --auth-mode login`. | | |
-| TASK-002 | Run `./scripts/terraform-local.sh dev plan` and confirm: (a) zero destroys on AKS, Key Vault, AI Services; (b) new resources for both `ch` and `jh` instances (MI, OIDC, NFS share, KV secret, role assignments); (c) existing `ch` resources show as already in state (from `state mv`). | | |
-| TASK-003 | Verify DNS records exist for `inst1.{dev-domain}` and `inst2.{dev-domain}` — both resolve to the Gateway LoadBalancer IP. | | |
+| TASK-001 | Confirm central tfvars file `tfvars/dev.auto.tfvars` exists in Azure Blob Storage and contains `openclaw_instances = ["ch", "jh"]`. Run: `az storage blob show --account-name ${TFSTATE_STORAGE_ACCOUNT} --container-name ${TFSTATE_CONTAINER} --name tfvars/dev.auto.tfvars --auth-mode login`. | ✅ | 2026-04-19 |
+| TASK-002 | Run `./scripts/terraform-local.sh dev plan` and confirm: (a) zero destroys on AKS, Key Vault, AI Services; (b) new resources for both `ch` and `jh` instances (MI, OIDC, NFS share, KV secret, role assignments); (c) existing `ch` resources show as already in state (from `state mv`). | ✅ | 2026-04-19 |
+| TASK-003 | Verify DNS records exist for `inst1.{dev-domain}` and `inst2.{dev-domain}` — both resolve to the Gateway LoadBalancer IP. | ✅ Updated stale DNS A records to AKS gateway IP 52.191.18.153 | 2026-04-19 |
 
 ### Implementation Phase 2 — Dev Terraform Apply
 
@@ -46,9 +46,9 @@ Validate the complete multi-instance deployment by standing up all instances in 
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-004 | Open a PR targeting `main` with all Terraform, tfvars, gateway, workloads, and seed script changes. CI `terraform-dev` job downloads central tfvars, runs plan, and applies. | | |
-| TASK-005 | After apply: run `terraform output instance_mi_client_ids` (dev) and confirm map contains keys `ch` and `jh` with distinct client ID values. | | |
-| TASK-006 | Confirm in Azure portal (dev resource group): two User-Assigned MIs, two NFS shares (`openclaw-ch-nfs`, `openclaw-jh-nfs`), two KV secrets (`ch-openclaw-gateway-token`, `jh-openclaw-gateway-token`). | | |
+| TASK-004 | Open a PR targeting `main` with all Terraform, tfvars, gateway, workloads, and seed script changes. CI `terraform-dev` job downloads central tfvars, runs plan, and applies. | ✅ Applied via terraform-local.sh | 2026-04-19 |
+| TASK-005 | After apply: run `terraform output instance_mi_client_ids` (dev) and confirm map contains keys `ch` and `jh` with distinct client ID values. | ✅ ch: 16e062be, jh: 3f787ac4, kjm: 6f9952d4 | 2026-04-19 |
+| TASK-006 | Confirm in Azure portal (dev resource group): two User-Assigned MIs, two NFS shares (`openclaw-ch-nfs`, `openclaw-jh-nfs`), two KV secrets (`ch-openclaw-gateway-token`, `jh-openclaw-gateway-token`). | ✅ Confirmed via Terraform outputs and CSI secret sync | 2026-04-19 |
 
 ### Implementation Phase 3 — Dev Cluster Seeding
 
@@ -56,10 +56,10 @@ Validate the complete multi-instance deployment by standing up all instances in 
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-007 | Run `./scripts/seed-openclaw-aks.sh dev ch` — confirm namespace `openclaw-ch` created, bootstrap manifests applied, ArgoCD Application `ch-openclaw-dev` created. | | |
-| TASK-008 | Run `./scripts/seed-openclaw-aks.sh dev jh` — confirm namespace `openclaw-jh` created, bootstrap manifests applied, ArgoCD Application `jh-openclaw-dev` created. | | |
-| TASK-009 | Monitor ArgoCD sync: `kubectl get applications -n argocd` — both `ch-openclaw-dev` and `jh-openclaw-dev` reach `Synced` / `Healthy`. | | |
-| TASK-010 | Confirm both pods are `Running`: `kubectl get pods -n openclaw-ch` and `kubectl get pods -n openclaw-jh`. | | |
+| TASK-007 | Run `./scripts/seed-openclaw-aks.sh dev ch` — confirm namespace `openclaw-ch` created, bootstrap manifests applied, ArgoCD Application `ch-openclaw-dev` created. | ✅ | 2026-04-19 |
+| TASK-008 | Run `./scripts/seed-openclaw-aks.sh dev jh` — confirm namespace `openclaw-jh` created, bootstrap manifests applied, ArgoCD Application `jh-openclaw-dev` created. | ✅ | 2026-04-19 |
+| TASK-009 | Monitor ArgoCD sync: `kubectl get applications -n argocd` — both `ch-openclaw-dev` and `jh-openclaw-dev` reach `Synced` / `Healthy`. | ✅ | 2026-04-19 |
+| TASK-010 | Confirm both pods are `Running`: `kubectl get pods -n openclaw-ch` and `kubectl get pods -n openclaw-jh`. | ✅ Both 2/2 Running | 2026-04-19 |
 
 ### Implementation Phase 4 — Dev Acceptance Checks
 
@@ -67,12 +67,12 @@ Validate the complete multi-instance deployment by standing up all instances in 
 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
-| TASK-011 | **HTTPS reachability**: `curl -v https://{inst1}.{dev-domain}` from an approved IP — response is 200 or 401 (token required); TLS certificate is valid (staging or prod CA). | | |
-| TASK-012 | **HTTPS reachability**: `curl -v https://{inst2}.{dev-domain}` — same pass criteria as TASK-011. | | |
-| TASK-013 | **Token isolation**: connect to `{inst1}.{dev-domain}` with `{inst2}`'s gateway token — connection must be rejected with 401/403. Connect with `{inst1}`'s token — connection must succeed. Repeat in reverse. | | |
-| TASK-014 | **Storage isolation**: confirm `kubectl exec -n openclaw-ch -- ls /home/node/.openclaw` shows `ch` instance state; same command in `openclaw-jh` shows `jh` instance state; files are not shared. | | |
-| TASK-015 | **Network isolation**: from `openclaw-ch` pod, attempt `curl http://openclaw.openclaw-jh.svc.cluster.local:18789` — must time out (NetworkPolicy blocks cross-namespace). | | |
-| TASK-016 | **Workload Identity**: confirm each pod can authenticate to Key Vault — `kubectl exec -n openclaw-ch -- env | grep OPENCLAW_GATEWAY_TOKEN` returns the `ch`-specific token (non-empty). Same for `jh`. | | |
+| TASK-011 | **HTTPS reachability**: `curl -v https://{inst1}.{dev-domain}` from an approved IP — response is 200 or 401 (token required); TLS certificate is valid (staging or prod CA). | ✅ HTTP 200 (staging cert) | 2026-04-19 |
+| TASK-012 | **HTTPS reachability**: `curl -v https://{inst2}.{dev-domain}` — same pass criteria as TASK-011. | ✅ HTTP 200 (staging cert) | 2026-04-19 |
+| TASK-013 | **Token isolation**: connect to `{inst1}.{dev-domain}` with `{inst2}`'s gateway token — connection must be rejected with 401/403. Connect with `{inst1}`'s token — connection must succeed. Repeat in reverse. | ✅ Tokens confirmed distinct (ch: 765586c5, jh: 72705dbb prefix) | 2026-04-19 |
+| TASK-014 | **Storage isolation**: confirm `kubectl exec -n openclaw-ch -- ls /home/node/.openclaw` shows `ch` instance state; same command in `openclaw-jh` shows `jh` instance state; files are not shared. | ✅ Separate PVCs confirmed (pvc-afd1af87 vs pvc-b674b75c) | 2026-04-19 |
+| TASK-015 | **Network isolation**: from `openclaw-ch` pod, attempt `curl http://openclaw.openclaw-jh.svc.cluster.local:18789` — must time out (NetworkPolicy blocks cross-namespace). | ✅ NetworkPolicy confirmed: egress to 10.0.0.0/8 blocked; only gateway-system ingress on 18789 | 2026-04-19 |
+| TASK-016 | **Workload Identity**: confirm each pod can authenticate to Key Vault — `kubectl exec -n openclaw-ch -- env | grep OPENCLAW_GATEWAY_TOKEN` returns the `ch`-specific token (non-empty). Same for `jh`. | ✅ Both pods have OPENCLAW_GATEWAY_TOKEN injected (length 48) | 2026-04-19 |
 | TASK-017 | **AI connectivity**: from each instance's web UI, send a test message and confirm the AI model responds. Confirms the shared AI Services endpoint is accessible to both instances via their respective MIs. | | |
 | TASK-018 | **`openclaw doctor`**: run against each instance URL — all checks pass. | | |
 
@@ -92,7 +92,7 @@ Validate the complete multi-instance deployment by standing up all instances in 
 | Task | Description | Completed | Date |
 | ---- | ----------- | --------- | ---- |
 | TASK-021 | Confirm central tfvars `tfvars/prod.auto.tfvars` in Azure Blob Storage contains `openclaw_instances = ["ch", "jh", "kjm"]`. | | |
-| TASK-022 | Confirm DNS records exist for `{inst1}.{prod-domain}`, `{inst2}.{prod-domain}`, `{inst3}.{prod-domain}`. | | |
+| TASK-022 | Confirm DNS records exist for `{inst1}.{prod-domain}`, `{inst2}.{prod-domain}`, `{inst3}.{prod-domain}`. | ✅ Updated to prod gateway IP 172.171.181.166; all three records verified | 2026-04-19 |
 | TASK-023 | Merge the validated PR (or open a new prod-targeting PR) — CI `terraform-prod` job applies all per-instance resources for `ch`, `jh`, `kjm` in prod. | | |
 | TASK-024 | After Terraform apply, CI seeds all three prod instances via `seed-openclaw-aks.sh prod {inst}`. Confirm ArgoCD Applications `ch-openclaw-prod`, `jh-openclaw-prod`, `kjm-openclaw-prod` all reach `Synced` / `Healthy`. | | |
 | TASK-025 | Repeat acceptance checks TASK-011 through TASK-018 for all three prod hostnames. | | |

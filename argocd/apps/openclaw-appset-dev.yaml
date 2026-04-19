@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: openclaw-dev
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - inst: ch
+          - inst: jh
+  template:
+    metadata:
+      name: "{{inst}}-openclaw-dev"
+      namespace: argocd
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/CHolmesAtLVS/personal_ai_assistant.git
+        targetRevision: dev
+        path: "workloads/dev/openclaw-{{inst}}"
+        helm:
+          releaseName: openclaw
+          valueFiles:
+            - values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "openclaw-{{inst}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      ignoreDifferences:
+        - group: ""
+          kind: ConfigMap
+          name: openclaw
+          jsonPointers:
+            - /data

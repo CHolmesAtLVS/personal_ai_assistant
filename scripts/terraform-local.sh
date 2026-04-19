@@ -179,6 +179,9 @@ case "${CMD}" in
   state)
     terraform -chdir="${TF_DIR}" state "${EXTRA_ARGS[@]}"
     ;;
+  import)
+    terraform -chdir="${TF_DIR}" import "${EXTRA_ARGS[@]}"
+    ;;
   *)
     echo "ERROR: unknown command '${CMD}'. Valid: plan | apply | destroy | output | validate | fmt | state"
     exit 1

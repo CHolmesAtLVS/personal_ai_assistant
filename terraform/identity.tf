@@ -1,9 +1,3 @@
-# Import the pre-existing cluster MI that predates this module being added to Terraform.
-import {
-  to = module.aks_identity.azurerm_user_assigned_identity.this
-  id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${module.resource_group.name}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${local.identity_name}"
-}
-
 # Dedicated managed identity for the AKS cluster control plane.
 # Separate from per-instance workload identities — AKS requires exactly one
 # user-assigned identity; workload pods federate via their own per-instance MIs.

@@ -15,12 +15,6 @@ module "key_vault" {
   sku_name                       = "standard"
   legacy_access_policies_enabled = false
   network_acls                   = null
-
-  diagnostic_settings = {
-    law = {
-      workspace_resource_id = module.logging.resource_id
-    }
-  }
 }
 
 # Generates a stable 48-character hex token per instance on first deploy.

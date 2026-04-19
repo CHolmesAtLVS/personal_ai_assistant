@@ -21,10 +21,10 @@ Set DNS A records in the `acmeadventure.ca` zone:
 | `paa.acmeadventure.ca`      | A      | `<prod-lb-ip>` |
 
 <!-- Update the IPs below after each bootstrap run. -->
-| Environment | LoadBalancer IP | Last Updated |
-| ----------- | --------------- | ------------ |
-| dev         | `<pending>`     |              |
-| prod        | `<pending>`     |              |
+| Environment | LoadBalancer IP    | Last Updated |
+| ----------- | ------------------ | ------------ |
+| dev         | `52.191.18.153`    | 2026-04-19   |
+| prod        | `172.171.181.166`  | 2026-04-19   |
 
 **Wait for full DNS propagation before triggering Phase 3 CI (cert-manager ClusterIssuer
 validation).** HTTP-01 ACME challenges require the ACME server to resolve the hostname and

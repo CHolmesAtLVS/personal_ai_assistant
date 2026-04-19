@@ -79,18 +79,4 @@ module "aks" {
   api_server_access_profile = length(var.aks_api_authorized_ips) > 0 ? {
     authorized_ip_ranges = var.aks_api_authorized_ips
   } : null
-
-  diagnostic_settings = {
-    aks_diagnostics = {
-      name                  = "aks-diagnostics"
-      workspace_resource_id = module.logging.resource_id
-      log_categories = [
-        "kube-apiserver",
-        "kube-controller-manager",
-        "kube-scheduler",
-      ]
-      log_groups        = []
-      metric_categories = []
-    }
-  }
 }

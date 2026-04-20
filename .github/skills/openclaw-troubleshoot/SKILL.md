@@ -11,9 +11,9 @@ metadata:
 
 # OpenClaw Troubleshoot
 
-Diagnose OpenClaw pod failures on AKS using `kubectl` commands and Azure Monitor. A `diagnose-aks.sh` script is planned as a replacement for the legacy `diagnose-containerapp.sh`; use the manual commands below in the interim.
+Diagnose OpenClaw pod failures on AKS using `kubectl` commands and Azure Monitor.
 
-> **Legacy:** `scripts/diagnose-containerapp.sh` targets the ACA deployment and is no longer the primary diagnostic path. See the runbook AKS Operations section for current procedures.
+> **Legacy:** `scripts/diagnose-containerapp.sh` was removed 2026-04-20 (ACA decommissioned). Use the `kubectl` commands below.
 
 ## Safety Rule
 

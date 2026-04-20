@@ -22,14 +22,14 @@ The authoritative list of deployed instances per environment is stored in the ce
 ### Per-Instance User Model
 
 - Each instance serves one named individual
-- Each individual connects only to their own instance URL from an approved shared home IP address
+- Each individual connects only to their own instance URL
 - Each instance has its own gateway token; tokens are not shared across instances
-- Each individual's conversation history, device registrations, and workspace files are stored in a dedicated Azure Files NFS share and are inaccessible to other instances
+- Each individual's conversation history, device registrations, and workspace files are stored on a dedicated Azure Disk volume (Premium SSD PVC, per-instance) and are inaccessible to other instances
 
 ### Access Constraints
 
 - All instance URLs are reachable over HTTPS only
-- Ingress IP restriction applies at the gateway (shared home IP covers all instances)
+- All traffic is proxied through Cloudflare (free tier) before reaching the NGINX gateway; Cloudflare provides DDoS mitigation, WAF filtering, and bot management
 - Gateway token authentication is required for all connections to any instance
 
 ## Baseline Definition
@@ -51,8 +51,6 @@ Each instance is pre-configured at deploy time with the minimum settings needed 
 | Primary chat model | `gpt-5.4-mini` |
 | Tool access | Full — web, browser, filesystem, messaging, automation, canvas. Restrict specific tools post-deploy if needed. |
 | Automatic update checks | Disabled; image updates are applied deliberately via deployment |
-
-> **AI auth note:** The Azure AI Model Inference endpoint (Grok) currently requires an API key stored in Azure Key Vault; it is injected at runtime and never committed to source control. Managed Identity coverage for that endpoint is a planned improvement.
 
 The baseline deliberately omits channels, custom agent personas, skills, and integrations. Those are user-configured after deployment.
 
@@ -81,22 +79,6 @@ OpenClaw manages this state in the persistent Files share. It evolves over time 
 
 This state is preserved across restarts and redeployments because the persistent storage volume is mounted into every revision of the pod.
 
-## Backup
-
-> **Implementation status:** Automated backup is not yet implemented. This section describes the target design. Automated backup is Roadmap item 2.
-
-The unit of backup is the persistent state volume at `/home/node/.openclaw`.
-
-### Azure Files Share Snapshots (primary, planned)
-
-Point-in-time snapshots of the storage share on a scheduled basis. Recovery restores from a snapshot in-place or mounts a snapshot for selective file recovery.
-
-### Offsite Blob Export (secondary, planned)
-
-A scheduled job exports the share contents to Azure Blob Storage on a regular cadence. The Blob copy survives share-level incidents and is accessible via standard Azure tools for audit or off-cloud extraction.
-
-Both mechanisms will operate without stopping the assistant.
-
 ## Functional Capabilities
 
 ### 1. Autonomous AI Agent
@@ -109,6 +91,7 @@ Both mechanisms will operate without stopping the assistant.
 
 - Runs entirely in your own Azure environment; your data stays under your control
 - No shared infrastructure; secrets managed in Azure Key Vault, never in source code
+- All traffic proxied through Cloudflare (free tier) for DDoS mitigation and WAF filtering before reaching the gateway
 - Persistent state (conversations, sessions, installed skills, workspace files) survives restarts automatically
 
 ### 3. Extensible
@@ -128,8 +111,7 @@ Both mechanisms will operate without stopping the assistant.
 - Reliability: repeatable deployments; persistent state survives restarts
 - Maintainability: Infrastructure as Code (Terraform) and GitOps (ArgoCD) as sources of truth
 - Traceability: all deployments driven through GitHub Actions CI/CD
-- Network control: HTTPS ingress; access restricted to the approved source IP
-- Backup integrity: automated snapshots and Blob export (target design); both must be restorable without manual intervention once implemented
+- Network control: HTTPS ingress; all traffic proxied through Cloudflare (free tier) WAF before reaching the gateway
 - Privacy: Azure tenant, subscription, identity, and DNS identifiers are not exposed in public-facing project docs
 
 ## Product Workflow
@@ -138,7 +120,7 @@ Both mechanisms will operate without stopping the assistant.
 
 1. Maintainer opens a PR with the desired change (infrastructure, image version, configuration, or new instance).
 2. To add a new instance, add its short name to the `openclaw_instances` list in the environment's central Terraform variables file stored in Azure Blob Storage.
-3. CI/CD provisions or updates all Azure infrastructure automatically (per-instance namespaces, managed identities, NFS shares, Key Vault secrets, OIDC federation).
+3. CI/CD provisions or updates all Azure infrastructure automatically (per-instance namespaces, managed identities, Key Vault secrets, OIDC federation). Persistent storage PVCs are dynamically provisioned by Kubernetes (managed-csi-premium).
 4. ArgoCD detects the new or updated workload directory in Git and deploys the instance's Helm chart.
 5. On first boot, the assistant loads its configuration, connects to the AI backend, and starts accepting requests.
 6. Run `openclaw doctor` against the new instance's URL to confirm everything is healthy.
@@ -152,7 +134,7 @@ Both mechanisms will operate without stopping the assistant.
 ### Ongoing Operation
 
 10. Interact with the assistant; conversation history, workspace files, and plugin state grow over time.
-11. Persistent state is isolated per instance and backed up automatically (once backup is implemented).
+11. Persistent state is isolated per instance and backed up via Azure Disk snapshot policy (planned).
 12. Monitor health and costs via `openclaw status` and Azure alerts.
 
 ## Product Guardrails
@@ -161,13 +143,11 @@ Both mechanisms will operate without stopping the assistant.
 - Prefer identity-based service auth over static credentials
 - Keep infrastructure changes declarative and reviewable
 - Restrict exposure first, then incrementally add convenience features
+- Cloudflare proxy/WAF is required in front of all public-facing ingress; do not expose the NGINX gateway directly to the internet
 - Baseline config ships with the minimum surface area; all optional capabilities require explicit user action to enable
 
 ## Near-Term Roadmap
 
-1. **Multi-instance AKS deployment** — per-instance isolation on a shared AKS cluster; central Terraform variables file; per-instance DNS, gateway token, NFS share, and Managed Identity. *(In Progress)*
-2. **Automated backup** — Azure Files share snapshots and Blob export scheduled via Terraform or a container sidecar.
-3. **Authentication layer** in front of OpenClaw (in addition to gateway token auth).
-4. **Image scanning** in CI pipeline.
-5. **Alerting** for availability and failed-request signals.
-6. **Managed Identity for Grok inference endpoint** — eliminate the last static API key once OpenClaw provider support is available.
+1. **Cloudflare proxy/WAF** — proxy all public-facing ingress through Cloudflare (free tier); do not expose the NGINX gateway directly to the internet. Remove ingress IP restriction once Cloudflare is in place.
+2. **Automated backup** — Azure Disk snapshot policies configured via Terraform (`azurerm_managed_disk_backup_policy_configuration` or AKS Backup add-on). Snapshots to target a Recovery Services vault scoped to the environment resource group.
+3. **Observability and hygiene** — alerting for availability and failed-request signals; regular review of dependency versions, security advisories, and cluster/pod health.

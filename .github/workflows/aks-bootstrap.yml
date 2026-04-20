@@ -162,15 +162,7 @@ jobs:
           kubectl label ns argocd kubernetes.io/metadata.name=argocd --overwrite
           kubectl apply -f workloads/bootstrap/argocd-netpol.yaml
 
-      # ── Phase 5 — OpenClaw config seed ─────────────────────────────────────────
-      # continue-on-error: bootstrap succeeded; config can be re-seeded manually:
-      #   bash scripts/seed-openclaw-ci.sh dev
-      - name: Seed OpenClaw Config
-        continue-on-error: true
-        shell: bash
-        run: |
-          chmod +x scripts/seed-openclaw-ci.sh
-          bash scripts/seed-openclaw-ci.sh dev
+
 
   # ── Prod bootstrap ────────────────────────────────────────────────────────────
   # Runs after a successful prod terraform apply (triggered by push to main), or
@@ -290,11 +282,4 @@ jobs:
           kubectl label ns argocd kubernetes.io/metadata.name=argocd --overwrite
           kubectl apply -f workloads/bootstrap/argocd-netpol.yaml
 
-      - name: Seed OpenClaw Config
-        continue-on-error: true
-        shell: bash
-        env:
-          ALLOW_PROD_SEED: "true"
-        run: |
-          chmod +x scripts/seed-openclaw-ci.sh
-          bash scripts/seed-openclaw-ci.sh prod
+

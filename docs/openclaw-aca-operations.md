@@ -462,7 +462,10 @@ If the liveness probe fails repeatedly, the Container App platform restarts the 
 Run the diagnostic script to capture a complete snapshot without needing Terraform state or `.tfvars` files:
 
 ```bash
-bash scripts/diagnose-containerapp.sh dev
+# scripts/diagnose-containerapp.sh was removed 2026-04-20 (ACA decommissioned).
+# For AKS diagnostics use:
+#   kubectl logs -n openclaw-<inst> deployment/openclaw --tail=100
+#   kubectl describe pod -n openclaw-<inst> <pod-name>
 # Output written to: scripts/diag-dev-<timestamp>.txt  (git-ignored)
 ```
 
@@ -621,7 +624,7 @@ All tools used during the 2026-03-30 incident.
 
 | Tool / Command | Purpose | Key Limitation |
 |---|---|---|
-| `bash scripts/diagnose-containerapp.sh dev` | Single command that runs all sections A–H and writes a timestamped output file | Requires `az login`; no Terraform state needed |
+| ~~`bash scripts/diagnose-containerapp.sh dev`~~ | **Removed 2026-04-20** (ACA decommissioned). AKS equivalent: `kubectl logs -n openclaw-<inst> deployment/openclaw --tail=100` | Script deleted |
 | `bash scripts/dump-resource-inventory.sh` | Discover all resource names by tag via Resource Graph | Requires Resource Graph access |
 | `az containerapp revision list -o table` | All revisions: health/traffic/replica counts | First stop for any startup failure |
 | `az containerapp revision show --query "properties.runningStateDetails"` | Human-readable failure reason | Only meaningful on active revisions |

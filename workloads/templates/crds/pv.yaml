@@ -1,33 +1,7 @@
-# TEMPLATE — applied by scripts/seed-openclaw-aks.sh via envsubst. Not committed per-instance.
-# PersistentVolume is cluster-scoped; namespace field is not used.
+# DEPRECATED — NFS storage removed 2026-04-12.
+# storage-aks.tf was deleted; pods now use managed-csi-premium dynamic provisioning
+# (storageClass: managed-csi-premium, disk.csi.azure.com, 10 Gi, ReadWriteOnce).
+# No static PV is required — Kubernetes provisions the PVC automatically on first pod start.
+# See ARCHITECTURE.md for current storage configuration.
 #
-# Variables substituted at seed time:
-#   INST                     — instance name (e.g. ch, jh, kjm)
-#   ENV                      — environment (dev or prod) — used to make volumeHandle unique
-#   NFS_STORAGE_ACCOUNT_NAME — NFS premium storage account name (Terraform output)
-#   RESOURCE_GROUP           — resource group containing the storage account (Terraform output)
-#
-# The NFS share openclaw-${INST}-nfs is provisioned by Terraform (storage-aks.tf).
-# Workload Identity handles NFS auth — no storage key required.
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: openclaw-${INST}-nfs-pv
-  annotations:
-    pv.kubernetes.io/bound-by-controller: "yes"
-spec:
-  capacity:
-    storage: 10Gi
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  csi:
-    driver: file.csi.azure.com
-    readOnly: false
-    volumeHandle: openclaw-${INST}-${ENV}-nfs-pv
-    volumeAttributes:
-      protocol: nfs
-      storageAccount: "${NFS_STORAGE_ACCOUNT_NAME}"
-      shareName: openclaw-${INST}-nfs
-      resourceGroup: "${RESOURCE_GROUP}"
+# DO NOT APPLY this manifest. It targets a storage account and NFS shares that no longer exist.

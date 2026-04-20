@@ -67,7 +67,7 @@ All other previously-stored variables (`TF_VAR_PROJECT`, `TF_VAR_LOCATION`, `TF_
 - **Key Vault** (RBAC mode): one vault per environment holding all instance secrets, named with per-instance prefix (e.g. `ch-openclaw-gateway-token`). Shared `azure-ai-api-key` used by all instances.
 - **AI Services / AI Foundry**: one account and endpoint per environment, shared across all instances. Each instance's config points to the same endpoint.
 - **Log Analytics Workspace**: centralized telemetry sink shared by all instances in the environment.
-- **Premium FileStorage storage account**: one storage account per environment; each instance gets a dedicated NFS share (`openclaw-{instance}-nfs`) mounted at `/home/node/.openclaw` in its pod.
+- **Azure Disk storage**: each instance gets a dynamically provisioned Premium SSD PVC (`storageClass: managed-csi-premium`, 10 Gi, ReadWriteOnce) mounted at `/home/node/.openclaw` in its pod.
 - **ArgoCD**: single operator per cluster; manages one Application per instance (`{instance}-openclaw-{env}`).
 
 #### Per-Instance Resources (one set per entry in `openclaw_instances`)
@@ -80,7 +80,7 @@ Each instance `{inst}` in the `openclaw_instances` list produces the following i
 | User-Assigned MI | `{project}-{env}-{inst}-id` | Scoped to this instance's service account only |
 | OIDC federated credential | `openclaw-aks-{env}-{inst}` | Subject: `system:serviceaccount:openclaw-{inst}:openclaw` |
 | Key Vault secret | `{inst}-openclaw-gateway-token` | Token unique to this instance |
-| Azure Files NFS share | `openclaw-{inst}-nfs` | Persistent state isolated from other instances |
+| Azure Disk PVC | `openclaw-{inst}-data` (dynamic) | Persistent state isolated per instance; provisioned by `managed-csi-premium` StorageClass |
 | Kubernetes ServiceAccount | `openclaw` in `openclaw-{inst}` | Annotated with this instance's MI client ID |
 | SecretProviderClass | `openclaw-kv` in `openclaw-{inst}` | Syncs `{inst}-openclaw-gateway-token` + shared AI key |
 | ConfigMap `openclaw-env-config` | `openclaw-{inst}` namespace | Instance endpoint + app FQDN |
@@ -89,14 +89,13 @@ Each instance `{inst}` in the `openclaw_instances` list produces the following i
 | HTTPRoute | `openclaw-{inst}-https` | Routes HTTPS traffic to instance service port 18789 |
 | ArgoCD Application | `{inst}-openclaw-{env}` | Tracks `workloads/{env}/openclaw-{inst}/` |
 | Role: KV Secrets User | Environment Key Vault | Scoped to this instance's MI |
-| Role: Storage Account Contributor | NFS storage account | Scoped to this instance's MI |
 | Role: Cognitive Services OpenAI User | AI Services account | Scoped to this instance's MI |
 
 #### OpenClaw Pod (per instance)
 
 - Image: `ghcr.io/openclaw/openclaw:{tag}` (pinned, never `latest`)
 - Single-replica Deployment; resource requests sized for `Standard_B2s` nodes (`requests: {cpu: 100m, memory: 256Mi}`, `limits: {cpu: 500m, memory: 512Mi}`)
-- NFS share mounted at `/home/node/.openclaw` via PV/PVC backed by `azureFile` CSI driver
+- Persistent state at `/home/node/.openclaw` via a dynamically provisioned PVC (`storageClass: managed-csi-premium`, `disk.csi.azure.com`, 10 Gi, ReadWriteOnce). No static PV needed.
 - Secrets injected via CSI volume → `openclaw-env-secret` → pod `envFrom`
 - Non-sensitive config injected via `openclaw-env-config` ConfigMap → pod `envFrom`
 - Security context: UID 1000, `readOnlyRootFilesystem: true`, drop ALL capabilities
@@ -115,7 +114,7 @@ workloads/
       Chart.yaml
       values.yaml
       bootstrap/          — envsubst templates: SA, SecretProviderClass, ConfigMap, HTTPRoute
-      crds/               — PV for NFS share
+      crds/               — Stale NFS PV template (not applied; NFS removed 2026-04-12; see pv.yaml tombstone)
     openclaw-jh/          — Instance "jh" dev
       ...
   prod/
@@ -128,7 +127,7 @@ ArgoCD Application manifests live in `argocd/apps/{env}-openclaw-{inst}.yaml`.
 
 ### Resource Group Topology
 
-- **Environment resource group** (`${project}-${environment}-rg`): deployed in every environment; holds Key Vault, AI platform, AKS cluster, Log Analytics Workspace, Premium storage account (NFS shares for all instances), and budget resources. All per-instance Managed Identities also live here.
+- **Environment resource group** (`${project}-${environment}-rg`): deployed in every environment; holds Key Vault, AI platform, AKS cluster, Log Analytics Workspace, and budget resources. All per-instance Managed Identities also live here.
 - **Shared resource group** (`${project}-shared-rg`): deployed in prod only; holds the single Azure Container Registry shared across the project.
 
 ### Central Terraform Variables File
@@ -163,7 +162,7 @@ Each instance MI receives these role assignments:
 | Role | Scope | Notes |
 | ---- | ----- | ----- |
 | Key Vault Secrets User | Environment Key Vault | Access scoped to this MI only |
-| Storage Account Contributor | Premium NFS storage account | NFS mount enumeration |
+| Storage Account Contributor | ~~Premium NFS storage account~~ | Removed 2026-04-12; `storage-aks.tf` deleted |
 | Cognitive Services OpenAI User | AI Services account | Shared endpoint, per-instance MI |
 | Cognitive Services User | AI Services account | Shared endpoint, per-instance MI |
 | AcrPull | Shared ACR (prod only) | One assignment per instance in prod |
@@ -187,8 +186,6 @@ Each instance MI receives these role assignments:
 | Key Vault (standard, RBAC mode) | `avm-res-keyvault-vault` | Shared; per-instance secrets prefixed `{inst}-` |
 | AI Services / AI Foundry Hub + Project + model deployment | `avm-ptn-aiml-ai-foundry` | Shared across all instances |
 | AKS Cluster (free tier, 2 × `Standard_B2s`) | `avm-res-containerservice-managedcluster ~> 0.5` | Shared; Azure CNI Overlay; OIDC issuer; Workload Identity; KV Secrets Provider add-on |
-| Premium Storage Account (FileStorage) | `azurerm_storage_account` | Shared; NFS protocol; one share per instance |
-| Azure Files NFS share × N | `azurerm_storage_share` | Per instance: `openclaw-{inst}-nfs`; mounted at `/home/node/.openclaw` |
 | OIDC Federated Identity Credential × N | `azurerm_federated_identity_credential` | One per instance; binds MI to instance K8s ServiceAccount |
 | Monitor Action Group | `azurerm_monitor_action_group` | Budget email alerts |
 | Consumption Budget | `azurerm_consumption_budget_resource_group` | Monthly cap on env RG |
@@ -216,13 +213,13 @@ Each instance MI receives these role assignments:
 
 1. A change is pushed to the public GitHub repository (Terraform, Helm values, tfvars in Blob, or new instance directory).
 2. CI downloads the environment's central tfvars file from Azure Blob Storage and places it at `terraform/{env}.auto.tfvars`.
-3. GitHub Actions applies Terraform to provision or update Azure resources: AKS cluster, Key Vault, AI Services, NFS storage account, and **for each instance** in `openclaw_instances`: MI, OIDC federated credential, NFS share, Key Vault secret, and role assignments.
+3. GitHub Actions applies Terraform to provision or update Azure resources: AKS cluster, Key Vault, AI Services, and **for each instance** in `openclaw_instances`: MI, OIDC federated credential, Key Vault secret, and role assignments. Persistent storage PVCs are dynamically provisioned by Kubernetes.
 4. CI fetches AKS credentials and runs `scripts/bootstrap-aks-platform.sh` to install/upgrade platform tools: Secrets Store CSI Driver, Azure Key Vault Provider, NGINX Gateway Fabric (with updated per-instance Gateway listeners), cert-manager (with ClusterIssuers), ArgoCD.
 5. CI runs `scripts/seed-openclaw-aks.sh {env} {inst}` for each instance in `openclaw_instances`, creating the `openclaw-{inst}` namespace and applying bootstrap manifests (ServiceAccount, SecretProviderClass, ConfigMap, HTTPRoute).
 6. ArgoCD detects the updated `workloads/{env}/openclaw-{inst}/` directory in Git and syncs the umbrella Helm chart for each instance.
 7. Each Helm chart deploys an OpenClaw `Deployment`, `Service`, `ConfigMap`, `PVC`, `ServiceAccount`, and NetworkPolicy in the `openclaw-{inst}` namespace.
 8. The Secrets Store CSI volume mount triggers Key Vault secret sync → `openclaw-env-secret` Kubernetes Secret is created/updated per instance.
-9. The NFS Azure Files share (`openclaw-{inst}-nfs`) is mounted at `/home/node/.openclaw` for each pod, restoring all persistent state.
+9. The dynamically provisioned Azure Disk PVC (`managed-csi-premium`) is mounted at `/home/node/.openclaw` for each pod, restoring all persistent state.
 10. OpenClaw starts with `gateway.bind=lan`, reads `OPENCLAW_GATEWAY_TOKEN` from the synced secret, and begins accepting connections.
 11. A user connects over HTTPS to `{inst}.{env-domain}`; the NGINX Gateway Fabric routes the request via the per-instance `HTTPRoute` to `openclaw-{inst}` service on port 18789.
 12. OpenClaw authenticates to Azure AI Foundry via Workload Identity (per-instance MI OIDC token exchange).

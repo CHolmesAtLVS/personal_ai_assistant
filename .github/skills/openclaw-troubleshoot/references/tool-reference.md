@@ -6,7 +6,7 @@ Full command reference extracted from the 2026-03-30 production incident. All co
 
 | Tool / Command | Purpose | Key Limitation |
 |---|---|---|
-| `bash scripts/diagnose-containerapp.sh dev` | Single command that runs all sections A–H and writes output to `scripts/diag-dev-<timestamp>.txt` | Requires `az login`; no Terraform state needed |
+| ~~`bash scripts/diagnose-containerapp.sh dev`~~ | **Removed 2026-04-20** (ACA decommissioned). Use `kubectl logs -n openclaw-<inst> deployment/openclaw --tail=100` | Script deleted |
 | `bash scripts/dump-resource-inventory.sh` | Discover all resource names by tag via Azure Resource Graph query | Requires Azure Resource Graph access; independent of Log Analytics NSP restrictions |
 | `az containerapp revision list -o table` | See all revisions: health/traffic/replica counts | First stop for any startup failure |
 | `az containerapp revision show --query "properties.runningStateDetails"` | Human-readable failure reason (e.g. `"1/1 Container crashing: openclaw"`) | Only meaningful on active revisions |

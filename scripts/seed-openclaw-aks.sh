@@ -68,7 +68,7 @@ esac
 
 export INST
 export ENV
-export INST_FQDN="${INST}.${BASE_DOMAIN}"
+export INST_FQDN="${INST}-${BASE_DOMAIN}"
 export CERT_SECRET_NAME="${INST}-${ENV}-tls"
 export CERT_ISSUER="${CERT_ISSUER:-letsencrypt-staging}"
 

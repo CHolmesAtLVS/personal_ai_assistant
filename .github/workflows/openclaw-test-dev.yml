@@ -1,9 +1,13 @@
 name: OpenClaw Test Dev
 
 # Triggers:
+# - pull_request: fires directly on dev → main production-promote PRs.
 # - workflow_run: fires after Terraform Dev completes successfully on a PR to dev.
 # - workflow_dispatch: manual retrigger (dev only).
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
   workflow_run:
     workflows: ["Terraform Dev"]
     types: [completed]
@@ -18,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     if: >-
+      (github.event_name == 'pull_request') ||
       (github.event_name == 'workflow_dispatch') ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.name == 'Terraform Dev' &&
@@ -30,7 +35,7 @@ jobs:
       TF_VAR_project: ${{ vars.TF_VAR_PROJECT }}
       TF_VAR_environment: dev
     steps:
-      # Check out the exact commit that triggered Terraform Dev (not default branch HEAD).
+      # Check out the triggering PR commit (workflow_run), or the current SHA (pull_request/dispatch).
       - name: Checkout
         uses: actions/checkout@v4
         with:

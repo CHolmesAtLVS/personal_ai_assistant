@@ -39,12 +39,6 @@ variable "extra_tags" {
   default     = {}
 }
 
-variable "public_ip" {
-  description = "Public IP in CIDR form (used by ingress restrictions)."
-  type        = string
-  sensitive   = true
-}
-
 variable "ai_model_name" {
   description = "Name of the AI model to deploy (for example: gpt-4o)."
   type        = string
@@ -173,7 +167,13 @@ variable "aks_kubernetes_version" {
 }
 
 variable "aks_node_vm_size" {
-  description = "VM SKU for AKS system and workload node pools."
+  description = "VM SKU for the AKS workload node pool. System node pool VM size is controlled by aks_system_node_vm_size."
+  type        = string
+  default     = "Standard_B2als_v2"
+}
+
+variable "aks_system_node_vm_size" {
+  description = "VM SKU for the AKS system node pool. Changing this requires cluster recreation."
   type        = string
   default     = "Standard_B2s"
 }
@@ -182,4 +182,44 @@ variable "aks_api_authorized_ips" {
   description = "CIDR ranges allowed to reach the AKS API server; empty list = unrestricted (default for dev)."
   type        = list(string)
   default     = []
+}
+
+variable "aks_enable_scheduler" {
+  description = "Enable Azure Automation Account scheduled stop/start for the AKS cluster."
+  type        = bool
+  default     = false
+}
+
+variable "aks_scheduler_stop_hour_utc" {
+  description = "UTC hour (0-23) for the nightly AKS cluster stop schedule. Default 04:00 UTC = 10pm MDT."
+  type        = number
+  default     = 4
+
+  validation {
+    condition     = var.aks_scheduler_stop_hour_utc >= 0 && var.aks_scheduler_stop_hour_utc <= 23
+    error_message = "aks_scheduler_stop_hour_utc must be between 0 and 23."
+  }
+}
+
+variable "aks_scheduler_start_hour_utc" {
+  description = "UTC hour (0-23) for the morning AKS cluster start schedule. Default 13:00 UTC = 7am MDT."
+  type        = number
+  default     = 13
+
+  validation {
+    condition     = var.aks_scheduler_start_hour_utc >= 0 && var.aks_scheduler_start_hour_utc <= 23
+    error_message = "aks_scheduler_start_hour_utc must be between 0 and 23."
+  }
+}
+
+variable "aks_scheduler_timezone" {
+  description = "IANA timezone for Automation Account schedule display."
+  type        = string
+  default     = "America/Denver"
+}
+
+variable "aks_scheduler_start_weekdays_only" {
+  description = "When true, morning start runs Monday-Friday only. When false, it runs daily."
+  type        = bool
+  default     = false
 }

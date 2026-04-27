@@ -43,7 +43,6 @@ jobs:
       TFSTATE_STORAGE_ACCOUNT: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
       TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
       TFSTATE_KEY: terraform-prod.tfstate
-      TF_VAR_public_ip: ${{ secrets.PUBLIC_IP }}
       TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
       ENVIRONMENT: prod
     steps:

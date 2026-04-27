@@ -94,7 +94,7 @@ jobs:
             --namespace gateway-system \
             --create-namespace \
             --version 2.5.0 \
-            --set nginx.service.type=LoadBalancer \
+            -f workloads/bootstrap/ngf-values.yaml \
             --wait --timeout 10m
           echo "Gateway LoadBalancer IP:"
           kubectl get svc -n gateway-system ngf-nginx-gateway-fabric \
@@ -223,7 +223,7 @@ jobs:
             --namespace gateway-system \
             --create-namespace \
             --version 2.5.0 \
-            --set nginx.service.type=LoadBalancer \
+            -f workloads/bootstrap/ngf-values.yaml \
             --wait --timeout 10m
           echo "Gateway LoadBalancer IP:"
           kubectl get svc -n gateway-system ngf-nginx-gateway-fabric \

@@ -54,7 +54,7 @@ User → Cloudflare edge (TLS termination, WAF, DDoS) → Cloudflare → origina
 | TASK-004 | In Cloudflare **SSL/TLS → Edge Certificates**: confirm Universal SSL is Active. Do NOT enable "Always Use HTTPS" — leave it off to preserve HTTP-01 ACME challenge flows. HSTS is out of scope for this plan. | ✓ | 2026-04-27 |
 | TASK-005 | In Cloudflare **Security → WAF**: confirm the Cloudflare Free Managed Ruleset is active. | ✓ | 2026-04-26 |
 | TASK-006 | In Cloudflare **Security → Bots**: enable **Bot Fight Mode** (free tier). | ✓ | 2026-04-26 |
-| TASK-007 | Create the following A records in Cloudflare DNS, set to **Proxied** (orange cloud). Hostnames use hyphens (not dots) to stay within the one-level subdomain covered by Cloudflare Universal SSL. Remove old dot-notation records if any exist.<br><br>`ch-paa-dev.acmeadventure.ca → 52.191.18.153`<br>`jh-paa-dev.acmeadventure.ca → 52.191.18.153`<br>`ch-paa.acmeadventure.ca → 172.171.181.166`<br>`jh-paa.acmeadventure.ca → 172.171.181.166`<br>`kjm-paa.acmeadventure.ca → 172.171.181.166` | ✓ | 2026-04-27 |
+| TASK-007 | Create the following A records in Cloudflare DNS, set to **Proxied** (orange cloud). Hostnames use hyphens (not dots) to stay within the one-level subdomain covered by Cloudflare Universal SSL. Remove old dot-notation records if any exist.<br><br>`ch-paa-dev.acmeadventure.ca → <dev-lb-ip>`<br>`jh-paa-dev.acmeadventure.ca → <dev-lb-ip>`<br>`ch-paa.acmeadventure.ca → <prod-lb-ip>`<br>`jh-paa.acmeadventure.ca → <prod-lb-ip>`<br>`kjm-paa.acmeadventure.ca → <prod-lb-ip>` | ✓ | 2026-04-27 |
 
 ### Phase 2 — Nameserver Delegation & DNS Cutover (Manual — Registrar + Cloudflare Dashboard)
 
@@ -65,7 +65,7 @@ User → Cloudflare edge (TLS termination, WAF, DDoS) → Cloudflare → origina
 | TASK-008 | At the `acmeadventure.ca` domain registrar, update nameservers to the two Cloudflare NS values from TASK-002. | ✓ | 2026-04-26 |
 | TASK-009 | Confirm Cloudflare dashboard **Overview** shows "Active". Verify `dig acmeadventure.ca NS` returns Cloudflare nameservers. | ✓ | 2026-04-26 |
 | TASK-010 | Confirm all A records from TASK-007 are Proxied. `dig ch-paa-dev.acmeadventure.ca` should return Cloudflare anycast IPs, not the Azure LB IP. | ✓ | 2026-04-26 |
-| TASK-011 | Verify cert-manager renewals: `kubectl get certificate -A` — all certs must show `READY=True`. If a cert is near expiry, trigger manual renewal: `kubectl -n openclaw-ch delete secret ch-paa-dev-tls`. Confirms HTTP-01 works through Cloudflare proxy. | | |
+| TASK-011 | Verify cert-manager renewals: `kubectl get certificate -A` — all certs must show `READY=True`. If a cert is near expiry, trigger manual renewal: `kubectl -n gateway-system delete secret <inst>-<env>-tls` (e.g. `kubectl -n gateway-system delete secret ch-dev-tls`). Confirms HTTP-01 works through Cloudflare proxy. | | |
 | TASK-012 | Confirm SSL mode is Full by visiting `https://ch-paa-dev.acmeadventure.ca` — browser devtools should show a Cloudflare Universal SSL edge cert (issued by Google or Sectigo). | | |
 
 ### Phase 3 — Restrict LoadBalancer to Cloudflare IPs (Code — dev environment first)
@@ -98,7 +98,7 @@ User → Cloudflare edge (TLS termination, WAF, DDoS) → Cloudflare → origina
 | TASK-021 | In `scripts/dev.tfvars`, remove the line `TF_VAR_public_ip = "50.99.81.3/32"`. Note: file is git-ignored; updated locally. | ✓ | 2026-04-27 |
 | TASK-022 | In `scripts/prod.tfvars`, remove the line `TF_VAR_public_ip = "50.99.81.3/32"`. Note: file is git-ignored; updated locally. | ✓ | 2026-04-27 |
 | TASK-023 | In `scripts/prod.tfvars.example`, remove the `TF_VAR_public_ip` line. | ✓ | 2026-04-27 |
-| TASK-024 | Download both central tfvars files from Blob Storage, fix formatting with `terraform fmt`, and re-upload. Both `dev.auto.tfvars` and `prod.auto.tfvars` fixed (extra spaces before inline comments) and re-uploaded to `stpaatfstate2`. Neither file contained `public_ip`. Also removed `TF_VAR_public_ip` from `terraform-dev.yml` and `terraform-infra.yml` workflow env sections. | ✓ | 2026-04-27 |
+| TASK-024 | Download both central tfvars files from Blob Storage, fix formatting with `terraform fmt`, and re-upload. Both `dev.auto.tfvars` and `prod.auto.tfvars` fixed (extra spaces before inline comments) and re-uploaded to `<tfstate-storage-account>`. Neither file contained `public_ip`. Also removed `TF_VAR_public_ip` from `terraform-dev.yml` and `terraform-infra.yml` workflow env sections. | ✓ | 2026-04-27 |
 | TASK-025 | Delete `PUBLIC_IP` GitHub secret from dev environment, prod environment, and repo-level Actions secrets. | ✓ | 2026-04-27 |
 | TASK-026 | Run `terraform plan` against dev with no `TF_VAR_public_ip` set. Result: **No changes. Your infrastructure matches the configuration.** No variable errors. | ✓ | 2026-04-27 |
 

@@ -167,7 +167,7 @@ variable "aks_kubernetes_version" {
 }
 
 variable "aks_node_vm_size" {
-  description = "VM SKU for the AKS workload node pool."
+  description = "VM SKU for the AKS workload node pool. System node pool VM size is controlled by aks_system_node_vm_size."
   type        = string
   default     = "Standard_B2als_v2"
 }

@@ -100,7 +100,7 @@ User → Cloudflare edge (TLS termination, WAF, DDoS) → Cloudflare → origina
 | TASK-023 | In `scripts/prod.tfvars.example`, remove the `TF_VAR_public_ip` line. | ✓ | 2026-04-27 |
 | TASK-024 | Download both central tfvars files from Blob Storage, fix formatting with `terraform fmt`, and re-upload. Both `dev.auto.tfvars` and `prod.auto.tfvars` fixed (extra spaces before inline comments) and re-uploaded to `stpaatfstate2`. Neither file contained `public_ip`. Also removed `TF_VAR_public_ip` from `terraform-dev.yml` and `terraform-infra.yml` workflow env sections. | ✓ | 2026-04-27 |
 | TASK-025 | Delete `PUBLIC_IP` GitHub secret from dev environment, prod environment, and repo-level Actions secrets. | ✓ | 2026-04-27 |
-| TASK-026 | Run `terraform plan` against dev with no `TF_VAR_public_ip` set. Confirm plan shows no changes and no variable-not-defined errors. Pending merge of PR #48. | | |
+| TASK-026 | Run `terraform plan` against dev with no `TF_VAR_public_ip` set. Result: **No changes. Your infrastructure matches the configuration.** No variable errors. | ✓ | 2026-04-27 |
 
 ### Phase 6 — Documentation Update (Code)
 

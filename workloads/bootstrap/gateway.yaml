@@ -6,11 +6,11 @@
 # Listeners:
 #   http              — port 80, all namespaces. Used for HTTP-01 ACME challenges and
 #                       HTTP→HTTPS redirects (handled by HTTPRoute resources in openclaw-* ns).
-#   https-ch-dev      — port 443, hostname ch.paa-dev.acmeadventure.ca. TLS terminated.
-#   https-jh-dev      — port 443, hostname jh.paa-dev.acmeadventure.ca. TLS terminated.
-#   https-ch-prod     — port 443, hostname ch.paa.acmeadventure.ca. TLS terminated.
-#   https-jh-prod     — port 443, hostname jh.paa.acmeadventure.ca. TLS terminated.
-#   https-kjm-prod    — port 443, hostname kjm.paa.acmeadventure.ca. TLS terminated.
+#   https-ch-dev      — port 443, hostname ch-paa-dev.acmeadventure.ca. TLS terminated.
+#   https-jh-dev      — port 443, hostname jh-paa-dev.acmeadventure.ca. TLS terminated.
+#   https-ch-prod     — port 443, hostname ch-paa.acmeadventure.ca. TLS terminated.
+#   https-jh-prod     — port 443, hostname jh-paa.acmeadventure.ca. TLS terminated.
+#   https-kjm-prod    — port 443, hostname kjm-paa.acmeadventure.ca. TLS terminated.
 #
 # Legacy listeners (https-dev, https-prod) are retained temporarily during migration.
 # Remove after per-instance routes are confirmed healthy (SUB-006 validation complete).
@@ -81,7 +81,7 @@ spec:
     - name: https-ch-dev
       protocol: HTTPS
       port: 443
-      hostname: ch.paa-dev.acmeadventure.ca
+      hostname: ch-paa-dev.acmeadventure.ca
       allowedRoutes:
         namespaces:
           from: All
@@ -95,7 +95,7 @@ spec:
     - name: https-jh-dev
       protocol: HTTPS
       port: 443
-      hostname: jh.paa-dev.acmeadventure.ca
+      hostname: jh-paa-dev.acmeadventure.ca
       allowedRoutes:
         namespaces:
           from: All
@@ -110,7 +110,7 @@ spec:
     - name: https-ch-prod
       protocol: HTTPS
       port: 443
-      hostname: ch.paa.acmeadventure.ca
+      hostname: ch-paa.acmeadventure.ca
       allowedRoutes:
         namespaces:
           from: All
@@ -124,7 +124,7 @@ spec:
     - name: https-jh-prod
       protocol: HTTPS
       port: 443
-      hostname: jh.paa.acmeadventure.ca
+      hostname: jh-paa.acmeadventure.ca
       allowedRoutes:
         namespaces:
           from: All
@@ -138,7 +138,7 @@ spec:
     - name: https-kjm-prod
       protocol: HTTPS
       port: 443
-      hostname: kjm.paa.acmeadventure.ca
+      hostname: kjm-paa.acmeadventure.ca
       allowedRoutes:
         namespaces:
           from: All

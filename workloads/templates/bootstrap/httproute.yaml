@@ -3,7 +3,7 @@
 # Variables substituted at seed time:
 #   INST       — instance name (e.g. ch, jh, kjm)
 #   ENV        — environment (dev or prod)
-#   INST_FQDN  — instance hostname, no scheme (e.g. ch.paa-dev.acmeadventure.ca)
+#   INST_FQDN  — instance hostname, no scheme (e.g. ch-paa-dev.acmeadventure.ca)
 ---
 # HTTP → HTTPS redirect for this instance hostname.
 # Also handles HTTP-01 ACME challenges (cert-manager solver fires before this redirect).

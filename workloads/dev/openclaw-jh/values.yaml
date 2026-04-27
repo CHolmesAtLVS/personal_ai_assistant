@@ -75,7 +75,7 @@ openclaw:
               - configMapRef:
                   name: openclaw-env-config
             env:
-              APP_FQDN: "https://jh.paa-dev.acmeadventure.ca"
+              APP_FQDN: "https://jh-paa-dev.acmeadventure.ca"
             resources:
               requests:
                 cpu: 100m

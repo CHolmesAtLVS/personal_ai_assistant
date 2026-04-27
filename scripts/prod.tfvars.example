@@ -21,6 +21,5 @@ TFSTATE_CONTAINER        = "<prod-tfstate-container-name>"
 TFSTATE_KEY              = "terraform-prod.tfstate"
 
 # Terraform input variables — sensitive (must never appear in the central tfvars blob)
-TF_VAR_public_ip          = "<your-home-ip>/32"
 TF_VAR_budget_alert_email = "<your-email>"
 TF_VAR_azure_ai_api_key   = "<azure-ai-foundry-api-key>"

@@ -37,10 +37,11 @@ resource "azurerm_role_assignment" "mi_ai_inference_user" {
 
 # Grants the CI/CD Service Principal write access to Key Vault secrets so
 # Terraform can manage the openclaw-gateway-token secret (azurerm_key_vault_secret).
-# Bound to the object ID of the identity running Terraform (the CI SP in CI/CD;
-# a developer's identity when running locally). Scope is the environment Key Vault.
+# Uses var.ci_sp_object_id (set in central tfvars) so this assignment always targets
+# the CI SP regardless of who runs Terraform locally. The CI SP object ID is stored
+# in the central tfvars file in Azure Blob Storage and never committed to source code.
 resource "azurerm_role_assignment" "ci_sp_kv_secrets_officer" {
   scope                = module.key_vault.resource_id
   role_definition_name = "Key Vault Secrets Officer"
-  principal_id         = data.azurerm_client_config.current.object_id
+  principal_id         = var.ci_sp_object_id
 }

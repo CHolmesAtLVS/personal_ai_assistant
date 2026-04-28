@@ -40,7 +40,7 @@ User → Cloudflare edge (TLS termination, WAF, DDoS) → Cloudflare → origina
 
 ## 2. Implementation Steps
 
-> **Status as of 2026-04-27:** Phases 1 and 2 are complete. Phase 3 (PR #47 merged) and Phase 5 code changes (PR #48 open) are done. HSTS is out of scope — treat as a future enhancement. Remaining: TASK-016/017 (validate dev LB restriction), TASK-019 (prod promotion), TASK-024 (Blob Storage tfvars), TASK-025 (delete PUBLIC_IP GitHub secret), TASK-026 (terraform plan validation).
+> **Status as of 2026-04-27:** All code tasks complete. PR #47, #48, #49 merged. Dev and prod AKS Bootstrap workflows applied (all 22 Cloudflare CIDRs in loadBalancerSourceRanges). `ch-dev-tls` READY=True (HTTP-01 through Cloudflare confirmed). Docs PR #50 open. Remaining: TASK-012 (browser SSL cert check — manual), TASK-017 (curl LB IP block test — manual). HSTS is out of scope.
 
 ### Phase 1 — Cloudflare Account & Zone Setup (Manual — Cloudflare Dashboard)
 
@@ -65,7 +65,7 @@ User → Cloudflare edge (TLS termination, WAF, DDoS) → Cloudflare → origina
 | TASK-008 | At the `acmeadventure.ca` domain registrar, update nameservers to the two Cloudflare NS values from TASK-002. | ✓ | 2026-04-26 |
 | TASK-009 | Confirm Cloudflare dashboard **Overview** shows "Active". Verify `dig acmeadventure.ca NS` returns Cloudflare nameservers. | ✓ | 2026-04-26 |
 | TASK-010 | Confirm all A records from TASK-007 are Proxied. `dig ch-paa-dev.acmeadventure.ca` should return Cloudflare anycast IPs, not the Azure LB IP. | ✓ | 2026-04-26 |
-| TASK-011 | Verify cert-manager renewals: `kubectl get certificate -A` — all certs must show `READY=True`. If a cert is near expiry, trigger manual renewal: `kubectl -n gateway-system delete secret <inst>-<env>-tls` (e.g. `kubectl -n gateway-system delete secret ch-dev-tls`). Confirms HTTP-01 works through Cloudflare proxy. | | |
+| TASK-011 | Verify cert-manager renewals: `kubectl get certificate -A` — all certs must show `READY=True`. If a cert is near expiry, trigger manual renewal: `kubectl -n gateway-system delete secret <inst>-<env>-tls` (e.g. `kubectl -n gateway-system delete secret ch-dev-tls`). Confirms HTTP-01 works through Cloudflare proxy. **Result:** `ch-dev-tls` READY=True (HTTP-01 through Cloudflare confirmed). `jh-dev-tls` solver pods pending due to dev cluster memory constraint. | ✓ | 2026-04-27 |
 | TASK-012 | Confirm SSL mode is Full by visiting `https://ch-paa-dev.acmeadventure.ca` — browser devtools should show a Cloudflare Universal SSL edge cert (issued by Google or Sectigo). | | |
 
 ### Phase 3 — Restrict LoadBalancer to Cloudflare IPs (Code — dev environment first)
@@ -86,7 +86,7 @@ User → Cloudflare edge (TLS termination, WAF, DDoS) → Cloudflare → origina
 | Task     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Completed | Date |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---- |
 | TASK-018 | In `.github/workflows/aks-bootstrap.yml`, in the **`bootstrap-prod`** job, apply the same change as TASK-015: replace `--set nginx.service.type=LoadBalancer` with `-f workloads/bootstrap/ngf-values.yaml` in the NGINX Gateway Fabric Helm install step. | ✓ | 2026-04-27 |
-| TASK-019 | Merge the PR to `dev`, then promote to `main` via a `dev → main` PR. After prod CI applies, run the `AKS Bootstrap` workflow manually for prod. Confirm `kubectl get svc -n gateway-system ngf-nginx-gateway-fabric -o yaml` shows `spec.loadBalancerSourceRanges` on the prod cluster. Verify `https://ch-paa.acmeadventure.ca` serves traffic through Cloudflare and direct LB IP access is blocked as in TASK-017. | | |
+| TASK-019 | Merge the PR to `dev`, then promote to `main` via a `dev → main` PR. After prod CI applies, run the `AKS Bootstrap` workflow manually for prod. Confirm `kubectl get svc -n gateway-system ngf-nginx-gateway-fabric -o yaml` shows `spec.loadBalancerSourceRanges` on the prod cluster. Verify `https://ch-paa.acmeadventure.ca` serves traffic through Cloudflare and direct LB IP access is blocked as in TASK-017. **Result:** PR #49 merged 2026-04-27. Prod bootstrap run 25026223057 succeeded. | â | 2026-04-27 |
 
 ### Phase 5 — Remove `public_ip` Artifacts (Code + Manual)
 

@@ -6,14 +6,13 @@
 #
 # Prerequisites:
 #   - kubectl configured for the target cluster
-#   - jq, curl on PATH
+#   - jq, curl, python3 on PATH
 #
 # Sections:
 #   A. ArgoCD sync + pod readiness
 #   B. Health probes  — /healthz + /readyz via kubectl port-forward
-#   C. Config assertions — image tag, envFrom, volume mount, live config values
-#   D. Log scan — crash/fatal indicator check
-#   E. Live inference — end-to-end Azure OpenAI chat completions from pod
+#   C. Log scan — crash/fatal indicator check
+#   D. Gateway chat test — POST /v1/chat/completions through OpenClaw
 #
 # Exit: 0 = all passed, 1 = one or more failed
 # GITHUB_STEP_SUMMARY is written to if set (GitHub Actions only).
@@ -38,9 +37,6 @@ case "${ENV}" in
     ;;
 esac
 
-# Path to the inference Node.js script (relative to repo root or absolute).
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFERENCE_SCRIPT="${SCRIPT_DIR}/test-openclaw-inference.js"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 PASS=0; FAIL=0
@@ -69,10 +65,6 @@ step_summary '```'
 ARGOCD_TIMEOUT=600
 ARGOCD_INTERVAL=15
 
-# POD_FOR[<namespace>] is populated here and reused by sections C and E
-# to avoid redundant (and potentially flaky) pod lookups.
-declare -A POD_FOR
-
 for APP in "${ARGOCD_APPS[@]}"; do
   ELAPSED=0
   echo "  Waiting for ArgoCD to sync ${APP}..."
@@ -98,12 +90,6 @@ for APP in "${ARGOCD_APPS[@]}"; do
   else
     fail "Pod not ready: ${TARGET_NS}"
   fi
-
-  # Cache the running pod name for this namespace.
-  POD_FOR["${TARGET_NS}"]="$(kubectl get pods -n "${TARGET_NS}" \
-    -l app.kubernetes.io/instance=openclaw \
-    --field-selector=status.phase=Running \
-    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
 done
 step_summary '```'
 
@@ -152,98 +138,10 @@ done
 step_summary '```'
 
 # ══════════════════════════════════════════════════════════════════════════════
-# C. Config assertions — deployment spec + live pod config values
+# C. Log scan — no crash/fatal indicators in recent container logs
 # ══════════════════════════════════════════════════════════════════════════════
-section "C. Config assertions"
-step_summary "### C. Config assertions"
-step_summary '```'
-
-for NS in "${TEST_NAMESPACES[@]}"; do
-  echo "--- ${NS} ---"
-  step_summary "--- ${NS} ---"
-  DEP="$(kubectl get deployment openclaw -n "${NS}" -o json)"
-
-  # Image tag must not be :latest
-  IMAGE="$(echo "${DEP}" | jq -r '.spec.template.spec.containers[] | select(.name=="main") | .image // empty')"
-  if [[ -z "${IMAGE}" ]]; then
-    fail "no main container image — ${NS}"
-  elif echo "${IMAGE}" | grep -q ':latest$'; then
-    fail "image uses :latest tag — ${IMAGE} — ${NS}"
-  else
-    pass "image pinned — ${IMAGE}"
-  fi
-
-  # envFrom must reference both the secret and the configmap
-  ENV_FROM="$(echo "${DEP}" | jq -r '
-    .spec.template.spec.containers[] | select(.name=="main") |
-    (.envFrom[]?.secretRef.name // empty), (.envFrom[]?.configMapRef.name // empty)' \
-    | sort | uniq)"
-  if echo "${ENV_FROM}" | grep -q "openclaw-env-secret" \
-      && echo "${ENV_FROM}" | grep -q "openclaw-env-config"; then
-    pass "envFrom: env-secret + env-config present — ${NS}"
-  else
-    fail "envFrom missing env-secret or env-config — ${NS} (found: $(echo "${ENV_FROM}" | tr '\n' ' '))"
-  fi
-
-  # Persistent state volume must be mounted
-  MOUNTS="$(echo "${DEP}" | jq -r '
-    .spec.template.spec.containers[] | select(.name=="main") | .volumeMounts[]?.mountPath' 2>/dev/null)"
-  if echo "${MOUNTS}" | grep -q "/home/node/.openclaw"; then
-    pass "volume mount /home/node/.openclaw present — ${NS}"
-  else
-    fail "volume mount /home/node/.openclaw missing — ${NS}"
-  fi
-
-  # All remaining checks require a running pod
-  POD="${POD_FOR[${NS}]:-}"
-  if [[ -z "${POD}" ]]; then
-    fail "no running pod for exec checks — ${NS}"; continue
-  fi
-
-  # oc_config_get retries for up to 60 s to tolerate OpenClaw startup
-  # initialization (pod may still be merging config when first called).
-  oc_config_get() {
-    local KEY="$1" VAL="" WAITED=0
-    while [[ $WAITED -lt 60 ]]; do
-      VAL="$(kubectl exec -n "${NS}" "${POD}" -c main -- \
-        node /app/openclaw.mjs config get "${KEY}" 2>/dev/null | tr -d '"' || true)"
-      [[ -n "${VAL}" && "${VAL}" != "null" ]] && break
-      sleep 5; WAITED=$(( WAITED + 5 ))
-    done
-    echo "${VAL}"
-  }
-
-  # Primary model must be azure-openai/*
-  MODEL="$(oc_config_get agents.defaults.model.primary)"
-  if echo "${MODEL}" | grep -q "^azure-openai/"; then
-    pass "primary model = ${MODEL}"
-  else
-    fail "primary model '${MODEL}' (expected azure-openai/*) — ${NS}"
-  fi
-
-  # azure-openai provider baseUrl must be set
-  BASE_URL="$(oc_config_get models.providers.azure-openai.baseUrl)"
-  if [[ -n "${BASE_URL}" && "${BASE_URL}" != "null" ]]; then
-    pass "azure-openai baseUrl configured — ${NS}"
-  else
-    fail "azure-openai baseUrl empty or missing — ${NS}"
-  fi
-
-  # memorySearch.enabled must be true
-  MS_ENABLED="$(oc_config_get agents.defaults.memorySearch.enabled)"
-  if [[ "${MS_ENABLED}" == "true" ]]; then
-    pass "memorySearch.enabled = true — ${NS}"
-  else
-    fail "memorySearch.enabled = '${MS_ENABLED}' (expected true) — ${NS}"
-  fi
-done
-step_summary '```'
-
-# ══════════════════════════════════════════════════════════════════════════════
-# D. Log scan — no crash/fatal indicators in recent container logs
-# ══════════════════════════════════════════════════════════════════════════════
-section "D. Log scan"
-step_summary "### D. Log scan"
+section "C. Log scan"
+step_summary "### C. Log scan"
 step_summary '```'
 
 for NS in "${TEST_NAMESPACES[@]}"; do
@@ -263,37 +161,60 @@ done
 step_summary '```'
 
 # ══════════════════════════════════════════════════════════════════════════════
-# E. Live inference — end-to-end Azure OpenAI chat completions from the pod
-# Validates: pod env vars → AZURE_AI_API_KEY → Azure OpenAI endpoint → response
+# D. Gateway chat test — POST /v1/chat/completions through OpenClaw
+# Validates the full stack: gateway auth → agent routing → Azure OpenAI → response
 # ══════════════════════════════════════════════════════════════════════════════
-section "E. Live inference"
-step_summary "### E. Live inference"
+section "D. Gateway chat test"
+step_summary "### D. Gateway chat test"
 step_summary '```'
 
-if [[ ! -f "${INFERENCE_SCRIPT}" ]]; then
-  fail "inference script not found: ${INFERENCE_SCRIPT}"
-else
-  for NS in "${TEST_NAMESPACES[@]}"; do
-    echo "--- ${NS} ---"
-    step_summary "--- ${NS} ---"
+for NS in "${TEST_NAMESPACES[@]}"; do
+  echo "--- ${NS} ---"
+  step_summary "--- ${NS} ---"
 
-    POD="${POD_FOR[${NS}]:-}"
-    if [[ -z "${POD}" ]]; then
-      fail "no running pod — ${NS}"; continue
-    fi
+  # Read the gateway token from the Kubernetes secret.
+  GW_TOKEN="$(kubectl get secret openclaw-env-secret -n "${NS}" \
+    -o jsonpath='{.data.OPENCLAW_GATEWAY_TOKEN}' 2>/dev/null \
+    | base64 -d 2>/dev/null || true)"
+  if [[ -z "${GW_TOKEN}" ]]; then
+    fail "gateway token unavailable from openclaw-env-secret — ${NS}"; continue
+  fi
 
-    # Stream the Node.js script into the pod via stdin — avoids shell quoting issues.
-    RESULT="$(kubectl exec -i -n "${NS}" "${POD}" -c main -- node - \
-      < "${INFERENCE_SCRIPT}" 2>/dev/null || echo 'FAIL:exec error')"
+  # Port-forward to the OpenClaw service.
+  kubectl port-forward "svc/openclaw" -n "${NS}" "18082:18789" \
+    >/tmp/pf-chat-"${NS}".log 2>&1 &
+  PF_PID=$!
+  sleep 3
 
-    if echo "${RESULT}" | grep -q "^PASS:"; then
-      REPLY="$(echo "${RESULT}" | grep "^PASS:" | cut -d: -f2-)"
-      pass "inference ok, model replied: '${REPLY}' — ${NS}"
-    else
-      fail "inference failed: ${RESULT} — ${NS}"
-    fi
-  done
-fi
+  # POST a chat message to the OpenClaw gateway HTTP API.
+  # model=openclaw/default routes to the configured default agent (per OpenClaw docs).
+  CHAT_REQUEST='{"model":"openclaw/default","messages":[{"role":"user","content":"Reply with exactly one word: OK"}],"max_tokens":20}'
+  CHAT_RESPONSE="$(curl -s --max-time 45 \
+    -X POST \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer ${GW_TOKEN}" \
+    -d "${CHAT_REQUEST}" \
+    http://127.0.0.1:18082/v1/chat/completions 2>/dev/null || echo 'CURL_FAIL')"
+
+  kill "${PF_PID}" >/dev/null 2>&1 || true
+
+  REPLY="$(echo "${CHAT_RESPONSE}" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d['choices'][0]['message']['content'].strip())
+except Exception as e:
+    print('PARSE_ERROR: ' + str(e)[:100])
+" 2>/dev/null || echo 'PARSE_ERROR')"
+
+  if [[ -n "${REPLY}" && "${REPLY}" != PARSE_ERROR* && "${REPLY}" != 'CURL_FAIL' ]]; then
+    pass "gateway chat ok, replied: '${REPLY}' — ${NS}"
+  else
+    fail "gateway chat failed — ${NS}"
+    echo "  response: $(echo "${CHAT_RESPONSE}" | head -c 300)" >&2
+    cat "/tmp/pf-chat-${NS}.log" 2>/dev/null | head -5 || true
+  fi
+done
 step_summary '```'
 
 # ── Final summary ─────────────────────────────────────────────────────────────

@@ -31,7 +31,8 @@ openclaw:
                   "mode": "token",
                   "token": "${OPENCLAW_GATEWAY_TOKEN}"
                 },
-                "trustedProxies": []
+                "trustedProxies": [],
+                "http": { "endpoints": { "chatCompletions": { "enabled": true } } }
               },
               "agents": {
                 "defaults": {

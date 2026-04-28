@@ -20,6 +20,7 @@ openclaw:
                   "token": "${OPENCLAW_GATEWAY_TOKEN}"
                 },
                 "trustedProxies": ["10.244.0.0/16"],
+                "http": { "endpoints": { "chatCompletions": { "enabled": true } } },
                 "controlUi": {
                   "allowedOrigins": ["https://ch-paa.acmeadventure.ca"]
                 }

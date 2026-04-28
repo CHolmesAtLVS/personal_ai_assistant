@@ -23,6 +23,8 @@ This document covers operational procedures for the OpenClaw gateway runtime: fi
 
 These procedures apply to the AKS deployment of OpenClaw (post-migration from ACA). ACA procedures below are preserved and marked as **Legacy (ACA)** until ACA decommission is confirmed complete per `plan/feature-aks-decommission-1.md`.
 
+> **Dev cluster is stopped by default.** The dev AKS cluster stops automatically each night and does not start automatically. Before running any procedure below against the dev environment, confirm the cluster is running (`az aks show ... --query powerState.code`) and start it if needed. See the [Troubleshooting: Cluster Stopped](../readme.md#troubleshooting-cluster-stopped) section in `readme.md` for the full startup sequence.
+
 ### Prerequisites
 
 - `kubectl` and `argocd` CLI installed

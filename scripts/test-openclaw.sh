@@ -70,6 +70,10 @@ declare -A SKIP_NS
 
 for APP in "${ARGOCD_APPS[@]}"; do
   ELAPSED=0
+  # Force ArgoCD to re-fetch from Git so it detects any recent commits
+  # (e.g. post-merge smoke test running before ArgoCD's polling interval fires).
+  kubectl annotate application "${APP}" -n argocd \
+    argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
   echo "  Waiting for ArgoCD to sync ${APP}..."
   until [[ "$(kubectl get application "${APP}" -n argocd \
         -o jsonpath='{.status.sync.status}' 2>/dev/null || true)" == "Synced" ]]; do

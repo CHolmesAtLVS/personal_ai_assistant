@@ -223,3 +223,13 @@ variable "aks_scheduler_start_weekdays_only" {
   type        = bool
   default     = false
 }
+
+variable "ci_sp_object_id" {
+  description = "Object ID of the CI/CD Service Principal used by GitHub Actions. Required so the Key Vault Secrets Officer role assignment always targets the CI SP regardless of who runs Terraform locally."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.ci_sp_object_id))
+    error_message = "ci_sp_object_id must be a valid UUID (lowercase hex with hyphens)."
+  }
+}

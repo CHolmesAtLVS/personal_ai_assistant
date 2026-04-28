@@ -1,0 +1,1027 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {
+    "hyperedges": [
+      {
+        "members": [
+          "aks_cluster",
+          "azure_key_vault",
+          "azure_ai_foundry",
+          "log_analytics"
+        ],
+        "relation": "shared_by_all_instances_per_environment",
+        "confidence": "EXTRACTED"
+      },
+      {
+        "members": [
+          "managed_identity",
+          "azure_disk_pvc",
+          "secretproviderclass",
+          "configmap_env",
+          "httproute",
+          "network_policy"
+        ],
+        "relation": "provisioned_per_openclaw_instance",
+        "confidence": "EXTRACTED"
+      },
+      {
+        "members": [
+          "plan_backup_cleanup",
+          "plan_cloudflare",
+          "plan_dev_cluster_cost",
+          "plan_observability",
+          "plan_personal_setup",
+          "plan_storage_audit"
+        ],
+        "relation": "roadmap_feature_plans",
+        "confidence": "INFERRED"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "label": "start-dev-cluster.ps1",
+      "file_type": "code",
+      "source_file": "start-dev-cluster.ps1",
+      "source_location": "L1",
+      "id": "start_dev_cluster_ps1"
+    },
+    {
+      "label": "stop-dev-cluster.ps1",
+      "file_type": "code",
+      "source_file": "stop-dev-cluster.ps1",
+      "source_location": "L1",
+      "id": "stop_dev_cluster_ps1"
+    },
+    {
+      "label": "OpenClaw Application",
+      "file_type": "code",
+      "id": "openclaw_app"
+    },
+    {
+      "label": "OpenClaw Instance (per-instance)",
+      "file_type": "code",
+      "id": "openclaw_instance"
+    },
+    {
+      "label": "AKS Cluster",
+      "file_type": "document",
+      "id": "aks_cluster"
+    },
+    {
+      "label": "ArgoCD",
+      "file_type": "code",
+      "id": "argocd"
+    },
+    {
+      "label": "NGINX Gateway Fabric",
+      "file_type": "code",
+      "id": "nginx_gateway"
+    },
+    {
+      "label": "Azure Key Vault",
+      "file_type": "document",
+      "id": "azure_key_vault"
+    },
+    {
+      "label": "Azure AI Foundry / AI Services",
+      "file_type": "document",
+      "id": "azure_ai_foundry"
+    },
+    {
+      "label": "Log Analytics Workspace",
+      "file_type": "document",
+      "id": "log_analytics"
+    },
+    {
+      "label": "Terraform IaC",
+      "file_type": "code",
+      "id": "terraform"
+    },
+    {
+      "label": "GitHub Actions CI/CD",
+      "file_type": "code",
+      "id": "github_actions"
+    },
+    {
+      "label": "Cloudflare WAF/Proxy",
+      "file_type": "document",
+      "id": "cloudflare"
+    },
+    {
+      "label": "cert-manager + Let's Encrypt",
+      "file_type": "code",
+      "id": "cert_manager"
+    },
+    {
+      "label": "Azure Container Registry",
+      "file_type": "document",
+      "id": "acr"
+    },
+    {
+      "label": "Secrets Store CSI Driver",
+      "file_type": "code",
+      "id": "csi_driver"
+    },
+    {
+      "label": "Azure Managed Identity (Workload Identity)",
+      "file_type": "document",
+      "id": "managed_identity"
+    },
+    {
+      "label": "Azure Disk PVC (managed-csi-premium)",
+      "file_type": "document",
+      "id": "azure_disk_pvc"
+    },
+    {
+      "label": "Azure Automation Account",
+      "file_type": "document",
+      "id": "azure_automation"
+    },
+    {
+      "label": "Azure Consumption Budget",
+      "file_type": "document",
+      "id": "consumption_budget"
+    },
+    {
+      "label": "OpenClaw Helm Chart (serhanekicii/openclaw-helm)",
+      "file_type": "code",
+      "id": "helm_chart"
+    },
+    {
+      "label": "Public GitHub Repository",
+      "file_type": "document",
+      "id": "github_repo"
+    },
+    {
+      "label": "Azure Blob Storage (Terraform State)",
+      "file_type": "document",
+      "id": "blob_storage_tfstate"
+    },
+    {
+      "label": "Central Terraform Variables File",
+      "file_type": "document",
+      "id": "central_tfvars"
+    },
+    {
+      "label": "Kubernetes NetworkPolicy",
+      "file_type": "code",
+      "id": "network_policy"
+    },
+    {
+      "label": "ArgoCD ApplicationSet",
+      "file_type": "code",
+      "id": "argocd_appset"
+    },
+    {
+      "label": "SecretProviderClass",
+      "file_type": "code",
+      "id": "secretproviderclass"
+    },
+    {
+      "label": "ConfigMap (openclaw-env-config)",
+      "file_type": "code",
+      "id": "configmap_env"
+    },
+    {
+      "label": "HTTPRoute",
+      "file_type": "code",
+      "id": "httproute"
+    },
+    {
+      "label": "Azure Service Principal",
+      "file_type": "document",
+      "id": "service_principal"
+    },
+    {
+      "label": "gpt-5.4-mini (Primary Chat Model)",
+      "file_type": "document",
+      "id": "gpt54mini"
+    },
+    {
+      "label": "text-embedding-3-large",
+      "file_type": "document",
+      "id": "text_embedding"
+    },
+    {
+      "label": "openclaw CLI",
+      "file_type": "code",
+      "id": "openclaw_cli"
+    },
+    {
+      "label": "openclaw-connect.sh",
+      "file_type": "code",
+      "id": "openclaw_connect_sh"
+    },
+    {
+      "label": "start-dev-cluster.ps1",
+      "file_type": "code",
+      "id": "start_cluster_ps1"
+    },
+    {
+      "label": "stop-dev-cluster.ps1",
+      "file_type": "code",
+      "id": "stop_cluster_ps1"
+    },
+    {
+      "label": "ngf-values.yaml (Cloudflare CIDRs)",
+      "file_type": "code",
+      "id": "ngf_values_yaml"
+    },
+    {
+      "label": "Dev Environment",
+      "file_type": "document",
+      "id": "dev_environment"
+    },
+    {
+      "label": "Prod Environment",
+      "file_type": "document",
+      "id": "prod_environment"
+    },
+    {
+      "label": "Observability Blob Storage",
+      "file_type": "document",
+      "id": "obs_storage"
+    },
+    {
+      "label": "ARCHITECTURE.md",
+      "file_type": "document",
+      "id": "architecture_md"
+    },
+    {
+      "label": "PRODUCT.md",
+      "file_type": "document",
+      "id": "product_md"
+    },
+    {
+      "label": "CONTRIBUTING.md",
+      "file_type": "document",
+      "id": "contributing_md"
+    },
+    {
+      "label": "readme.md",
+      "file_type": "document",
+      "id": "readme_md"
+    },
+    {
+      "label": "argocd/apps/README.md",
+      "file_type": "document",
+      "id": "argocd_readme"
+    },
+    {
+      "label": "openclaw-aca-operations.md",
+      "file_type": "document",
+      "id": "aca_ops_md"
+    },
+    {
+      "label": "workloads/bootstrap/README.md",
+      "file_type": "document",
+      "id": "bootstrap_readme"
+    },
+    {
+      "label": "Plan: Backup Cleanup and Docs",
+      "file_type": "document",
+      "id": "plan_backup_cleanup"
+    },
+    {
+      "label": "Plan: Cloudflare Proxy/WAF Feature",
+      "file_type": "document",
+      "id": "plan_cloudflare"
+    },
+    {
+      "label": "Plan: Dev Cluster Stop-Only Cost",
+      "file_type": "document",
+      "id": "plan_dev_cluster_cost"
+    },
+    {
+      "label": "Plan: Observability and Hygiene",
+      "file_type": "document",
+      "id": "plan_observability"
+    },
+    {
+      "label": "Plan: Personal Setup Guide",
+      "file_type": "document",
+      "id": "plan_personal_setup"
+    },
+    {
+      "label": "Plan: Storage Audit (Deprecated)",
+      "file_type": "document",
+      "id": "plan_storage_audit"
+    }
+  ],
+  "edges": [
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "product_md",
+      "_tgt": "openclaw_app",
+      "source": "openclaw_app",
+      "target": "product_md"
+    },
+    {
+      "relation": "manages",
+      "confidence": "EXTRACTED",
+      "_src": "argocd",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "argocd"
+    },
+    {
+      "relation": "configures",
+      "confidence": "EXTRACTED",
+      "_src": "helm_chart",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "helm_chart"
+    },
+    {
+      "relation": "routes_traffic_to",
+      "confidence": "EXTRACTED",
+      "_src": "nginx_gateway",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "nginx_gateway"
+    },
+    {
+      "relation": "injects_secrets_into",
+      "confidence": "EXTRACTED",
+      "_src": "csi_driver",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "csi_driver"
+    },
+    {
+      "relation": "authenticates_via",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_instance",
+      "_tgt": "managed_identity",
+      "source": "openclaw_instance",
+      "target": "managed_identity"
+    },
+    {
+      "relation": "stores_state_in",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_instance",
+      "_tgt": "azure_disk_pvc",
+      "source": "openclaw_instance",
+      "target": "azure_disk_pvc"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_instance",
+      "_tgt": "azure_ai_foundry",
+      "source": "openclaw_instance",
+      "target": "azure_ai_foundry"
+    },
+    {
+      "relation": "logs_to",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_instance",
+      "_tgt": "log_analytics",
+      "source": "openclaw_instance",
+      "target": "log_analytics"
+    },
+    {
+      "relation": "reads_config_from",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_instance",
+      "_tgt": "configmap_env",
+      "source": "openclaw_instance",
+      "target": "configmap_env"
+    },
+    {
+      "relation": "isolates",
+      "confidence": "EXTRACTED",
+      "_src": "network_policy",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "network_policy"
+    },
+    {
+      "relation": "routes_traffic_to",
+      "confidence": "EXTRACTED",
+      "_src": "httproute",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "httproute"
+    },
+    {
+      "relation": "connects_to",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_cli",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "openclaw_cli"
+    },
+    {
+      "relation": "provides_image_to",
+      "confidence": "EXTRACTED",
+      "_src": "acr",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "acr"
+    },
+    {
+      "relation": "runs_in",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_instance",
+      "_tgt": "dev_environment",
+      "source": "openclaw_instance",
+      "target": "dev_environment"
+    },
+    {
+      "relation": "runs_in",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_instance",
+      "_tgt": "prod_environment",
+      "source": "openclaw_instance",
+      "target": "prod_environment"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "product_md",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "product_md"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "aca_ops_md",
+      "_tgt": "openclaw_instance",
+      "source": "openclaw_instance",
+      "target": "aca_ops_md"
+    },
+    {
+      "relation": "provisions",
+      "confidence": "EXTRACTED",
+      "_src": "terraform",
+      "_tgt": "aks_cluster",
+      "source": "aks_cluster",
+      "target": "terraform"
+    },
+    {
+      "relation": "bootstraps_platform_on",
+      "confidence": "EXTRACTED",
+      "_src": "github_actions",
+      "_tgt": "aks_cluster",
+      "source": "aks_cluster",
+      "target": "github_actions"
+    },
+    {
+      "relation": "starts",
+      "confidence": "EXTRACTED",
+      "_src": "start_cluster_ps1",
+      "_tgt": "aks_cluster",
+      "source": "aks_cluster",
+      "target": "start_cluster_ps1"
+    },
+    {
+      "relation": "stops",
+      "confidence": "EXTRACTED",
+      "_src": "stop_cluster_ps1",
+      "_tgt": "aks_cluster",
+      "source": "aks_cluster",
+      "target": "stop_cluster_ps1"
+    },
+    {
+      "relation": "monitors_via",
+      "confidence": "EXTRACTED",
+      "_src": "log_analytics",
+      "_tgt": "aks_cluster",
+      "source": "aks_cluster",
+      "target": "log_analytics"
+    },
+    {
+      "relation": "serves",
+      "confidence": "EXTRACTED",
+      "_src": "aks_cluster",
+      "_tgt": "dev_environment",
+      "source": "aks_cluster",
+      "target": "dev_environment"
+    },
+    {
+      "relation": "serves",
+      "confidence": "INFERRED",
+      "_src": "aks_cluster",
+      "_tgt": "prod_environment",
+      "source": "aks_cluster",
+      "target": "prod_environment"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "architecture_md",
+      "_tgt": "aks_cluster",
+      "source": "aks_cluster",
+      "target": "architecture_md"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "readme_md",
+      "_tgt": "aks_cluster",
+      "source": "aks_cluster",
+      "target": "readme_md"
+    },
+    {
+      "relation": "syncs_from",
+      "confidence": "EXTRACTED",
+      "_src": "argocd",
+      "_tgt": "github_repo",
+      "source": "argocd",
+      "target": "github_repo"
+    },
+    {
+      "relation": "deploys_via",
+      "confidence": "EXTRACTED",
+      "_src": "argocd",
+      "_tgt": "helm_chart",
+      "source": "argocd",
+      "target": "helm_chart"
+    },
+    {
+      "relation": "generates_applications_in",
+      "confidence": "EXTRACTED",
+      "_src": "argocd_appset",
+      "_tgt": "argocd",
+      "source": "argocd",
+      "target": "argocd_appset"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "architecture_md",
+      "_tgt": "argocd",
+      "source": "argocd",
+      "target": "architecture_md"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "argocd_readme",
+      "_tgt": "argocd",
+      "source": "argocd",
+      "target": "argocd_readme"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "aca_ops_md",
+      "_tgt": "argocd",
+      "source": "argocd",
+      "target": "aca_ops_md"
+    },
+    {
+      "relation": "routes_traffic_to",
+      "confidence": "EXTRACTED",
+      "_src": "cloudflare",
+      "_tgt": "nginx_gateway",
+      "source": "nginx_gateway",
+      "target": "cloudflare"
+    },
+    {
+      "relation": "provisions_tls_for",
+      "confidence": "EXTRACTED",
+      "_src": "cert_manager",
+      "_tgt": "nginx_gateway",
+      "source": "nginx_gateway",
+      "target": "cert_manager"
+    },
+    {
+      "relation": "configures",
+      "confidence": "EXTRACTED",
+      "_src": "httproute",
+      "_tgt": "nginx_gateway",
+      "source": "nginx_gateway",
+      "target": "httproute"
+    },
+    {
+      "relation": "configures",
+      "confidence": "EXTRACTED",
+      "_src": "ngf_values_yaml",
+      "_tgt": "nginx_gateway",
+      "source": "nginx_gateway",
+      "target": "ngf_values_yaml"
+    },
+    {
+      "relation": "restricts_ingress_for",
+      "confidence": "EXTRACTED",
+      "_src": "plan_cloudflare",
+      "_tgt": "nginx_gateway",
+      "source": "nginx_gateway",
+      "target": "plan_cloudflare"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "bootstrap_readme",
+      "_tgt": "nginx_gateway",
+      "source": "nginx_gateway",
+      "target": "bootstrap_readme"
+    },
+    {
+      "relation": "provisions",
+      "confidence": "EXTRACTED",
+      "_src": "terraform",
+      "_tgt": "azure_key_vault",
+      "source": "azure_key_vault",
+      "target": "terraform"
+    },
+    {
+      "relation": "syncs_from",
+      "confidence": "EXTRACTED",
+      "_src": "csi_driver",
+      "_tgt": "azure_key_vault",
+      "source": "azure_key_vault",
+      "target": "csi_driver"
+    },
+    {
+      "relation": "authenticates_to",
+      "confidence": "EXTRACTED",
+      "_src": "managed_identity",
+      "_tgt": "azure_key_vault",
+      "source": "azure_key_vault",
+      "target": "managed_identity"
+    },
+    {
+      "relation": "retrieves_token_from",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_connect_sh",
+      "_tgt": "azure_key_vault",
+      "source": "azure_key_vault",
+      "target": "openclaw_connect_sh"
+    },
+    {
+      "relation": "monitors_via",
+      "confidence": "EXTRACTED",
+      "_src": "log_analytics",
+      "_tgt": "azure_key_vault",
+      "source": "azure_key_vault",
+      "target": "log_analytics"
+    },
+    {
+      "relation": "provisions",
+      "confidence": "EXTRACTED",
+      "_src": "terraform",
+      "_tgt": "azure_ai_foundry",
+      "source": "azure_ai_foundry",
+      "target": "terraform"
+    },
+    {
+      "relation": "authenticates_to",
+      "confidence": "EXTRACTED",
+      "_src": "managed_identity",
+      "_tgt": "azure_ai_foundry",
+      "source": "azure_ai_foundry",
+      "target": "managed_identity"
+    },
+    {
+      "relation": "deployed_on",
+      "confidence": "EXTRACTED",
+      "_src": "gpt54mini",
+      "_tgt": "azure_ai_foundry",
+      "source": "azure_ai_foundry",
+      "target": "gpt54mini"
+    },
+    {
+      "relation": "deployed_on",
+      "confidence": "EXTRACTED",
+      "_src": "text_embedding",
+      "_tgt": "azure_ai_foundry",
+      "source": "azure_ai_foundry",
+      "target": "text_embedding"
+    },
+    {
+      "relation": "monitors_via",
+      "confidence": "EXTRACTED",
+      "_src": "log_analytics",
+      "_tgt": "azure_ai_foundry",
+      "source": "azure_ai_foundry",
+      "target": "log_analytics"
+    },
+    {
+      "relation": "provisions",
+      "confidence": "EXTRACTED",
+      "_src": "terraform",
+      "_tgt": "log_analytics",
+      "source": "log_analytics",
+      "target": "terraform"
+    },
+    {
+      "relation": "monitors_via",
+      "confidence": "EXTRACTED",
+      "_src": "plan_observability",
+      "_tgt": "log_analytics",
+      "source": "log_analytics",
+      "target": "plan_observability"
+    },
+    {
+      "relation": "runs",
+      "confidence": "EXTRACTED",
+      "_src": "github_actions",
+      "_tgt": "terraform",
+      "source": "terraform",
+      "target": "github_actions"
+    },
+    {
+      "relation": "provisions",
+      "confidence": "EXTRACTED",
+      "_src": "terraform",
+      "_tgt": "managed_identity",
+      "source": "terraform",
+      "target": "managed_identity"
+    },
+    {
+      "relation": "provisions",
+      "confidence": "EXTRACTED",
+      "_src": "terraform",
+      "_tgt": "consumption_budget",
+      "source": "terraform",
+      "target": "consumption_budget"
+    },
+    {
+      "relation": "provisions",
+      "confidence": "EXTRACTED",
+      "_src": "terraform",
+      "_tgt": "azure_automation",
+      "source": "terraform",
+      "target": "azure_automation"
+    },
+    {
+      "relation": "provisions",
+      "confidence": "EXTRACTED",
+      "_src": "terraform",
+      "_tgt": "acr",
+      "source": "terraform",
+      "target": "acr"
+    },
+    {
+      "relation": "stores_state_in",
+      "confidence": "EXTRACTED",
+      "_src": "terraform",
+      "_tgt": "blob_storage_tfstate",
+      "source": "terraform",
+      "target": "blob_storage_tfstate"
+    },
+    {
+      "relation": "configures",
+      "confidence": "EXTRACTED",
+      "_src": "central_tfvars",
+      "_tgt": "terraform",
+      "source": "terraform",
+      "target": "central_tfvars"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "architecture_md",
+      "_tgt": "terraform",
+      "source": "terraform",
+      "target": "architecture_md"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "_src": "contributing_md",
+      "_tgt": "terraform",
+      "source": "terraform",
+      "target": "contributing_md"
+    },
+    {
+      "relation": "triggers",
+      "confidence": "EXTRACTED",
+      "_src": "github_repo",
+      "_tgt": "github_actions",
+      "source": "github_actions",
+      "target": "github_repo"
+    },
+    {
+      "relation": "authenticates_via",
+      "confidence": "EXTRACTED",
+      "_src": "github_actions",
+      "_tgt": "service_principal",
+      "source": "github_actions",
+      "target": "service_principal"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "_src": "contributing_md",
+      "_tgt": "github_actions",
+      "source": "github_actions",
+      "target": "contributing_md"
+    },
+    {
+      "relation": "configures",
+      "confidence": "EXTRACTED",
+      "_src": "plan_cloudflare",
+      "_tgt": "cloudflare",
+      "source": "cloudflare",
+      "target": "plan_cloudflare"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "_src": "bootstrap_readme",
+      "_tgt": "cloudflare",
+      "source": "cloudflare",
+      "target": "bootstrap_readme"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "bootstrap_readme",
+      "_tgt": "cert_manager",
+      "source": "cert_manager",
+      "target": "bootstrap_readme"
+    },
+    {
+      "relation": "configures",
+      "confidence": "EXTRACTED",
+      "_src": "secretproviderclass",
+      "_tgt": "csi_driver",
+      "source": "csi_driver",
+      "target": "secretproviderclass"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "_src": "plan_personal_setup",
+      "_tgt": "azure_disk_pvc",
+      "source": "azure_disk_pvc",
+      "target": "plan_personal_setup"
+    },
+    {
+      "relation": "triggers",
+      "confidence": "EXTRACTED",
+      "_src": "azure_automation",
+      "_tgt": "start_cluster_ps1",
+      "source": "azure_automation",
+      "target": "start_cluster_ps1"
+    },
+    {
+      "relation": "triggers",
+      "confidence": "EXTRACTED",
+      "_src": "azure_automation",
+      "_tgt": "stop_cluster_ps1",
+      "source": "azure_automation",
+      "target": "stop_cluster_ps1"
+    },
+    {
+      "relation": "modifies",
+      "confidence": "EXTRACTED",
+      "_src": "plan_dev_cluster_cost",
+      "_tgt": "azure_automation",
+      "source": "azure_automation",
+      "target": "plan_dev_cluster_cost"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "_src": "readme_md",
+      "_tgt": "azure_automation",
+      "source": "azure_automation",
+      "target": "readme_md"
+    },
+    {
+      "relation": "stores",
+      "confidence": "EXTRACTED",
+      "_src": "blob_storage_tfstate",
+      "_tgt": "central_tfvars",
+      "source": "blob_storage_tfstate",
+      "target": "central_tfvars"
+    },
+    {
+      "relation": "documents",
+      "confidence": "EXTRACTED",
+      "_src": "argocd_readme",
+      "_tgt": "argocd_appset",
+      "source": "argocd_appset",
+      "target": "argocd_readme"
+    },
+    {
+      "relation": "configures",
+      "confidence": "EXTRACTED",
+      "_src": "openclaw_connect_sh",
+      "_tgt": "openclaw_cli",
+      "source": "openclaw_cli",
+      "target": "openclaw_connect_sh"
+    },
+    {
+      "relation": "depends_on",
+      "confidence": "EXTRACTED",
+      "_src": "plan_observability",
+      "_tgt": "openclaw_cli",
+      "source": "openclaw_cli",
+      "target": "plan_observability"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "_src": "plan_personal_setup",
+      "_tgt": "openclaw_cli",
+      "source": "openclaw_cli",
+      "target": "plan_personal_setup"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "_src": "plan_personal_setup",
+      "_tgt": "openclaw_connect_sh",
+      "source": "openclaw_connect_sh",
+      "target": "plan_personal_setup"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "_src": "plan_dev_cluster_cost",
+      "_tgt": "start_cluster_ps1",
+      "source": "start_cluster_ps1",
+      "target": "plan_dev_cluster_cost"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "_src": "plan_dev_cluster_cost",
+      "_tgt": "stop_cluster_ps1",
+      "source": "stop_cluster_ps1",
+      "target": "plan_dev_cluster_cost"
+    },
+    {
+      "relation": "creates",
+      "confidence": "EXTRACTED",
+      "_src": "plan_cloudflare",
+      "_tgt": "ngf_values_yaml",
+      "source": "ngf_values_yaml",
+      "target": "plan_cloudflare"
+    },
+    {
+      "relation": "targets",
+      "confidence": "EXTRACTED",
+      "_src": "plan_dev_cluster_cost",
+      "_tgt": "dev_environment",
+      "source": "dev_environment",
+      "target": "plan_dev_cluster_cost"
+    },
+    {
+      "relation": "provisions",
+      "confidence": "EXTRACTED",
+      "_src": "plan_observability",
+      "_tgt": "obs_storage",
+      "source": "obs_storage",
+      "target": "plan_observability"
+    },
+    {
+      "relation": "updates",
+      "confidence": "EXTRACTED",
+      "_src": "plan_cloudflare",
+      "_tgt": "architecture_md",
+      "source": "architecture_md",
+      "target": "plan_cloudflare"
+    },
+    {
+      "relation": "updates",
+      "confidence": "EXTRACTED",
+      "_src": "plan_backup_cleanup",
+      "_tgt": "architecture_md",
+      "source": "architecture_md",
+      "target": "plan_backup_cleanup"
+    },
+    {
+      "relation": "updates",
+      "confidence": "EXTRACTED",
+      "_src": "plan_backup_cleanup",
+      "_tgt": "product_md",
+      "source": "product_md",
+      "target": "plan_backup_cleanup"
+    },
+    {
+      "relation": "updates",
+      "confidence": "EXTRACTED",
+      "_src": "plan_dev_cluster_cost",
+      "_tgt": "readme_md",
+      "source": "readme_md",
+      "target": "plan_dev_cluster_cost"
+    },
+    {
+      "relation": "updates",
+      "confidence": "EXTRACTED",
+      "_src": "plan_cloudflare",
+      "_tgt": "bootstrap_readme",
+      "source": "bootstrap_readme",
+      "target": "plan_cloudflare"
+    },
+    {
+      "relation": "supersedes",
+      "confidence": "EXTRACTED",
+      "_src": "plan_backup_cleanup",
+      "_tgt": "plan_storage_audit",
+      "source": "plan_backup_cleanup",
+      "target": "plan_storage_audit"
+    }
+  ]
+}

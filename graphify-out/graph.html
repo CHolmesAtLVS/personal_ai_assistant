@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>graphify - graphify-out/graph.html</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f0f1a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; height: 100vh; overflow: hidden; }
+  #graph { flex: 1; }
+  #sidebar { width: 280px; background: #1a1a2e; border-left: 1px solid #2a2a4e; display: flex; flex-direction: column; overflow: hidden; }
+  #search-wrap { padding: 12px; border-bottom: 1px solid #2a2a4e; }
+  #search { width: 100%; background: #0f0f1a; border: 1px solid #3a3a5e; color: #e0e0e0; padding: 7px 10px; border-radius: 6px; font-size: 13px; outline: none; }
+  #search:focus { border-color: #4E79A7; }
+  #search-results { max-height: 140px; overflow-y: auto; padding: 4px 12px; border-bottom: 1px solid #2a2a4e; display: none; }
+  .search-item { padding: 4px 6px; cursor: pointer; border-radius: 4px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .search-item:hover { background: #2a2a4e; }
+  #info-panel { padding: 14px; border-bottom: 1px solid #2a2a4e; min-height: 140px; }
+  #info-panel h3 { font-size: 13px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  #info-content { font-size: 13px; color: #ccc; line-height: 1.6; }
+  #info-content .field { margin-bottom: 5px; }
+  #info-content .field b { color: #e0e0e0; }
+  #info-content .empty { color: #555; font-style: italic; }
+  .neighbor-link { display: block; padding: 2px 6px; margin: 2px 0; border-radius: 3px; cursor: pointer; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid #333; }
+  .neighbor-link:hover { background: #2a2a4e; }
+  #neighbors-list { max-height: 160px; overflow-y: auto; margin-top: 4px; }
+  #legend-wrap { flex: 1; overflow-y: auto; padding: 12px; }
+  #legend-wrap h3 { font-size: 13px; color: #aaa; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .legend-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; border-radius: 4px; font-size: 12px; }
+  .legend-item:hover { background: #2a2a4e; padding-left: 4px; }
+  .legend-item.dimmed { opacity: 0.35; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .legend-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend-count { color: #666; font-size: 11px; }
+  #stats { padding: 10px 14px; border-top: 1px solid #2a2a4e; font-size: 11px; color: #555; }
+  #legend-controls { display: flex; gap: 6px; margin-bottom: 8px; }
+  #legend-controls button { flex: 1; background: #0f0f1a; border: 1px solid #3a3a5e; color: #aaa; padding: 4px 0; border-radius: 4px; font-size: 11px; cursor: pointer; }
+  #legend-controls button:hover { border-color: #4E79A7; color: #e0e0e0; }
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<div id="sidebar">
+  <div id="search-wrap">
+    <input id="search" type="text" placeholder="Search nodes..." autocomplete="off">
+    <div id="search-results"></div>
+  </div>
+  <div id="info-panel">
+    <h3>Node Info</h3>
+    <div id="info-content"><span class="empty">Click a node to inspect it</span></div>
+  </div>
+  <div id="legend-wrap">
+    <h3>Communities</h3>
+    <div id="legend-controls">
+      <button onclick="toggleAllCommunities(false)">Show All</button>
+      <button onclick="toggleAllCommunities(true)">Hide All</button>
+    </div>
+    <div id="legend"></div>
+  </div>
+  <div id="stats">53 nodes &middot; 89 edges &middot; 9 communities</div>
+</div>
+<script>
+const RAW_NODES = [{"id": "start_dev_cluster_ps1", "label": "start-dev-cluster.ps1", "color": {"background": "#FF9DA7", "border": "#FF9DA7", "highlight": {"background": "#ffffff", "border": "#FF9DA7"}}, "size": 10.0, "font": {"size": 0, "color": "#ffffff"}, "title": "start-dev-cluster.ps1", "community": 7, "community_name": "Community 7", "source_file": "start-dev-cluster.ps1", "file_type": "code", "degree": 0}, {"id": "stop_dev_cluster_ps1", "label": "stop-dev-cluster.ps1", "color": {"background": "#9C755F", "border": "#9C755F", "highlight": {"background": "#ffffff", "border": "#9C755F"}}, "size": 10.0, "font": {"size": 0, "color": "#ffffff"}, "title": "stop-dev-cluster.ps1", "community": 8, "community_name": "Community 8", "source_file": "stop-dev-cluster.ps1", "file_type": "code", "degree": 0}, {"id": "openclaw_app", "label": "OpenClaw Application", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "OpenClaw Application", "community": 5, "community_name": "Community 5", "source_file": "", "file_type": "code", "degree": 1}, {"id": "openclaw_instance", "label": "OpenClaw Instance (per-instance)", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 40.0, "font": {"size": 12, "color": "#ffffff"}, "title": "OpenClaw Instance (per-instance)", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "code", "degree": 17}, {"id": "aks_cluster", "label": "AKS Cluster", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 25.9, "font": {"size": 12, "color": "#ffffff"}, "title": "AKS Cluster", "community": 3, "community_name": "Community 3", "source_file": "", "file_type": "document", "degree": 9}, {"id": "argocd", "label": "ArgoCD", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 22.4, "font": {"size": 12, "color": "#ffffff"}, "title": "ArgoCD", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "code", "degree": 7}, {"id": "nginx_gateway", "label": "NGINX Gateway Fabric", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 22.4, "font": {"size": 12, "color": "#ffffff"}, "title": "NGINX Gateway Fabric", "community": 4, "community_name": "Community 4", "source_file": "", "file_type": "code", "degree": 7}, {"id": "azure_key_vault", "label": "Azure Key Vault", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 18.8, "font": {"size": 12, "color": "#ffffff"}, "title": "Azure Key Vault", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "document", "degree": 5}, {"id": "azure_ai_foundry", "label": "Azure AI Foundry / AI Services", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 20.6, "font": {"size": 12, "color": "#ffffff"}, "title": "Azure AI Foundry / AI Services", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "document", "degree": 6}, {"id": "log_analytics", "label": "Log Analytics Workspace", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 20.6, "font": {"size": 12, "color": "#ffffff"}, "title": "Log Analytics Workspace", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "document", "degree": 6}, {"id": "terraform", "label": "Terraform IaC", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 32.9, "font": {"size": 12, "color": "#ffffff"}, "title": "Terraform IaC", "community": 2, "community_name": "Community 2", "source_file": "", "file_type": "code", "degree": 13}, {"id": "github_actions", "label": "GitHub Actions CI/CD", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 18.8, "font": {"size": 12, "color": "#ffffff"}, "title": "GitHub Actions CI/CD", "community": 2, "community_name": "Community 2", "source_file": "", "file_type": "code", "degree": 5}, {"id": "cloudflare", "label": "Cloudflare WAF/Proxy", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "Cloudflare WAF/Proxy", "community": 4, "community_name": "Community 4", "source_file": "", "file_type": "document", "degree": 3}, {"id": "cert_manager", "label": "cert-manager + Let's Encrypt", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "cert-manager + Let&#x27;s Encrypt", "community": 4, "community_name": "Community 4", "source_file": "", "file_type": "code", "degree": 2}, {"id": "acr", "label": "Azure Container Registry", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "Azure Container Registry", "community": 2, "community_name": "Community 2", "source_file": "", "file_type": "document", "degree": 2}, {"id": "csi_driver", "label": "Secrets Store CSI Driver", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "Secrets Store CSI Driver", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "code", "degree": 3}, {"id": "managed_identity", "label": "Azure Managed Identity (Workload Identity)", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 17.1, "font": {"size": 12, "color": "#ffffff"}, "title": "Azure Managed Identity (Workload Identity)", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "document", "degree": 4}, {"id": "azure_disk_pvc", "label": "Azure Disk PVC (managed-csi-premium)", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "Azure Disk PVC (managed-csi-premium)", "community": 6, "community_name": "Community 6", "source_file": "", "file_type": "document", "degree": 2}, {"id": "azure_automation", "label": "Azure Automation Account", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 18.8, "font": {"size": 12, "color": "#ffffff"}, "title": "Azure Automation Account", "community": 3, "community_name": "Community 3", "source_file": "", "file_type": "document", "degree": 5}, {"id": "consumption_budget", "label": "Azure Consumption Budget", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Azure Consumption Budget", "community": 2, "community_name": "Community 2", "source_file": "", "file_type": "document", "degree": 1}, {"id": "helm_chart", "label": "OpenClaw Helm Chart (serhanekicii/openclaw-helm)", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "OpenClaw Helm Chart (serhanekicii/openclaw-helm)", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "code", "degree": 2}, {"id": "github_repo", "label": "Public GitHub Repository", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "Public GitHub Repository", "community": 2, "community_name": "Community 2", "source_file": "", "file_type": "document", "degree": 2}, {"id": "blob_storage_tfstate", "label": "Azure Blob Storage (Terraform State)", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "Azure Blob Storage (Terraform State)", "community": 2, "community_name": "Community 2", "source_file": "", "file_type": "document", "degree": 2}, {"id": "central_tfvars", "label": "Central Terraform Variables File", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "Central Terraform Variables File", "community": 2, "community_name": "Community 2", "source_file": "", "file_type": "document", "degree": 2}, {"id": "network_policy", "label": "Kubernetes NetworkPolicy", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Kubernetes NetworkPolicy", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "code", "degree": 1}, {"id": "argocd_appset", "label": "ArgoCD ApplicationSet", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "ArgoCD ApplicationSet", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "code", "degree": 2}, {"id": "secretproviderclass", "label": "SecretProviderClass", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "SecretProviderClass", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "code", "degree": 1}, {"id": "configmap_env", "label": "ConfigMap (openclaw-env-config)", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "ConfigMap (openclaw-env-config)", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "code", "degree": 1}, {"id": "httproute", "label": "HTTPRoute", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "HTTPRoute", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "code", "degree": 2}, {"id": "service_principal", "label": "Azure Service Principal", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Azure Service Principal", "community": 2, "community_name": "Community 2", "source_file": "", "file_type": "document", "degree": 1}, {"id": "gpt54mini", "label": "gpt-5.4-mini (Primary Chat Model)", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "gpt-5.4-mini (Primary Chat Model)", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "document", "degree": 1}, {"id": "text_embedding", "label": "text-embedding-3-large", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "text-embedding-3-large", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "document", "degree": 1}, {"id": "openclaw_cli", "label": "openclaw CLI", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 17.1, "font": {"size": 12, "color": "#ffffff"}, "title": "openclaw CLI", "community": 6, "community_name": "Community 6", "source_file": "", "file_type": "code", "degree": 4}, {"id": "openclaw_connect_sh", "label": "openclaw-connect.sh", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "openclaw-connect.sh", "community": 6, "community_name": "Community 6", "source_file": "", "file_type": "code", "degree": 3}, {"id": "start_cluster_ps1", "label": "start-dev-cluster.ps1", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "start-dev-cluster.ps1", "community": 3, "community_name": "Community 3", "source_file": "", "file_type": "code", "degree": 3}, {"id": "stop_cluster_ps1", "label": "stop-dev-cluster.ps1", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "stop-dev-cluster.ps1", "community": 3, "community_name": "Community 3", "source_file": "", "file_type": "code", "degree": 3}, {"id": "ngf_values_yaml", "label": "ngf-values.yaml (Cloudflare CIDRs)", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "ngf-values.yaml (Cloudflare CIDRs)", "community": 4, "community_name": "Community 4", "source_file": "", "file_type": "code", "degree": 2}, {"id": "dev_environment", "label": "Dev Environment", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "Dev Environment", "community": 3, "community_name": "Community 3", "source_file": "", "file_type": "document", "degree": 3}, {"id": "prod_environment", "label": "Prod Environment", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "Prod Environment", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "document", "degree": 2}, {"id": "obs_storage", "label": "Observability Blob Storage", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Observability Blob Storage", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "document", "degree": 1}, {"id": "architecture_md", "label": "ARCHITECTURE.md", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 18.8, "font": {"size": 12, "color": "#ffffff"}, "title": "ARCHITECTURE.md", "community": 5, "community_name": "Community 5", "source_file": "", "file_type": "document", "degree": 5}, {"id": "product_md", "label": "PRODUCT.md", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "PRODUCT.md", "community": 5, "community_name": "Community 5", "source_file": "", "file_type": "document", "degree": 3}, {"id": "contributing_md", "label": "CONTRIBUTING.md", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "CONTRIBUTING.md", "community": 2, "community_name": "Community 2", "source_file": "", "file_type": "document", "degree": 2}, {"id": "readme_md", "label": "readme.md", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "readme.md", "community": 3, "community_name": "Community 3", "source_file": "", "file_type": "document", "degree": 3}, {"id": "argocd_readme", "label": "argocd/apps/README.md", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "argocd/apps/README.md", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "document", "degree": 2}, {"id": "aca_ops_md", "label": "openclaw-aca-operations.md", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.5, "font": {"size": 0, "color": "#ffffff"}, "title": "openclaw-aca-operations.md", "community": 1, "community_name": "Community 1", "source_file": "", "file_type": "document", "degree": 2}, {"id": "bootstrap_readme", "label": "workloads/bootstrap/README.md", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 17.1, "font": {"size": 12, "color": "#ffffff"}, "title": "workloads/bootstrap/README.md", "community": 4, "community_name": "Community 4", "source_file": "", "file_type": "document", "degree": 4}, {"id": "plan_backup_cleanup", "label": "Plan: Backup Cleanup and Docs", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "Plan: Backup Cleanup and Docs", "community": 5, "community_name": "Community 5", "source_file": "", "file_type": "document", "degree": 3}, {"id": "plan_cloudflare", "label": "Plan: Cloudflare Proxy/WAF Feature", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 18.8, "font": {"size": 12, "color": "#ffffff"}, "title": "Plan: Cloudflare Proxy/WAF Feature", "community": 4, "community_name": "Community 4", "source_file": "", "file_type": "document", "degree": 5}, {"id": "plan_dev_cluster_cost", "label": "Plan: Dev Cluster Stop-Only Cost", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 18.8, "font": {"size": 12, "color": "#ffffff"}, "title": "Plan: Dev Cluster Stop-Only Cost", "community": 3, "community_name": "Community 3", "source_file": "", "file_type": "document", "degree": 5}, {"id": "plan_observability", "label": "Plan: Observability and Hygiene", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "Plan: Observability and Hygiene", "community": 0, "community_name": "Community 0", "source_file": "", "file_type": "document", "degree": 3}, {"id": "plan_personal_setup", "label": "Plan: Personal Setup Guide", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 15.3, "font": {"size": 12, "color": "#ffffff"}, "title": "Plan: Personal Setup Guide", "community": 6, "community_name": "Community 6", "source_file": "", "file_type": "document", "degree": 3}, {"id": "plan_storage_audit", "label": "Plan: Storage Audit (Deprecated)", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 11.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Plan: Storage Audit (Deprecated)", "community": 5, "community_name": "Community 5", "source_file": "", "file_type": "document", "degree": 1}];
+const RAW_EDGES = [{"from": "openclaw_app", "to": "product_md", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "argocd", "label": "manages", "title": "manages [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "helm_chart", "label": "configures", "title": "configures [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "nginx_gateway", "label": "routes_traffic_to", "title": "routes_traffic_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "csi_driver", "label": "injects_secrets_into", "title": "injects_secrets_into [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "managed_identity", "label": "authenticates_via", "title": "authenticates_via [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "azure_disk_pvc", "label": "stores_state_in", "title": "stores_state_in [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "azure_ai_foundry", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "log_analytics", "label": "logs_to", "title": "logs_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "configmap_env", "label": "reads_config_from", "title": "reads_config_from [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "network_policy", "label": "isolates", "title": "isolates [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "httproute", "label": "routes_traffic_to", "title": "routes_traffic_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "openclaw_cli", "label": "connects_to", "title": "connects_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "acr", "label": "provides_image_to", "title": "provides_image_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "dev_environment", "label": "runs_in", "title": "runs_in [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "prod_environment", "label": "runs_in", "title": "runs_in [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "product_md", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_instance", "to": "aca_ops_md", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "aks_cluster", "to": "terraform", "label": "provisions", "title": "provisions [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "aks_cluster", "to": "github_actions", "label": "bootstraps_platform_on", "title": "bootstraps_platform_on [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "aks_cluster", "to": "start_cluster_ps1", "label": "starts", "title": "starts [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "aks_cluster", "to": "stop_cluster_ps1", "label": "stops", "title": "stops [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "aks_cluster", "to": "log_analytics", "label": "monitors_via", "title": "monitors_via [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "aks_cluster", "to": "dev_environment", "label": "serves", "title": "serves [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "aks_cluster", "to": "prod_environment", "label": "serves", "title": "serves [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "aks_cluster", "to": "architecture_md", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "aks_cluster", "to": "readme_md", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "argocd", "to": "github_repo", "label": "syncs_from", "title": "syncs_from [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "argocd", "to": "helm_chart", "label": "deploys_via", "title": "deploys_via [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "argocd", "to": "argocd_appset", "label": "generates_applications_in", "title": "generates_applications_in [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "argocd", "to": "architecture_md", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "argocd", "to": "argocd_readme", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "argocd", "to": "aca_ops_md", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "nginx_gateway", "to": "cloudflare", "label": "routes_traffic_to", "title": "routes_traffic_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "nginx_gateway", "to": "cert_manager", "label": "provisions_tls_for", "title": "provisions_tls_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "nginx_gateway", "to": "httproute", "label": "configures", "title": "configures [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "nginx_gateway", "to": "ngf_values_yaml", "label": "configures", "title": "configures [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "nginx_gateway", "to": "plan_cloudflare", "label": "restricts_ingress_for", "title": "restricts_ingress_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "nginx_gateway", "to": "bootstrap_readme", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_key_vault", "to": "terraform", "label": "provisions", "title": "provisions [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_key_vault", "to": "csi_driver", "label": "syncs_from", "title": "syncs_from [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_key_vault", "to": "managed_identity", "label": "authenticates_to", "title": "authenticates_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_key_vault", "to": "openclaw_connect_sh", "label": "retrieves_token_from", "title": "retrieves_token_from [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_key_vault", "to": "log_analytics", "label": "monitors_via", "title": "monitors_via [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_ai_foundry", "to": "terraform", "label": "provisions", "title": "provisions [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_ai_foundry", "to": "managed_identity", "label": "authenticates_to", "title": "authenticates_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_ai_foundry", "to": "gpt54mini", "label": "deployed_on", "title": "deployed_on [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_ai_foundry", "to": "text_embedding", "label": "deployed_on", "title": "deployed_on [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_ai_foundry", "to": "log_analytics", "label": "monitors_via", "title": "monitors_via [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "log_analytics", "to": "terraform", "label": "provisions", "title": "provisions [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "log_analytics", "to": "plan_observability", "label": "monitors_via", "title": "monitors_via [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "terraform", "to": "github_actions", "label": "runs", "title": "runs [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "terraform", "to": "managed_identity", "label": "provisions", "title": "provisions [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "terraform", "to": "consumption_budget", "label": "provisions", "title": "provisions [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "terraform", "to": "azure_automation", "label": "provisions", "title": "provisions [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "terraform", "to": "acr", "label": "provisions", "title": "provisions [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "terraform", "to": "blob_storage_tfstate", "label": "stores_state_in", "title": "stores_state_in [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "terraform", "to": "central_tfvars", "label": "configures", "title": "configures [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "terraform", "to": "architecture_md", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "terraform", "to": "contributing_md", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "github_actions", "to": "github_repo", "label": "triggers", "title": "triggers [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "github_actions", "to": "service_principal", "label": "authenticates_via", "title": "authenticates_via [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "github_actions", "to": "contributing_md", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "cloudflare", "to": "plan_cloudflare", "label": "configures", "title": "configures [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "cloudflare", "to": "bootstrap_readme", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "cert_manager", "to": "bootstrap_readme", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "csi_driver", "to": "secretproviderclass", "label": "configures", "title": "configures [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_disk_pvc", "to": "plan_personal_setup", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_automation", "to": "start_cluster_ps1", "label": "triggers", "title": "triggers [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_automation", "to": "stop_cluster_ps1", "label": "triggers", "title": "triggers [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_automation", "to": "plan_dev_cluster_cost", "label": "modifies", "title": "modifies [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "azure_automation", "to": "readme_md", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "blob_storage_tfstate", "to": "central_tfvars", "label": "stores", "title": "stores [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "argocd_appset", "to": "argocd_readme", "label": "documents", "title": "documents [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_cli", "to": "openclaw_connect_sh", "label": "configures", "title": "configures [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_cli", "to": "plan_observability", "label": "depends_on", "title": "depends_on [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_cli", "to": "plan_personal_setup", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "openclaw_connect_sh", "to": "plan_personal_setup", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "start_cluster_ps1", "to": "plan_dev_cluster_cost", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "stop_cluster_ps1", "to": "plan_dev_cluster_cost", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "ngf_values_yaml", "to": "plan_cloudflare", "label": "creates", "title": "creates [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "dev_environment", "to": "plan_dev_cluster_cost", "label": "targets", "title": "targets [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "obs_storage", "to": "plan_observability", "label": "provisions", "title": "provisions [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "architecture_md", "to": "plan_cloudflare", "label": "updates", "title": "updates [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "architecture_md", "to": "plan_backup_cleanup", "label": "updates", "title": "updates [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "product_md", "to": "plan_backup_cleanup", "label": "updates", "title": "updates [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "readme_md", "to": "plan_dev_cluster_cost", "label": "updates", "title": "updates [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "bootstrap_readme", "to": "plan_cloudflare", "label": "updates", "title": "updates [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "plan_backup_cleanup", "to": "plan_storage_audit", "label": "supersedes", "title": "supersedes [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}];
+const LEGEND = [];
+
+// HTML-escape helper — prevents XSS when injecting graph data into innerHTML
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Build vis datasets
+const nodesDS = new vis.DataSet(RAW_NODES.map(n => ({
+  id: n.id, label: n.label, color: n.color, size: n.size,
+  font: n.font, title: n.title,
+  _community: n.community, _community_name: n.community_name,
+  _source_file: n.source_file, _file_type: n.file_type, _degree: n.degree,
+})));
+
+const edgesDS = new vis.DataSet(RAW_EDGES.map((e, i) => ({
+  id: i, from: e.from, to: e.to,
+  label: '',
+  title: e.title,
+  dashes: e.dashes,
+  width: e.width,
+  color: e.color,
+  arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+})));
+
+const container = document.getElementById('graph');
+const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
+  physics: {
+    enabled: true,
+    solver: 'forceAtlas2Based',
+    forceAtlas2Based: {
+      gravitationalConstant: -60,
+      centralGravity: 0.005,
+      springLength: 120,
+      springConstant: 0.08,
+      damping: 0.4,
+      avoidOverlap: 0.8,
+    },
+    stabilization: { iterations: 200, fit: true },
+  },
+  interaction: {
+    hover: true,
+    tooltipDelay: 100,
+    hideEdgesOnDrag: true,
+    navigationButtons: false,
+    keyboard: false,
+  },
+  nodes: { shape: 'dot', borderWidth: 1.5 },
+  edges: { smooth: { type: 'continuous', roundness: 0.2 }, selectionWidth: 3 },
+});
+
+network.once('stabilizationIterationsDone', () => {
+  network.setOptions({ physics: { enabled: false } });
+});
+
+function showInfo(nodeId) {
+  const n = nodesDS.get(nodeId);
+  if (!n) return;
+  const neighborIds = network.getConnectedNodes(nodeId);
+  const neighborItems = neighborIds.map(nid => {
+    const nb = nodesDS.get(nid);
+    const color = nb ? nb.color.background : '#555';
+    return `<span class="neighbor-link" style="border-left-color:${esc(color)}" onclick="focusNode(${JSON.stringify(nid)})">${esc(nb ? nb.label : nid)}</span>`;
+  }).join('');
+  document.getElementById('info-content').innerHTML = `
+    <div class="field"><b>${esc(n.label)}</b></div>
+    <div class="field">Type: ${esc(n._file_type || 'unknown')}</div>
+    <div class="field">Community: ${esc(n._community_name)}</div>
+    <div class="field">Source: ${esc(n._source_file || '-')}</div>
+    <div class="field">Degree: ${n._degree}</div>
+    ${neighborIds.length ? `<div class="field" style="margin-top:8px;color:#aaa;font-size:11px">Neighbors (${neighborIds.length})</div><div id="neighbors-list">${neighborItems}</div>` : ''}
+  `;
+}
+
+function focusNode(nodeId) {
+  network.focus(nodeId, { scale: 1.4, animation: true });
+  network.selectNodes([nodeId]);
+  showInfo(nodeId);
+}
+
+// Track hovered node — hover detection is more reliable than click params
+let hoveredNodeId = null;
+network.on('hoverNode', params => {
+  hoveredNodeId = params.node;
+  container.style.cursor = 'pointer';
+});
+network.on('blurNode', () => {
+  hoveredNodeId = null;
+  container.style.cursor = 'default';
+});
+container.addEventListener('click', () => {
+  if (hoveredNodeId !== null) {
+    showInfo(hoveredNodeId);
+    network.selectNodes([hoveredNodeId]);
+  }
+});
+network.on('click', params => {
+  if (params.nodes.length > 0) {
+    showInfo(params.nodes[0]);
+  } else if (hoveredNodeId === null) {
+    document.getElementById('info-content').innerHTML = '<span class="empty">Click a node to inspect it</span>';
+  }
+});
+
+const searchInput = document.getElementById('search');
+const searchResults = document.getElementById('search-results');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase().trim();
+  searchResults.innerHTML = '';
+  if (!q) { searchResults.style.display = 'none'; return; }
+  const matches = RAW_NODES.filter(n => n.label.toLowerCase().includes(q)).slice(0, 20);
+  if (!matches.length) { searchResults.style.display = 'none'; return; }
+  searchResults.style.display = 'block';
+  matches.forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'search-item';
+    el.textContent = n.label;
+    el.style.borderLeft = `3px solid ${n.color.background}`;
+    el.style.paddingLeft = '8px';
+    el.onclick = () => {
+      network.focus(n.id, { scale: 1.5, animation: true });
+      network.selectNodes([n.id]);
+      showInfo(n.id);
+      searchResults.style.display = 'none';
+      searchInput.value = '';
+    };
+    searchResults.appendChild(el);
+  });
+});
+document.addEventListener('click', e => {
+  if (!searchResults.contains(e.target) && e.target !== searchInput)
+    searchResults.style.display = 'none';
+});
+
+const hiddenCommunities = new Set();
+
+function toggleAllCommunities(hide) {
+  document.querySelectorAll('.legend-item').forEach(item => {
+    hide ? item.classList.add('dimmed') : item.classList.remove('dimmed');
+  });
+  LEGEND.forEach(c => {
+    if (hide) hiddenCommunities.add(c.cid); else hiddenCommunities.delete(c.cid);
+  });
+  const updates = RAW_NODES.map(n => ({ id: n.id, hidden: hide }));
+  nodesDS.update(updates);
+}
+
+const legendEl = document.getElementById('legend');
+LEGEND.forEach(c => {
+  const item = document.createElement('div');
+  item.className = 'legend-item';
+  item.innerHTML = `<div class="legend-dot" style="background:${c.color}"></div>
+    <span class="legend-label">${c.label}</span>
+    <span class="legend-count">${c.count}</span>`;
+  item.onclick = () => {
+    if (hiddenCommunities.has(c.cid)) {
+      hiddenCommunities.delete(c.cid);
+      item.classList.remove('dimmed');
+    } else {
+      hiddenCommunities.add(c.cid);
+      item.classList.add('dimmed');
+    }
+    const updates = RAW_NODES
+      .filter(n => n.community === c.cid)
+      .map(n => ({ id: n.id, hidden: hiddenCommunities.has(c.cid) }));
+    nodesDS.update(updates);
+  };
+  legendEl.appendChild(item);
+});
+</script>
+<script>
+// Render hyperedges as shaded regions
+const hyperedges = [{"members": ["aks_cluster", "azure_key_vault", "azure_ai_foundry", "log_analytics"], "relation": "shared_by_all_instances_per_environment", "confidence": "EXTRACTED"}, {"members": ["managed_identity", "azure_disk_pvc", "secretproviderclass", "configmap_env", "httproute", "network_policy"], "relation": "provisioned_per_openclaw_instance", "confidence": "EXTRACTED"}, {"members": ["plan_backup_cleanup", "plan_cloudflare", "plan_dev_cluster_cost", "plan_observability", "plan_personal_setup", "plan_storage_audit"], "relation": "roadmap_feature_plans", "confidence": "INFERRED"}];
+// afterDrawing passes ctx already transformed to network coordinate space.
+// Draw node positions raw — no manual pan/zoom/DPR math needed.
+network.on('afterDrawing', function(ctx) {
+    hyperedges.forEach(h => {
+        const positions = h.nodes
+            .map(nid => network.getPositions([nid])[nid])
+            .filter(p => p !== undefined);
+        if (positions.length < 2) return;
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#6366f1';
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Centroid and expanded hull in network coordinates
+        const cx = positions.reduce((s, p) => s + p.x, 0) / positions.length;
+        const cy = positions.reduce((s, p) => s + p.y, 0) / positions.length;
+        const expanded = positions.map(p => ({
+            x: cx + (p.x - cx) * 1.15,
+            y: cy + (p.y - cy) * 1.15
+        }));
+        ctx.moveTo(expanded[0].x, expanded[0].y);
+        expanded.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.4;
+        ctx.stroke();
+        // Label
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = '#4f46e5';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(h.label, cx, cy - 5);
+        ctx.restore();
+    });
+});
+</script>
+</body>
+</html>

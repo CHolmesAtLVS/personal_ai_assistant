@@ -35,7 +35,7 @@ module "aks" {
 
   default_agent_pool = {
     name            = "system"
-    vm_size         = var.aks_node_vm_size
+    vm_size         = var.aks_system_node_vm_size
     count_of        = 1
     os_disk_size_gb = 30
     os_disk_type    = "Managed"

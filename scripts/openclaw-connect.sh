@@ -1,28 +1,25 @@
 #!/usr/bin/env bash
-# NOTE: ACA fallback logic in this script (FQDN derivation steps 2 and 3) is now obsolete for dev.
-# ACA has been decommissioned for the dev environment (2026-04-09) per feature-aks-decommission-1.md.
-# The script continues to use the static AKS DNS hostname (step 1: paa-<env>.acmeadventure.ca)
-# which is correct. ACA fallback paths are retained for prod until prod ACA is decommissioned.
-#
 # openclaw-connect.sh — Fetch the OpenClaw gateway URL + token from Key Vault
-# and set up the local openclaw CLI to target the remote gateway
-# (AKS post-migration primary; ACA fallback for pre-migration environments).
+# and set up the local openclaw CLI to target the remote gateway.
 #
-# FQDN derivation order:
-#   1. Static AKS DNS hostname: paa-<env>.acmeadventure.ca (preferred post-migration)
-#   2. Terraform output: container_app_fqdn (ACA fallback, pre-migration)
-#   3. az containerapp show (final ACA fallback if Terraform output unavailable)
+# Each OpenClaw instance has its own DNS hostname and Key Vault token secret.
+# FQDN pattern:
+#   dev:  {inst}-paa-dev.acmeadventure.ca
+#   prod: {inst}-paa.acmeadventure.ca
+#
+# Key Vault secret:  {inst}-openclaw-gateway-token
+# Kubernetes:        namespace openclaw-{inst}, deployment openclaw
 #
 # Usage:
-#   ./scripts/openclaw-connect.sh [env] [--export] [--install]
+#   ./scripts/openclaw-connect.sh <inst> [env] [--export] [--install]
 #
+#   inst      instance slug, e.g. ch | jh | kjm (required)
 #   env       dev | prod  (default: dev)
-#   --export  Emit eval-able export lines for use in a shell alias or CI.
-#             To avoid typing eval every time, add this to ~/.bashrc or ~/.zshrc:
-#               alias openclaw-dev='eval "$(~/path/to/openclaw-connect.sh dev --export)" && openclaw'
-#             Or source the script once per session:
-#               source <(./scripts/openclaw-connect.sh dev --export)
+#   --export  Emit eval-able export lines for OPENCLAW_GATEWAY_URL and OPENCLAW_GATEWAY_TOKEN.
+#             Source into current shell:
+#               source <(./scripts/openclaw-connect.sh ch dev --export)
 #   --install Install the openclaw CLI globally via npm if not already present.
+#   --help    Show this help message and exit.
 #
 # Once OPENCLAW_GATEWAY_URL and OPENCLAW_GATEWAY_TOKEN are exported, all
 # openclaw CLI commands target the remote gateway automatically:
@@ -39,19 +36,54 @@
 set -euo pipefail
 
 ENV="dev"
+INST=""
 EXPORT_MODE=false
 INSTALL_MODE=false
 
 for arg in "$@"; do
   case "${arg}" in
+    --help|-h)
+      echo "Usage: ./scripts/openclaw-connect.sh <inst> [env] [--export] [--install]"
+      echo ""
+      echo "  inst      instance slug, e.g. ch | jh | kjm (required)"
+      echo "  env       dev | prod  (default: dev)"
+      echo "  --export  Emit eval-able export lines for OPENCLAW_GATEWAY_URL and OPENCLAW_GATEWAY_TOKEN."
+      echo "            Source into current shell: source <(./scripts/openclaw-connect.sh ch dev --export)"
+      echo "  --install Install the openclaw CLI globally via npm if not already present."
+      echo "  --help    Show this help message and exit."
+      echo ""
+      echo "Prerequisites: az login, Key Vault Secrets User role on the target Key Vault."
+      exit 0
+      ;;
     --export)  EXPORT_MODE=true ;;
     --install) INSTALL_MODE=true ;;
     dev|prod)  ENV="${arg}" ;;
+    *)
+      # Accept 2-3 lowercase letters as the instance slug
+      if [[ "${arg}" =~ ^[a-z]{2,3}$ ]]; then
+        INST="${arg}"
+      fi
+      ;;
   esac
 done
 
+if [[ -z "${INST}" ]]; then
+  echo "ERROR: instance slug is required (e.g. ch, jh, kjm)" >&2
+  echo "Usage: ./scripts/openclaw-connect.sh <inst> [env] [--export] [--install]" >&2
+  exit 1
+fi
+
 PROJECT="paa"
-KV_NAME="${PROJECT}-${ENV}-kv"
+
+# ── Resolve Key Vault name from cached Terraform outputs ──────────────────────
+OUTPUTS_FILE="$(dirname "${BASH_SOURCE[0]}")/${ENV}.tfoutputs"
+KV_NAME_CONVENTION="${PROJECT}-${ENV}-kv"
+if [[ -f "${OUTPUTS_FILE}" ]]; then
+  KV_NAME=$(grep -E '^kv_name \(sensitive\) = ' "${OUTPUTS_FILE}" | awk '{print $NF}')
+  KV_NAME="${KV_NAME:-${KV_NAME_CONVENTION}}"
+else
+  KV_NAME="${KV_NAME_CONVENTION}"
+fi
 
 # ── openclaw CLI detection + optional install ─────────────────────────────────
 OPENCLAW_CMD=""
@@ -70,7 +102,7 @@ if [[ -z "${OPENCLAW_CMD}" ]] || [[ "${INSTALL_MODE}" == "true" ]]; then
     echo "⚠  openclaw CLI not found. Install it with:"
     echo "     npm install -g openclaw"
     echo "   or re-run with --install:"
-    echo "     ./scripts/openclaw-connect.sh ${ENV} --install"
+    echo "     ./scripts/openclaw-connect.sh ${INST} ${ENV} --install"
     echo ""
   fi
 fi
@@ -78,40 +110,18 @@ fi
 # ── Retrieve token from Key Vault ─────────────────────────────────────────────
 TOKEN=$(az keyvault secret show \
   --vault-name "${KV_NAME}" \
-  --name "openclaw-gateway-token" \
+  --name "${INST}-openclaw-gateway-token" \
   --query "value" \
   -o tsv)
 
-# ── Derive FQDN: AKS DNS hostname → Terraform output → az containerapp show ──
-TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../terraform" && pwd)"
-VARS_FILE="$(dirname "${BASH_SOURCE[0]}")/${ENV}.tfvars"
-
-AKS_HOSTNAME="${PROJECT}-${ENV}.acmeadventure.ca"
-
-FQDN=""
-# 1. Prefer the static AKS DNS hostname (post-migration)
-if host "${AKS_HOSTNAME}" >/dev/null 2>&1; then
-  FQDN="${AKS_HOSTNAME}"
-fi
-
-# 2. ACA fallback: Terraform output (pre-migration)
-if [[ -z "${FQDN}" ]] && [[ -f "${VARS_FILE}" ]]; then
-  FQDN=$(terraform -chdir="${TF_DIR}" \
-    output -raw container_app_fqdn 2>/dev/null || true)
-fi
-
-# 3. ACA fallback: az containerapp show (if Terraform output unavailable)
-if [[ -z "${FQDN}" ]]; then
-  FQDN=$(az containerapp show \
-    --name "${PROJECT}-${ENV}-app" \
-    --resource-group "${PROJECT}-${ENV}-rg" \
-    --query "properties.configuration.ingress.fqdn" \
-    -o tsv 2>/dev/null || true)
-fi
-
-FQDN="${FQDN#https://}"
-FQDN="${FQDN#http://}"
+# ── Derive FQDN from instance + environment ───────────────────────────────────
+case "${ENV}" in
+  dev)  BASE_DOMAIN="paa-dev.acmeadventure.ca" ;;
+  prod) BASE_DOMAIN="paa.acmeadventure.ca" ;;
+esac
+FQDN="${INST}-${BASE_DOMAIN}"
 URL="https://${FQDN}"
+NAMESPACE="openclaw-${INST}"
 
 # ── Output ────────────────────────────────────────────────────────────────────
 if [[ "${EXPORT_MODE}" == "true" ]]; then
@@ -120,8 +130,10 @@ if [[ "${EXPORT_MODE}" == "true" ]]; then
 else
   CLI_STATUS="${OPENCLAW_CMD:-not installed}"
 
+  echo "Instance       : ${INST}"
   echo "Environment    : ${ENV}"
   echo "Key Vault      : ${KV_NAME}"
+  echo "Namespace      : ${NAMESPACE}"
   echo "openclaw CLI   : ${CLI_STATUS}"
   echo ""
   echo "Control UI URL : ${URL}"
@@ -130,10 +142,10 @@ else
   echo "── Connect local CLI to remote gateway ──────────────────────────"
   echo ""
   echo "Once per shell session (source into current shell):"
-  echo "  source <(./scripts/openclaw-connect.sh ${ENV} --export)"
+  echo "  source <(./scripts/openclaw-connect.sh ${INST} ${ENV} --export)"
   echo ""
   echo "To avoid typing this every time, add to ~/.bashrc or ~/.zshrc:"
-  echo "  alias ocl-${ENV}='source <($(pwd)/scripts/openclaw-connect.sh ${ENV} --export)'"
+  echo "  alias ocl-${INST}-${ENV}='source <($(pwd)/scripts/openclaw-connect.sh ${INST} ${ENV} --export)'"
   echo ""
   echo "Then use openclaw CLI directly:"
   echo "  openclaw devices list"
@@ -143,11 +155,10 @@ else
   echo ""
   if [[ -z "${OPENCLAW_CMD}" ]]; then
     echo "── Install openclaw CLI ─────────────────────────────────────────"
-    echo "  ./scripts/openclaw-connect.sh ${ENV} --install"
+    echo "  ./scripts/openclaw-connect.sh ${INST} ${ENV} --install"
     echo ""
   fi
   echo "── Container exec fallback (no local CLI needed) ────────────────"
-  echo "  az containerapp exec --name ${PROJECT}-${ENV}-app \\"
-  echo "    --resource-group ${PROJECT}-${ENV}-rg \\"
-  echo "    --command 'node /app/openclaw.mjs devices list'"
+  echo "  kubectl exec -n ${NAMESPACE} deployment/openclaw -- \\"
+  echo "    node /app/openclaw.mjs devices list"
 fi

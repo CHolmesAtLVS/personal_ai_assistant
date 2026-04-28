@@ -45,3 +45,9 @@ Use these documents as the primary project context:
 - Follow process and review expectations in `CONTRIBUTING.md`.
 
 If you detect incomplete or conflicting information across these files, propose specific documentation updates before or alongside code changes.
+
+## graphify
+
+Before answering architecture or codebase questions, read `graphify-out/GRAPH_REPORT.md` if it exists.
+If `graphify-out/wiki/index.md` exists, navigate it for deep questions.
+Type `/graphify` in Copilot Chat to build or update the knowledge graph.

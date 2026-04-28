@@ -15,7 +15,7 @@ on:
           - dev
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [dev]
+    branches: [dev, main]
     paths:
       - "terraform/**"
       - "scripts/bootstrap-tfstate.sh"
@@ -64,6 +64,10 @@ jobs:
             --tenant "$AZURE_TENANT_ID" \
             --output none
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
+      - name: Start dev AKS cluster
+        shell: bash
+        run: bash ./scripts/start-dev-cluster.sh
 
       - name: Bootstrap Terraform Backend
         shell: bash

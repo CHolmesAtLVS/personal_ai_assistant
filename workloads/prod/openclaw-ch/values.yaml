@@ -19,7 +19,10 @@ openclaw:
                   "mode": "token",
                   "token": "${OPENCLAW_GATEWAY_TOKEN}"
                 },
-                "trustedProxies": []
+                "trustedProxies": ["10.244.0.0/16"],
+                "controlUi": {
+                  "allowedOrigins": ["https://ch-paa.acmeadventure.ca"]
+                }
               },
               "agents": {
                 "defaults": {
@@ -79,6 +82,14 @@ openclaw:
                 memory: 256Mi
               limits:
                 cpu: 500m
+                memory: 1Gi
+          chromium:
+            resources:
+              requests:
+                cpu: 100m
+                memory: 64Mi
+              limits:
+                cpu: 1000m
                 memory: 512Mi
 
     networkpolicies:

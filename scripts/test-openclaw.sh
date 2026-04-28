@@ -65,6 +65,9 @@ step_summary '```'
 ARGOCD_TIMEOUT=600
 ARGOCD_INTERVAL=15
 
+# SKIP_NS[<namespace>]=1 when pod readiness failed — all subsequent sections skip it.
+declare -A SKIP_NS
+
 for APP in "${ARGOCD_APPS[@]}"; do
   ELAPSED=0
   echo "  Waiting for ArgoCD to sync ${APP}..."
@@ -89,6 +92,8 @@ for APP in "${ARGOCD_APPS[@]}"; do
     pass "Pod ready: ${TARGET_NS}"
   else
     fail "Pod not ready: ${TARGET_NS}"
+    SKIP_NS["${TARGET_NS}"]=1
+    echo "  Skipping further tests for ${TARGET_NS} — pod not ready."
   fi
 done
 step_summary '```'
@@ -104,10 +109,17 @@ for NS in "${TEST_NAMESPACES[@]}"; do
   echo "--- ${NS} ---"
   step_summary "--- ${NS} ---"
 
+  if [[ -n "${SKIP_NS[${NS}]:-}" ]]; then
+    echo "  SKIP  pod not ready — ${NS}"
+    step_summary "  SKIP  pod not ready — ${NS}"
+    continue
+  fi
+
   READY="$(kubectl get endpoints openclaw -n "${NS}" \
     -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null \
-    | grep -c . 2>/dev/null || echo 0)"
-  if (( READY < 1 )); then
+    | wc -l | tr -d '[:space:]')"
+  READY="${READY:-0}"
+  if [[ "${READY}" -lt 1 ]]; then
     fail "no ready endpoints — ${NS}"; continue
   fi
 
@@ -147,6 +159,11 @@ step_summary '```'
 for NS in "${TEST_NAMESPACES[@]}"; do
   echo "--- ${NS} ---"
   step_summary "--- ${NS} ---"
+  if [[ -n "${SKIP_NS[${NS}]:-}" ]]; then
+    echo "  SKIP  pod not ready — ${NS}"
+    step_summary "  SKIP  pod not ready — ${NS}"
+    continue
+  fi
   CRASH="$(kubectl logs -n "${NS}" deployment/openclaw -c main --tail=100 2>/dev/null \
     | grep -iE "crash|panic|fatal|OOMKilled|unhandledRejection|exit code [^0 ]" \
     | grep -ivE "pairing required|closed before connect|trustedProxies" \
@@ -171,6 +188,12 @@ step_summary '```'
 for NS in "${TEST_NAMESPACES[@]}"; do
   echo "--- ${NS} ---"
   step_summary "--- ${NS} ---"
+
+  if [[ -n "${SKIP_NS[${NS}]:-}" ]]; then
+    echo "  SKIP  pod not ready — ${NS}"
+    step_summary "  SKIP  pod not ready — ${NS}"
+    continue
+  fi
 
   # Read the gateway token from the Kubernetes secret.
   GW_TOKEN="$(kubectl get secret openclaw-env-secret -n "${NS}" \

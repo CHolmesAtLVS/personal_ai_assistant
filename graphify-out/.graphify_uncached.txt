@@ -1,0 +1,15 @@
+/workspaces/personal_ai_assistant/scripts/automation/start-dev-cluster.ps1
+/workspaces/personal_ai_assistant/scripts/automation/stop-dev-cluster.ps1
+/workspaces/personal_ai_assistant/ARCHITECTURE.md
+/workspaces/personal_ai_assistant/CONTRIBUTING.md
+/workspaces/personal_ai_assistant/PRODUCT.md
+/workspaces/personal_ai_assistant/readme.md
+/workspaces/personal_ai_assistant/argocd/apps/README.md
+/workspaces/personal_ai_assistant/docs/openclaw-aca-operations.md
+/workspaces/personal_ai_assistant/plan/backup-cleanup/standalone-backup-cleanup-docs-1.md
+/workspaces/personal_ai_assistant/plan/cloudflare/standalone-cloudflare-proxy-waf-feature-1.md
+/workspaces/personal_ai_assistant/plan/dev-cluster-cost/standalone-dev-cluster-stop-only-feature-1.md
+/workspaces/personal_ai_assistant/plan/observability/standalone-observability-hygiene-feature-1.md
+/workspaces/personal_ai_assistant/plan/personal-setup/standalone-personal-assistant-setup-guide-1.md
+/workspaces/personal_ai_assistant/plan/storage-audit/standalone-storage-audit-docs-update-1.md
+/workspaces/personal_ai_assistant/workloads/bootstrap/README.md

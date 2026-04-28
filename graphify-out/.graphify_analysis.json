@@ -1,0 +1,134 @@
+{
+  "communities": {
+    "0": [
+      "azure_ai_foundry",
+      "azure_key_vault",
+      "csi_driver",
+      "gpt54mini",
+      "log_analytics",
+      "managed_identity",
+      "obs_storage",
+      "plan_observability",
+      "secretproviderclass",
+      "text_embedding"
+    ],
+    "1": [
+      "aca_ops_md",
+      "argocd",
+      "argocd_appset",
+      "argocd_readme",
+      "configmap_env",
+      "helm_chart",
+      "httproute",
+      "network_policy",
+      "openclaw_instance",
+      "prod_environment"
+    ],
+    "2": [
+      "acr",
+      "blob_storage_tfstate",
+      "central_tfvars",
+      "consumption_budget",
+      "contributing_md",
+      "github_actions",
+      "github_repo",
+      "service_principal",
+      "terraform"
+    ],
+    "3": [
+      "aks_cluster",
+      "azure_automation",
+      "dev_environment",
+      "plan_dev_cluster_cost",
+      "readme_md",
+      "start_cluster_ps1",
+      "stop_cluster_ps1"
+    ],
+    "4": [
+      "bootstrap_readme",
+      "cert_manager",
+      "cloudflare",
+      "ngf_values_yaml",
+      "nginx_gateway",
+      "plan_cloudflare"
+    ],
+    "5": [
+      "architecture_md",
+      "openclaw_app",
+      "plan_backup_cleanup",
+      "plan_storage_audit",
+      "product_md"
+    ],
+    "6": [
+      "azure_disk_pvc",
+      "openclaw_cli",
+      "openclaw_connect_sh",
+      "plan_personal_setup"
+    ],
+    "7": [
+      "start_dev_cluster_ps1"
+    ],
+    "8": [
+      "stop_dev_cluster_ps1"
+    ]
+  },
+  "cohesion": {},
+  "god_nodes": [],
+  "surprises": [
+    {
+      "source": "AKS Cluster",
+      "target": "Prod Environment",
+      "source_files": [
+        "",
+        ""
+      ],
+      "confidence": "INFERRED",
+      "relation": "serves",
+      "note": "Bridges community 3 \u2192 community 1"
+    },
+    {
+      "source": "NGINX Gateway Fabric",
+      "target": "OpenClaw Instance (per-instance)",
+      "source_files": [
+        "",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "routes_traffic_to",
+      "note": "Bridges community 1 \u2192 community 4"
+    },
+    {
+      "source": "Secrets Store CSI Driver",
+      "target": "OpenClaw Instance (per-instance)",
+      "source_files": [
+        "",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "injects_secrets_into",
+      "note": "Bridges community 1 \u2192 community 0"
+    },
+    {
+      "source": "OpenClaw Instance (per-instance)",
+      "target": "Azure Disk PVC (managed-csi-premium)",
+      "source_files": [
+        "",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "stores_state_in",
+      "note": "Bridges community 1 \u2192 community 6"
+    },
+    {
+      "source": "Azure Container Registry",
+      "target": "OpenClaw Instance (per-instance)",
+      "source_files": [
+        "",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "provides_image_to",
+      "note": "Bridges community 1 \u2192 community 2"
+    }
+  ]
+}

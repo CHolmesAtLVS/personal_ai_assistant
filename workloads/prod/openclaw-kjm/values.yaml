@@ -25,6 +25,14 @@ openclaw:
                 "defaults": {
                   "model": {
                     "primary": "azure-openai/gpt-5.4-mini"
+                  },
+                  "memorySearch": {
+                    "enabled": true,
+                    "store": {
+                      "vector": {
+                        "enabled": false
+                      }
+                    }
                   }
                 }
               },

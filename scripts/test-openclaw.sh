@@ -69,6 +69,10 @@ step_summary '```'
 ARGOCD_TIMEOUT=600
 ARGOCD_INTERVAL=15
 
+# POD_FOR[<namespace>] is populated here and reused by sections C and E
+# to avoid redundant (and potentially flaky) pod lookups.
+declare -A POD_FOR
+
 for APP in "${ARGOCD_APPS[@]}"; do
   ELAPSED=0
   echo "  Waiting for ArgoCD to sync ${APP}..."
@@ -94,6 +98,12 @@ for APP in "${ARGOCD_APPS[@]}"; do
   else
     fail "Pod not ready: ${TARGET_NS}"
   fi
+
+  # Cache the running pod name for this namespace.
+  POD_FOR["${TARGET_NS}"]="$(kubectl get pods -n "${TARGET_NS}" \
+    -l app.kubernetes.io/instance=openclaw \
+    --field-selector=status.phase=Running \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
 done
 step_summary '```'
 
@@ -185,15 +195,23 @@ for NS in "${TEST_NAMESPACES[@]}"; do
   fi
 
   # All remaining checks require a running pod
-  POD="$(kubectl get pods -n "${NS}" -l app.kubernetes.io/instance=openclaw \
-    --field-selector=status.phase=Running \
-    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  POD="${POD_FOR[${NS}]:-}"
   if [[ -z "${POD}" ]]; then
     fail "no running pod for exec checks — ${NS}"; continue
   fi
 
-  oc_config_get() { kubectl exec -n "${NS}" "${POD}" -c main -- \
-    node /app/openclaw.mjs config get "$1" 2>/dev/null | tr -d '"' || echo ''; }
+  # oc_config_get retries for up to 60 s to tolerate OpenClaw startup
+  # initialization (pod may still be merging config when first called).
+  oc_config_get() {
+    local KEY="$1" VAL="" WAITED=0
+    while [[ $WAITED -lt 60 ]]; do
+      VAL="$(kubectl exec -n "${NS}" "${POD}" -c main -- \
+        node /app/openclaw.mjs config get "${KEY}" 2>/dev/null | tr -d '"' || true)"
+      [[ -n "${VAL}" && "${VAL}" != "null" ]] && break
+      sleep 5; WAITED=$(( WAITED + 5 ))
+    done
+    echo "${VAL}"
+  }
 
   # Primary model must be azure-openai/*
   MODEL="$(oc_config_get agents.defaults.model.primary)"
@@ -259,9 +277,7 @@ else
     echo "--- ${NS} ---"
     step_summary "--- ${NS} ---"
 
-    POD="$(kubectl get pods -n "${NS}" -l app.kubernetes.io/instance=openclaw \
-      --field-selector=status.phase=Running \
-      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+    POD="${POD_FOR[${NS}]:-}"
     if [[ -z "${POD}" ]]; then
       fail "no running pod — ${NS}"; continue
     fi

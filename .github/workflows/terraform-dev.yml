@@ -65,6 +65,10 @@ jobs:
             --output none
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
+      - name: Start dev AKS cluster
+        shell: bash
+        run: ./scripts/start-dev-cluster.sh
+
       - name: Bootstrap Terraform Backend
         shell: bash
         run: |

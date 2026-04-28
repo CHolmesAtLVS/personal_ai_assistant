@@ -95,12 +95,8 @@ resource "azurerm_automation_schedule" "nightly_stop" {
   frequency               = "Day"
   interval                = 1
   timezone                = "America/Denver"
-  # Always > 5 min in the future on first apply; ignored on subsequent applies.
-  start_time = timeadd(plantimestamp(), "24h")
-
-  lifecycle {
-    ignore_changes = [start_time]
-  }
+  # Fixed 10 PM Mountain time; timezone field handles DST.
+  start_time = "2026-04-29T22:00:00-06:00"
 }
 
 resource "azurerm_automation_job_schedule" "stop_link" {

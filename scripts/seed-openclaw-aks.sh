@@ -88,8 +88,18 @@ done
 
 ARGOCD_APP="${REPO_ROOT}/argocd/apps/${ENV}-openclaw-${INST}.yaml"
 if [[ ! -f "${ARGOCD_APP}" ]]; then
-  echo "ERROR: ArgoCD Application manifest not found: ${ARGOCD_APP}" >&2
-  exit 1
+  # Per-instance manifests are not used when ApplicationSets manage the lifecycle.
+  # The ApplicationSet (openclaw-appset-${ENV}.yaml) auto-generates the Application.
+  # Wait for ArgoCD to sync the generated Application instead of applying a file.
+  echo "Per-instance ArgoCD manifest not found — using ApplicationSet-managed application."
+  echo "Waiting for ArgoCD Application '${INST}-openclaw-${ENV}' to sync (timeout 300s)..."
+  if argocd app wait "${INST}-openclaw-${ENV}" --sync --timeout 300 2>/dev/null; then
+    echo "ArgoCD Application synced successfully."
+  else
+    echo "WARN: ArgoCD wait timed out or argocd CLI not available. ArgoCD will sync automatically."
+  fi
+  echo "Seed complete for instance '${INST}' in environment '${ENV}'."
+  exit 0
 fi
 
 echo "Applying ArgoCD Application: ${INST}-openclaw-${ENV}..."

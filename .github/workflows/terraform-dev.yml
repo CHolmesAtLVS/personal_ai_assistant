@@ -15,7 +15,7 @@ on:
           - dev
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [dev]
+    branches: [dev, main]
     paths:
       - "terraform/**"
       - "scripts/bootstrap-tfstate.sh"

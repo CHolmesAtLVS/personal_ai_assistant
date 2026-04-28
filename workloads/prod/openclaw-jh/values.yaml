@@ -19,12 +19,21 @@ openclaw:
                   "mode": "token",
                   "token": "${OPENCLAW_GATEWAY_TOKEN}"
                 },
-                "trustedProxies": []
+                "trustedProxies": [],
+                "http": { "endpoints": { "chatCompletions": { "enabled": true } } }
               },
               "agents": {
                 "defaults": {
                   "model": {
                     "primary": "azure-openai/gpt-5.4-mini"
+                  },
+                  "memorySearch": {
+                    "enabled": true,
+                    "store": {
+                      "vector": {
+                        "enabled": false
+                      }
+                    }
                   }
                 }
               },

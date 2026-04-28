@@ -52,7 +52,6 @@ Only true credentials and sensitive values are stored in GitHub Secrets. All non
 | `TFSTATE_RG` | Backend bootstrap | Yes — needed before tfvars available |
 | `TFSTATE_CONTAINER` | Backend init + tfvars download | Yes — needed before tfvars available |
 | `TFSTATE_LOCATION` | Backend bootstrap | Yes — needed before tfvars available |
-| `PUBLIC_IP` | Ingress IP restriction; CI exports it to Terraform as `TF_VAR_public_ip` | Yes — sensitive |
 | `BUDGET_ALERT_EMAIL` | Cost alert delivery | Yes — sensitive |
 
 All other previously-stored variables (`TF_VAR_PROJECT`, `TF_VAR_LOCATION`, `TF_VAR_OWNER`, `TF_VAR_COST_CENTER`, model names and versions, image tag, quota, budget amount, `TF_VAR_OPENCLAW_INSTANCES`) are stored in the central tfvars file and no longer appear in GitHub Secrets or GitHub Variables.
@@ -62,7 +61,7 @@ All other previously-stored variables (`TF_VAR_PROJECT`, `TF_VAR_LOCATION`, `TF_
 #### Shared Infrastructure (per environment)
 
 - **AKS cluster** (free tier, 2 × `Standard_B2s` nodes, Azure CNI Overlay): shared runtime for all OpenClaw instances in the environment. One system node pool and one workload node pool. All instances schedule pods on this cluster.
-- **NGINX Gateway Fabric**: implements Kubernetes Gateway API (`GatewayClass: nginx`); provides a shared external LoadBalancer with one HTTPS listener per instance, using neutral hostname patterns such as `https-{instance}-{env}` → `{instance}.{env-domain}`.
+- **NGINX Gateway Fabric**: implements Kubernetes Gateway API (`GatewayClass: nginx`); provides a shared external LoadBalancer with one HTTPS listener per instance, using neutral hostname patterns such as `https-{instance}-{env}` → `{instance}-{env-domain}`. All public traffic is proxied through Cloudflare free tier (WAF, DDoS protection) before reaching the LoadBalancer. The LoadBalancer accepts inbound traffic only from Cloudflare IP ranges, enforced via `loadBalancerSourceRanges` (translated to Azure NSG rules by AKS). Cloudflare IP ranges are declared in `workloads/bootstrap/ngf-values.yaml` and should be refreshed when Cloudflare publishes updates (source: https://www.cloudflare.com/ips-v4, https://www.cloudflare.com/ips-v6).
 - **cert-manager + Let's Encrypt**: TLS certificates issued per instance hostname via HTTP-01 ACME challenge.
 - **Key Vault** (RBAC mode): one vault per environment holding all instance secrets, named with per-instance prefix (e.g. `ch-openclaw-gateway-token`). Shared `azure-ai-api-key` used by all instances.
 - **AI Services / AI Foundry**: one account and endpoint per environment, shared across all instances. Each instance's config points to the same endpoint.
@@ -146,7 +145,7 @@ The file contains all non-secret variables: `project`, `environment`, `location`
 The `dev.tfvars` file in `scripts/` is reduced to only the credentials and bootstrap variables required before the central tfvars is available:
 - SP credentials (`AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`)
 - `TFSTATE_*` variables
-- `TF_VAR_public_ip`, `BUDGET_ALERT_EMAIL`
+- `BUDGET_ALERT_EMAIL`
 
 ### Security and Configuration
 
@@ -154,6 +153,7 @@ The `dev.tfvars` file in `scripts/` is reduced to only the credentials and boots
 - Azure Key Vault (RBAC mode, admin-disabled): one vault per environment; per-instance secrets use `{inst}-` prefix; shared `azure-ai-api-key` accessed by all instance MIs
 - Runtime configuration: non-secret settings (e.g. `AZURE_OPENAI_ENDPOINT`, `APP_FQDN`) injected as container environment variables via per-instance ConfigMap; secrets injected via per-instance `SecretProviderClass` CSI sync → Kubernetes Secret → pod `envFrom`
 - AI authentication: Managed Identity is used where supported (Azure OpenAI embedding endpoint via `Cognitive Services OpenAI User` role). The Azure AI Model Inference endpoint uses an API key stored in Key Vault (`azure-ai-api-key`) and injected at runtime via CSI secret sync. Managed Identity coverage for that endpoint is a planned improvement.
+- Ingress security: all public HTTPS traffic is proxied through Cloudflare free tier (WAF, Bot Fight Mode, DDoS mitigation) before reaching the NGINX Gateway Fabric LoadBalancer. The LoadBalancer is restricted to Cloudflare IP ranges only via `loadBalancerSourceRanges`, enforced as Azure NSG rules by AKS. Cloudflare SSL/TLS mode is **Full** — Cloudflare terminates TLS at the edge and re-connects to origin over HTTPS using the Let's Encrypt cert managed by cert-manager.
 
 #### Managed Identity Role Assignments (per instance)
 

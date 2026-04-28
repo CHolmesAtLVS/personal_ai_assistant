@@ -7,33 +7,32 @@ completes. The notes below cover the manual follow-up actions required after eac
 
 ## Phase 2 — DNS Records
 
-After NGINX Gateway Fabric is installed, capture the LoadBalancer external IP:
+All public hostnames for `acmeadventure.ca` are **proxied through Cloudflare** (orange-cloud DNS records). DNS records must be created as **Proxied** in the Cloudflare dashboard — not as bare A records pointing at the LoadBalancer IP. The LoadBalancer IP must not appear in public DNS.
+
+After NGINX Gateway Fabric is installed, capture the LoadBalancer external IP (treat this as sensitive — do not publish it):
 
 ```bash
 kubectl get svc -n gateway-system ngf-nginx-gateway-fabric
 ```
 
-Set DNS A records in the `acmeadventure.ca` zone:
+In the Cloudflare dashboard (**DNS → Records**), create the following A records with **Proxied** toggled on (orange cloud):
 
-| Hostname                    | Record | Value          |
-| --------------------------- | ------ | -------------- |
-| `paa-dev.acmeadventure.ca`  | A      | `<dev-lb-ip>`  |
-| `paa.acmeadventure.ca`      | A      | `<prod-lb-ip>` |
+| Hostname | Record | Value |
+| -------- | ------ | ----- |
+| `ch-paa-dev.acmeadventure.ca` | A | `<dev-lb-ip>` (Proxied) |
+| `jh-paa-dev.acmeadventure.ca` | A | `<dev-lb-ip>` (Proxied) |
+| `ch-paa.acmeadventure.ca` | A | `<prod-lb-ip>` (Proxied) |
+| `jh-paa.acmeadventure.ca` | A | `<prod-lb-ip>` (Proxied) |
+| `kjm-paa.acmeadventure.ca` | A | `<prod-lb-ip>` (Proxied) |
 
-<!-- Update the IPs below after each bootstrap run. -->
-| Environment | LoadBalancer IP    | Last Updated |
-| ----------- | ------------------ | ------------ |
-| dev         | `52.191.18.153`    | 2026-04-19   |
-| prod        | `172.171.181.166`  | 2026-04-19   |
+Hostnames use hyphens (not dots) because Cloudflare Universal SSL only covers one subdomain level.
 
-**Wait for full DNS propagation before triggering Phase 3 CI (cert-manager ClusterIssuer
-validation).** HTTP-01 ACME challenges require the ACME server to resolve the hostname and
-reach port 80 on the cluster.
+**Wait for full DNS propagation and confirm Cloudflare proxy is active before triggering Phase 3 CI (cert-manager ClusterIssuer validation).**
 
-Validate before proceeding:
+Validate before proceeding (after Cloudflare is proxied, `dig` returns Cloudflare anycast IPs, not the LB IP):
 ```bash
-dig paa-dev.acmeadventure.ca +short   # must return the dev LB IP
-dig paa.acmeadventure.ca +short       # must return the prod LB IP
+dig ch-paa-dev.acmeadventure.ca +short   # must return Cloudflare anycast IPs
+dig ch-paa.acmeadventure.ca +short       # must return Cloudflare anycast IPs
 ```
 
 ---
@@ -90,6 +89,11 @@ After Phase 4 CI completes:
 
 The Secrets Store CSI Driver and Azure Key Vault Provider are installed by the AKS
 `key_vault_secrets_provider` add-on declared in Terraform — they are not managed here.
+
+> **Cloudflare IP range refresh:** `workloads/bootstrap/ngf-values.yaml` contains the
+> `loadBalancerSourceRanges` for the NGINX LoadBalancer. These must be refreshed if Cloudflare
+> publishes IP range updates. Canonical sources:
+> https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6
 
 | Component            | Chart version | Pinned at  | Managed by      |
 | -------------------- | ------------- | ---------- | --------------- |

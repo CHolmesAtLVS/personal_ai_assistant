@@ -67,7 +67,7 @@ jobs:
 
       - name: Start dev AKS cluster
         shell: bash
-        run: ./scripts/start-dev-cluster.sh
+        run: bash ./scripts/start-dev-cluster.sh
 
       - name: Bootstrap Terraform Backend
         shell: bash

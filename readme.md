@@ -109,29 +109,102 @@ Update `TF_VAR_OPENCLAW_IMAGE_TAG` in the GitHub Environment variable and open a
 
 ## Dev Environment Schedule
 
-The dev AKS cluster is automatically stopped and started by an Azure Automation Account to reduce overnight compute costs:
+The dev AKS cluster stops automatically each night to reduce compute costs. It does **not** start automatically — it must be started manually before any dev work and will remain stopped indefinitely unless explicitly started.
 
 | Event | Time | Days |
 |---|---|---|
 | Cluster stop | 02:00 Mountain Time (America/Denver) | Daily |
-| Cluster start | 07:00 Mountain Time (America/Denver) | Monday–Friday |
+| Cluster start | Manual only | — |
 
-The schedule honours daylight saving time automatically via the `America/Denver` IANA timezone ID. The cluster remains stopped on weekends.
+The stop schedule honours daylight saving time automatically via the `America/Denver` IANA timezone ID.
 
 **To start or stop the cluster manually:**
 
 ```bash
-# Start
+# Check current state first — output will be "Stopped" or "Running"
+az aks show --resource-group <dev-resource-group> --name <dev-cluster-name> --query powerState.code
+
+# Start (blocks until Running, ~3–5 min)
 az aks start --resource-group <dev-resource-group> --name <dev-cluster-name>
 
 # Stop
 az aks stop --resource-group <dev-resource-group> --name <dev-cluster-name>
-
-# Check status
-az aks show --resource-group <dev-resource-group> --name <dev-cluster-name> --query powerState.code
 ```
 
 Alternatively, navigate to the Azure Portal → Automation Account → Runbooks and trigger `*-start-cluster` or `*-stop-cluster` manually.
+
+### Troubleshooting: Cluster Stopped
+
+If `kubectl` commands time out or the OpenClaw gateway is unreachable, the cluster is likely stopped. Follow these steps in order:
+
+**Step 1 — Confirm the cluster is stopped**
+```bash
+az aks show --resource-group <dev-rg> --name <dev-cluster> --query powerState.code
+```
+Expected: `"Stopped"`. If `"Running"`, skip to Step 3.
+
+**Step 2 — Start the cluster**
+
+Option A — CLI (blocks until Running, ~3–5 min):
+```bash
+az aks start --resource-group <dev-rg> --name <dev-cluster>
+```
+Option B — Portal: Automation Account → Runbooks → `*-start-cluster` → Start → OK.
+
+Confirm running before continuing:
+```bash
+az aks show --resource-group <dev-rg> --name <dev-cluster> --query powerState.code
+# expected: "Running"
+```
+
+**Step 3 — Refresh kubeconfig**
+
+The kubeconfig token may be stale after a stop/start cycle:
+```bash
+az aks get-credentials --resource-group <dev-rg> --name <dev-cluster> --overwrite-existing
+```
+
+**Step 4 — Wait for system pods**
+
+CoreDNS, CSI driver, cert-manager, ArgoCD, and NGINX Gateway take ~2–3 min to become Ready after nodes are up:
+```bash
+kubectl get pods -A --field-selector=status.phase!=Running
+```
+Re-run until output is empty.
+
+**Step 5 — Check ArgoCD sync state**
+```bash
+kubectl get applications -n argocd
+```
+If any application shows `OutOfSync`, trigger a sync:
+```bash
+kubectl -n argocd patch application <app-name> --type merge -p '{"operation":{"sync":{"revision":"HEAD"}}}'
+```
+Or use the ArgoCD UI via port-forward:
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8080:80
+# then open http://localhost:8080
+```
+
+**Step 6 — Verify OpenClaw pods**
+```bash
+kubectl get pods -A -l app.kubernetes.io/name=openclaw
+```
+All pods should show `Running 1/1`. If a pod is in `CrashLoopBackOff` or `Pending`, check:
+```bash
+kubectl describe pod -n openclaw-<inst> <pod-name>
+```
+Common cause: CSI secret sync delay. Wait 60 s and re-check. If still failing:
+```bash
+kubectl rollout restart deployment/openclaw -n openclaw-<inst>
+```
+
+**Step 7 — Reconnect the local CLI and verify**
+```bash
+source <(./scripts/openclaw-connect.sh dev --export)
+openclaw status --all
+openclaw doctor
+```
 
 **Dev desktop Windows VM:** The dev desktop VM is not managed by Terraform. To align its shutdown with the cluster stop, configure a Windows Task Scheduler task manually:
 

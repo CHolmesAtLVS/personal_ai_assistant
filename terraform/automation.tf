@@ -103,24 +103,6 @@ resource "azurerm_automation_schedule" "nightly_stop" {
   }
 }
 
-resource "azurerm_automation_schedule" "morning_start" {
-  count = var.environment == "dev" ? 1 : 0
-
-  name                    = "${local.name_prefix}-morning-start"
-  resource_group_name     = module.resource_group.name
-  automation_account_name = azurerm_automation_account.dev_cluster_scheduler[0].name
-  frequency               = "Week"
-  interval                = 1
-  timezone                = "America/Denver"
-  # Always > 5 min in the future on first apply; ignored on subsequent applies.
-  start_time = timeadd(plantimestamp(), "24h")
-  week_days  = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-
-  lifecycle {
-    ignore_changes = [start_time]
-  }
-}
-
 resource "azurerm_automation_job_schedule" "stop_link" {
   count = var.environment == "dev" ? 1 : 0
 
@@ -128,13 +110,4 @@ resource "azurerm_automation_job_schedule" "stop_link" {
   automation_account_name = azurerm_automation_account.dev_cluster_scheduler[0].name
   runbook_name            = azurerm_automation_runbook.stop_dev_cluster[0].name
   schedule_name           = azurerm_automation_schedule.nightly_stop[0].name
-}
-
-resource "azurerm_automation_job_schedule" "start_link" {
-  count = var.environment == "dev" ? 1 : 0
-
-  resource_group_name     = module.resource_group.name
-  automation_account_name = azurerm_automation_account.dev_cluster_scheduler[0].name
-  runbook_name            = azurerm_automation_runbook.start_dev_cluster[0].name
-  schedule_name           = azurerm_automation_schedule.morning_start[0].name
 }

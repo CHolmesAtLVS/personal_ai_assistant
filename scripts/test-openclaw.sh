@@ -118,6 +118,11 @@ for APP in "${ARGOCD_APPS[@]}"; do
   TARGET_NS="$(kubectl get application "${APP}" -n argocd \
     -o jsonpath='{.spec.destination.namespace}' 2>/dev/null || true)"
 
+  if [[ -z "${TARGET_NS}" ]]; then
+    fail "Could not determine namespace for ${APP} — cluster may be unreachable"
+    continue
+  fi
+
   # Wait for the OpenClaw service endpoint to have at least one ready address.
   # This directly validates what sections B and D need (port-forward to the service).
   # RWO PVC + Recreate strategy can take 2-5 min; allow up to 10 min total.

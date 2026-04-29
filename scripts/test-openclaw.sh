@@ -104,14 +104,22 @@ for APP in "${ARGOCD_APPS[@]}"; do
     pass "ArgoCD Synced: ${APP}"
   fi
 
-  # In CI, verify ArgoCD synced the exact commit being tested.
+  # In CI, verify ArgoCD synced the expected commit. For PRs targeting a different
+  # branch (e.g. dev→main), GITHUB_SHA is a synthetic merge ref that won't exist
+  # in the ArgoCD app's targetRevision branch — treat as informational only.
   if [[ -n "${GITHUB_SHA:-}" ]]; then
     SYNCED_REV="$(kubectl get application "${APP}" -n argocd \
       -o jsonpath='{.status.sync.revision}' 2>/dev/null || true)"
+    APP_TARGET_REV="$(kubectl get application "${APP}" -n argocd \
+      -o jsonpath='{.spec.source.targetRevision}' 2>/dev/null || true)"
     if [[ "${SYNCED_REV}" == "${GITHUB_SHA}" ]]; then
       pass "Revision verified: ${APP} at ${GITHUB_SHA:0:8}"
-    else
+    elif [[ "${GITHUB_REF:-}" == "refs/heads/${APP_TARGET_REV}" ]]; then
+      # Same branch — this is a real mismatch (ArgoCD hasn't caught up)
       fail "Revision mismatch: ${APP} synced ${SYNCED_REV:0:8}, expected ${GITHUB_SHA:0:8}"
+    else
+      # Cross-branch PR — GITHUB_SHA is a merge ref, not on the app's branch
+      echo "  INFO  Revision note: ${APP} at ${SYNCED_REV:0:8} (PR merge SHA ${GITHUB_SHA:0:8} differs — expected for cross-branch PRs)"
     fi
   fi
 

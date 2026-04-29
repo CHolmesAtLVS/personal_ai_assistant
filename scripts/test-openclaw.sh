@@ -92,7 +92,22 @@ for APP in "${ARGOCD_APPS[@]}"; do
 
   TARGET_NS="$(kubectl get application "${APP}" -n argocd \
     -o jsonpath='{.spec.destination.namespace}' 2>/dev/null || true)"
-  if kubectl rollout status deployment/openclaw -n "${TARGET_NS}" --timeout=10m 2>&1; then
+
+  # Wait for at least one ready pod directly rather than relying on `rollout status`,
+  # which exits immediately with "exceeded its progress deadline" when the deployment's
+  # Progressing condition is stale from a previous rollout (ArgoCD sync + test race).
+  # RWO PVC + Recreate strategy can take 2-5 min; allow up to 10 min total.
+  POD_WAIT=0; POD_READY=0
+  until [[ "${POD_READY}" -ge 1 ]]; do
+    POD_READY="$(kubectl get pods -n "${TARGET_NS}" \
+      -o jsonpath='{range .items[*]}{.status.containerStatuses[*].ready}{"\n"}{end}' \
+      2>/dev/null | grep -c "^true$" || echo 0)"
+    if [[ "${POD_READY}" -ge 1 ]]; then break; fi
+    if [[ ${POD_WAIT} -ge 600 ]]; then break; fi
+    sleep 15; POD_WAIT=$((POD_WAIT + 15))
+  done
+
+  if [[ "${POD_READY}" -ge 1 ]]; then
     pass "Pod ready: ${TARGET_NS}"
     # Wait for service endpoint to reflect the new pod (avoids stale port-forward targets)
     EP_WAIT=0

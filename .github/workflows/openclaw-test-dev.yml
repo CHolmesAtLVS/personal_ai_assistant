@@ -74,7 +74,7 @@ jobs:
           echo "Cluster power state: $STATE"
           if [[ "$STATE" == "Stopped" ]]; then
             echo "Starting cluster $CLUSTER..."
-            az aks start --resource-group "$RG" --name "$CLUSTER" --no-wait false
+            az aks start --resource-group "$RG" --name "$CLUSTER"
             echo "Cluster started."
           fi
 

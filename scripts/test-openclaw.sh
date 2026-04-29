@@ -94,6 +94,13 @@ for APP in "${ARGOCD_APPS[@]}"; do
     -o jsonpath='{.spec.destination.namespace}' 2>/dev/null || true)"
   if kubectl rollout status deployment/openclaw -n "${TARGET_NS}" --timeout=5m 2>&1; then
     pass "Pod ready: ${TARGET_NS}"
+    # Wait for service endpoint to reflect the new pod (avoids stale port-forward targets)
+    EP_WAIT=0
+    until kubectl get endpoints openclaw -n "${TARGET_NS}" \
+        -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null | grep -q .; do
+      [[ ${EP_WAIT} -ge 30 ]] && break
+      sleep 2; EP_WAIT=$((EP_WAIT + 2))
+    done
   else
     fail "Pod not ready: ${TARGET_NS}"
     SKIP_NS["${TARGET_NS}"]=1
@@ -128,14 +135,17 @@ for NS in "${TEST_NAMESPACES[@]}"; do
   fi
 
   PORT="$(kubectl get svc openclaw -n "${NS}" -o jsonpath='{.spec.ports[0].port}')"
-  kubectl port-forward "svc/openclaw" -n "${NS}" "18080:${PORT}" \
-    >/tmp/pf-"${NS}".log 2>&1 &
-  PF_PID=$!
-  sleep 3
+  PF_PID=0
 
   for PROBE in healthz readyz; do
     PROBE_OK=0
     for _ in $(seq 1 15); do
+      # Restart port-forward on each attempt so stale endpoints don't block retries
+      kill "${PF_PID}" 2>/dev/null || true
+      kubectl port-forward "svc/openclaw" -n "${NS}" "18080:${PORT}" \
+        >/tmp/pf-"${NS}".log 2>&1 &
+      PF_PID=$!
+      sleep 2
       HTTP=$(curl -so /dev/null -w "%{http_code}" --max-time 5 \
         "http://127.0.0.1:18080/${PROBE}" 2>/dev/null || echo "000")
       if [[ "${HTTP}" == "200" ]]; then PROBE_OK=1; break; fi
@@ -207,21 +217,31 @@ for NS in "${TEST_NAMESPACES[@]}"; do
     fail "gateway token unavailable from openclaw-env-secret — ${NS}"; continue
   fi
 
-  # Port-forward to the OpenClaw service.
-  kubectl port-forward "svc/openclaw" -n "${NS}" "18082:18789" \
-    >/tmp/pf-chat-"${NS}".log 2>&1 &
-  PF_PID=$!
-  sleep 3
+  # Port-forward to the OpenClaw service, with retry in case of stale endpoints.
+  CHAT_RESPONSE='CURL_FAIL'
+  PF_PID=0
+  for _ in $(seq 1 3); do
+    kill "${PF_PID}" 2>/dev/null || true
+    kubectl port-forward "svc/openclaw" -n "${NS}" "18082:18789" \
+      >/tmp/pf-chat-"${NS}".log 2>&1 &
+    PF_PID=$!
+    sleep 3
 
-  # POST a chat message to the OpenClaw gateway HTTP API.
-  # model=openclaw/default routes to the configured default agent (per OpenClaw docs).
-  CHAT_REQUEST='{"model":"openclaw/default","messages":[{"role":"user","content":"Reply with exactly one word: OK"}],"max_tokens":20}'
-  CHAT_RESPONSE="$(curl -s --max-time 45 \
-    -X POST \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer ${GW_TOKEN}" \
-    -d "${CHAT_REQUEST}" \
-    http://127.0.0.1:18082/v1/chat/completions 2>/dev/null || echo 'CURL_FAIL')"
+    # POST a chat message to the OpenClaw gateway HTTP API.
+    # model=openclaw/default routes to the configured default agent (per OpenClaw docs).
+    CHAT_REQUEST='{"model":"openclaw/default","messages":[{"role":"user","content":"Reply with exactly one word: OK"}],"max_tokens":20}'
+    RESP="$(curl -s --max-time 45 \
+      -X POST \
+      -H 'Content-Type: application/json' \
+      -H "Authorization: Bearer ${GW_TOKEN}" \
+      -d "${CHAT_REQUEST}" \
+      http://127.0.0.1:18082/v1/chat/completions 2>/dev/null || echo 'CURL_FAIL')"
+    if [[ "${RESP}" != 'CURL_FAIL' ]]; then
+      CHAT_RESPONSE="${RESP}"
+      break
+    fi
+    sleep 5
+  done
 
   kill "${PF_PID}" >/dev/null 2>&1 || true
 

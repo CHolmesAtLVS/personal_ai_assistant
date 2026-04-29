@@ -70,7 +70,7 @@ The following secrets are provisioned in Azure Key Vault by Terraform. The Conta
 | `openclaw-gateway-token` | Authentication token for the OpenClaw gateway. Created and managed by Terraform (`azurerm_key_vault_secret` + `random_id`). The value is stored in Terraform remote state (sensitive, encrypted at rest). Never overwritten by subsequent applies; manual rotation is preserved via `lifecycle { ignore_changes = [value] }`. | On compromise or scheduled rotation | Platform Engineering |
 | `azure-ai-api-key` | API key for the Azure AI Foundry account. Set via `TF_VAR_AZURE_AI_API_KEY` on first apply; never overwritten by subsequent applies (`lifecycle { ignore_changes = [value] }`). Injected as `AZURE_AI_API_KEY` into the Container App and referenced in `openclaw.json` as `${AZURE_AI_API_KEY}` for the `azure-foundry` model provider. | On key rotation or incident | Platform Engineering |
 
-See [openclaw-containerapp-operations.md](openclaw-containerapp-operations.md) for provisioning and rotation procedures.
+See [openclaw-operations.md](openclaw-operations.md) for provisioning and rotation procedures.
 
 ## Managed Identity Access Patterns
 

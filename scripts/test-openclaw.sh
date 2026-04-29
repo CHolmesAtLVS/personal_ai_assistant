@@ -98,11 +98,12 @@ for APP in "${ARGOCD_APPS[@]}"; do
   # Progressing condition is stale from a previous rollout (ArgoCD sync + test race).
   # RWO PVC + Recreate strategy can take 2-5 min; allow up to 10 min total.
   POD_WAIT=0; POD_READY=0
-  until [[ "${POD_READY}" -ge 1 ]]; do
-    POD_READY="$(kubectl get pods -n "${TARGET_NS}" \
-      -o jsonpath='{range .items[*]}{.status.containerStatuses[*].ready}{"\n"}{end}' \
-      2>/dev/null | grep -c "^true$" || echo 0)"
-    if [[ "${POD_READY}" -ge 1 ]]; then break; fi
+  until [[ "${POD_READY}" -eq 1 ]]; do
+    if kubectl get pods -n "${TARGET_NS}" \
+        -o jsonpath='{range .items[*]}{.status.containerStatuses[*].ready}{"\n"}{end}' \
+        2>/dev/null | grep -q "^true$"; then
+      POD_READY=1; break
+    fi
     if [[ ${POD_WAIT} -ge 600 ]]; then break; fi
     sleep 15; POD_WAIT=$((POD_WAIT + 15))
   done

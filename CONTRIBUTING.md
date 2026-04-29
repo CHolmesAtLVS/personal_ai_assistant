@@ -39,7 +39,7 @@ All live debugging, troubleshooting, and operational commands must target the **
 
 - AI agents and automated tooling must only be directed against dev resources during troubleshooting sessions. Do not provide production resource group names, Key Vault names, storage account names, app names, or other production identifiers to an AI agent in a debugging context.
 - If a production issue cannot be reproduced in dev, document the impasse and explicitly authorize the scope change before proceeding against production.
-- Production operations (config seed, secret rotation, image upgrades, ArgoCD sync) are documented in `docs/openclaw-containerapp-operations.md`. Validate all runbook steps in dev before applying to prod.
+- Production operations (config seed, secret rotation, image upgrades, ArgoCD sync) are documented in `docs/openclaw-operations.md`. Validate all runbook steps in dev before applying to prod.
 
 ## Local Troubleshooting
 
@@ -91,7 +91,7 @@ Before requesting review:
 - Service Principal and backend bootstrap workflow changes preserve secret masking and avoid printing sensitive values
 - Personal details (including home public IP) are sourced only from GitHub Secrets and never committed
 - Image tag changes use a pinned version; `latest` is not present anywhere in Terraform defaults or examples
-- Storage and gateway changes verified against `docs/openclaw-containerapp-operations.md` runbook
+- Storage and gateway changes verified against `docs/openclaw-operations.md` runbook
 - Helm values changes validated with `helm dependency build && helm template . --debug` before committing
 - For gateway config changes: confirm `gateway.bind` is `lan` (not `loopback`) when deploying to AKS; `loopback` is incompatible with Kubernetes Service/HTTPRoute routing
 - `SecretProviderClass` manifests contain only `${VAR}` placeholders; confirm no real Key Vault names, tenant IDs, or client IDs are committed

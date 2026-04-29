@@ -1,6 +1,6 @@
 ---
 name: openclaw-cli
-description: "Connect the local openclaw CLI to the remote Azure Container Apps gateway, run diagnostics, and update config. WHEN: \"openclaw cli\", \"openclaw connect\", \"openclaw status\", \"openclaw doctor\", \"openclaw config\", \"openclaw channels\", \"openclaw devices\", \"openclaw agents\", \"connect to gateway\", \"gateway token\", \"approve device\", \"openclaw setup\", \"openclaw troubleshoot\""
+description: "Connect the local openclaw CLI to the remote AKS-hosted OpenClaw gateway, run diagnostics, and update config. WHEN: \"openclaw cli\", \"openclaw connect\", \"openclaw status\", \"openclaw doctor\", \"openclaw config\", \"openclaw channels\", \"openclaw devices\", \"openclaw agents\", \"connect to gateway\", \"gateway token\", \"approve device\", \"openclaw setup\", \"openclaw troubleshoot\""
 ---
 
 # OpenClaw CLI — Remote Gateway Usage

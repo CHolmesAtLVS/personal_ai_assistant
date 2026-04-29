@@ -46,8 +46,6 @@ Resource names follow the `paa-<env>-*` pattern for Azure resources. Kubernetes 
 | ArgoCD Application | `openclaw-dev` / `openclaw-prod` |
 | Key Vault | `paa-dev-kv` |
 | Managed Identity | `paa-dev-id` |
-| Container App *(legacy ACA — pending decommission)* | `paa-dev-app` |
-| ACA Storage Binding *(legacy ACA — pending decommission)* | `openclaw-state` |
 
 If you need to discover Azure resource names:
 
@@ -157,7 +155,7 @@ az role assignment list \
   --all -o table
 ```
 
-Required roles: `Key Vault Secrets User`, `AcrPull`, `Storage File Data NFS Share Contributor`, and any AI/Cognitive Services user role.
+Required roles: `Key Vault Secrets User`, `AcrPull`, and any AI/Cognitive Services user role.
 
 Also confirm the Workload Identity federated credential is present:
 
@@ -188,7 +186,7 @@ docker run --rm ghcr.io/openclaw/openclaw:<tag> \
 
 ## Runbook
 
-Full troubleshooting documentation is in the **AKS Operations** section of [docs/openclaw-containerapp-operations.md](../../../docs/openclaw-containerapp-operations.md).
+Full troubleshooting documentation is in [docs/openclaw-operations.md](../../../docs/openclaw-operations.md).
 
 ## Tool Reference
 

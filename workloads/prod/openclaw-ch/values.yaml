@@ -34,7 +34,6 @@ openclaw:
                     "enabled": true,
                     "provider": "azure-openai-responses",
                     "model": "text-embedding-3-large",
-                    "endpoint": "${AZURE_OPENAI_ENDPOINT}",
                     "store": {
                       "vector": {
                         "enabled": false

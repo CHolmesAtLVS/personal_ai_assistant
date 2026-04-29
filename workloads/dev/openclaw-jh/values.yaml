@@ -32,6 +32,8 @@ openclaw:
                   },
                   "memorySearch": {
                     "enabled": true,
+                    "provider": "azure-openai-embeddings",
+                    "model": "text-embedding-3-large",
                     "store": {
                       "vector": {
                         "enabled": false
@@ -59,6 +61,15 @@ openclaw:
                         "compat": { "supportsStore": false }
                       }
                     ]
+                  },
+                  "azure-openai-embeddings": {
+                    "baseUrl": "${AZURE_OPENAI_ENDPOINT}/openai/v1/",
+                    "apiKey": "${AZURE_AI_API_KEY}",
+                    "api": "openai",
+                    "authHeader": false,
+                    "headers": {
+                      "api-key": "${AZURE_AI_API_KEY}"
+                    }
                   }
                 }
               },

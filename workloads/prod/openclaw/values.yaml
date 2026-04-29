@@ -83,11 +83,17 @@ openclaw:
                   "azure-openai-embeddings": {
                     "baseUrl": "${AZURE_OPENAI_ENDPOINT}/openai/v1/",
                     "apiKey": "${AZURE_AI_API_KEY}",
-                    "api": "openai",
+                    "api": "openai-completions",
                     "authHeader": false,
                     "headers": {
                       "api-key": "${AZURE_AI_API_KEY}"
-                    }
+                    },
+                    "models": [
+                      {
+                        "id": "text-embedding-3-large",
+                        "name": "Text Embedding 3 Large (Azure)"
+                      }
+                    ]
                   }
                 }
               },

@@ -27,7 +27,6 @@ permissions:
 jobs:
   # ── DEV: gate before merge ────────────────────────────────────────────────────
   test-dev:
-    name: Test Dev
     runs-on: ubuntu-latest
     environment: dev
     if: >-

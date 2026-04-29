@@ -11,7 +11,7 @@ tags: [openclaw, ch, prod, setup, health, channels, model, memory]
 # All Instances — Setup Issues
 
 Originally discovered on openclaw-ch prod during initial CLI health check on 2026-04-28; confirmed to apply to all instances (ch, jh, kjm, main) on 2026-04-29.
-Reference gateway: `https://ch-paa.acmeadventure.ca` · Pod: `openclaw-78f44cd67b-2bc8f` · App: `2026.4.8`
+Reference gateway: `<instance gateway url>` · Pod: `<pod name>` · App: `2026.4.8`
 
 ---
 

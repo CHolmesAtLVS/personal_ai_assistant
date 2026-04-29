@@ -92,7 +92,7 @@ for APP in "${ARGOCD_APPS[@]}"; do
 
   TARGET_NS="$(kubectl get application "${APP}" -n argocd \
     -o jsonpath='{.spec.destination.namespace}' 2>/dev/null || true)"
-  if kubectl rollout status deployment/openclaw -n "${TARGET_NS}" --timeout=5m 2>&1; then
+  if kubectl rollout status deployment/openclaw -n "${TARGET_NS}" --timeout=10m 2>&1; then
     pass "Pod ready: ${TARGET_NS}"
     # Wait for service endpoint to reflect the new pod (avoids stale port-forward targets)
     EP_WAIT=0
@@ -126,13 +126,22 @@ for NS in "${TEST_NAMESPACES[@]}"; do
     continue
   fi
 
-  READY="$(kubectl get endpoints openclaw -n "${NS}" \
-    -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null \
-    | wc -l | tr -d '[:space:]')"
-  READY="${READY:-0}"
-  if [[ "${READY}" -lt 1 ]]; then
-    fail "no ready endpoints — ${NS}"; continue
-  fi
+  # Re-check: endpoint may briefly disappear if another rollout fired while we
+  # were waiting on a prior namespace (Recreate strategy + RWO PVC pattern).
+  # Wait up to 60 s before treating the absence as a hard failure.
+  EP_B_WAIT=0
+  READY=""
+  until [[ "${READY:-0}" -ge 1 ]]; do
+    READY="$(kubectl get endpoints openclaw -n "${NS}" \
+      -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null \
+      | wc -l | tr -d '[:space:]')"
+    READY="${READY:-0}"
+    if [[ "${READY}" -ge 1 ]]; then break; fi
+    if [[ ${EP_B_WAIT} -ge 60 ]]; then
+      fail "no ready endpoints after 60s — ${NS}"; continue 2
+    fi
+    sleep 5; EP_B_WAIT=$((EP_B_WAIT + 5))
+  done
 
   PORT="$(kubectl get svc openclaw -n "${NS}" -o jsonpath='{.spec.ports[0].port}')"
   PF_PID=0

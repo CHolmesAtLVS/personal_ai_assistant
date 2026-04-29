@@ -70,19 +70,24 @@ declare -A SKIP_NS
 
 for APP in "${ARGOCD_APPS[@]}"; do
   ELAPSED=0
-  # Only force a refresh if the app is not already Synced+Healthy.
-  # Unconditional refresh triggers a re-sync/rollout on every test run
-  # even when nothing changed, causing endpoint churn on Recreate deployments.
-  CURR_SYNC="$(kubectl get application "${APP}" -n argocd \
-    -o jsonpath='{.status.sync.status}' 2>/dev/null || true)"
-  CURR_HEALTH="$(kubectl get application "${APP}" -n argocd \
-    -o jsonpath='{.status.health.status}' 2>/dev/null || true)"
-  if [[ "${CURR_SYNC}" != "Synced" || "${CURR_HEALTH}" != "Healthy" ]]; then
-    # Force ArgoCD to re-fetch from Git so it detects any recent commits
-    # (e.g. post-merge smoke test running before ArgoCD's polling interval fires).
+
+  # In CI (GITHUB_SHA set), always force a refresh so we validate the exact commit
+  # under test. Locally or when already Synced+Healthy, skip to avoid triggering
+  # unnecessary rollouts on RWO PVC Recreate deployments.
+  if [[ -n "${GITHUB_SHA:-}" ]]; then
     kubectl annotate application "${APP}" -n argocd \
       argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
+  else
+    CURR_SYNC="$(kubectl get application "${APP}" -n argocd \
+      -o jsonpath='{.status.sync.status}' 2>/dev/null || true)"
+    CURR_HEALTH="$(kubectl get application "${APP}" -n argocd \
+      -o jsonpath='{.status.health.status}' 2>/dev/null || true)"
+    if [[ "${CURR_SYNC}" != "Synced" || "${CURR_HEALTH}" != "Healthy" ]]; then
+      kubectl annotate application "${APP}" -n argocd \
+        argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
+    fi
   fi
+
   echo "  Waiting for ArgoCD to sync ${APP}..."
   until [[ "$(kubectl get application "${APP}" -n argocd \
         -o jsonpath='{.status.sync.status}' 2>/dev/null || true)" == "Synced" ]]; do
@@ -99,45 +104,40 @@ for APP in "${ARGOCD_APPS[@]}"; do
     pass "ArgoCD Synced: ${APP}"
   fi
 
+  # In CI, verify ArgoCD synced the exact commit being tested.
+  if [[ -n "${GITHUB_SHA:-}" ]]; then
+    SYNCED_REV="$(kubectl get application "${APP}" -n argocd \
+      -o jsonpath='{.status.sync.revision}' 2>/dev/null || true)"
+    if [[ "${SYNCED_REV}" == "${GITHUB_SHA}" ]]; then
+      pass "Revision verified: ${APP} at ${GITHUB_SHA:0:8}"
+    else
+      fail "Revision mismatch: ${APP} synced ${SYNCED_REV:0:8}, expected ${GITHUB_SHA:0:8}"
+    fi
+  fi
+
   TARGET_NS="$(kubectl get application "${APP}" -n argocd \
     -o jsonpath='{.spec.destination.namespace}' 2>/dev/null || true)"
 
-  # Wait for at least one ready pod directly rather than relying on `rollout status`,
-  # which exits immediately with "exceeded its progress deadline" when the deployment's
-  # Progressing condition is stale from a previous rollout (ArgoCD sync + test race).
+  # Wait for the OpenClaw service endpoint to have at least one ready address.
+  # This directly validates what sections B and D need (port-forward to the service).
   # RWO PVC + Recreate strategy can take 2-5 min; allow up to 10 min total.
-  POD_WAIT=0; POD_READY=0
-  until [[ "${POD_READY}" -eq 1 ]]; do
-    if kubectl get pods -n "${TARGET_NS}" \
-        -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.ready}{"\n"}{end}{end}' \
-        2>/dev/null | grep -q "^true$"; then
-      POD_READY=1; break
+  EP_WAIT=0; EP_READY=0
+  until [[ "${EP_READY}" -eq 1 ]]; do
+    if kubectl get endpoints openclaw -n "${TARGET_NS}" \
+        -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' \
+        2>/dev/null | grep -q .; then
+      EP_READY=1; break
     fi
-    if [[ ${POD_WAIT} -ge 600 ]]; then break; fi
-    sleep 15; POD_WAIT=$((POD_WAIT + 15))
+    if [[ ${EP_WAIT} -ge 600 ]]; then break; fi
+    sleep 15; EP_WAIT=$((EP_WAIT + 15))
   done
 
-  if [[ "${POD_READY}" -ge 1 ]]; then
-    pass "Pod ready: ${TARGET_NS}"
-    # Wait for ArgoCD to report Healthy — ensures any sync triggered by the refresh
-    # annotation above has fully settled before we probe endpoints/ports.
-    AH_WAIT=0
-    until [[ "$(kubectl get application "${APP}" -n argocd \
-          -o jsonpath='{.status.health.status}' 2>/dev/null || true)" == "Healthy" ]]; do
-      [[ ${AH_WAIT} -ge 120 ]] && break
-      sleep 5; AH_WAIT=$((AH_WAIT + 5))
-    done
-    # Also wait briefly for the service endpoint to reflect the pod IP.
-    EP_WAIT=0
-    until kubectl get endpoints openclaw -n "${TARGET_NS}" \
-        -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null | grep -q .; do
-      [[ ${EP_WAIT} -ge 30 ]] && break
-      sleep 2; EP_WAIT=$((EP_WAIT + 2))
-    done
+  if [[ "${EP_READY}" -eq 1 ]]; then
+    pass "Endpoint ready: ${TARGET_NS}"
   else
-    fail "Pod not ready: ${TARGET_NS}"
+    fail "No ready endpoints after 600s: ${TARGET_NS}"
     SKIP_NS["${TARGET_NS}"]=1
-    echo "  Skipping further tests for ${TARGET_NS} — pod not ready."
+    echo "  Skipping further tests for ${TARGET_NS} — no ready endpoints."
   fi
 done
 step_summary '```'

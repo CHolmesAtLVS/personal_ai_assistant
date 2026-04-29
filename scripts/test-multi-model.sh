@@ -14,7 +14,7 @@
 #   Agent health               — openclaw agents status                     [live]
 #   Memory health              — openclaw memory status --deep              [live]
 #   Config doctor              — openclaw doctor --non-interactive          [live]
-#   Live inference             — az containerapp exec + IMDS MI token       [always]
+#   Live inference             — kubectl exec + openclaw CLI                 [live]
 #
 # [live]     = requires live gateway connection (paired device)
 # [CLI only] = requires openclaw CLI binary, no live connection needed
@@ -54,11 +54,9 @@ fi
 # ── Resource names (Terraform locals.tf naming convention) ─────────────────────
 # Derive project slug from TF_VAR_project env var (set by CI) or default to "paa".
 PROJECT="${TF_VAR_project:-${TF_VAR_PROJECT:-paa}}"
-APP_NAME="${PROJECT}-${ENV}-app"
 RG_NAME="${PROJECT}-${ENV}-rg"
 KV_NAME="${PROJECT}-${ENV}-kv"
-STORAGE_ACCOUNT="${PROJECT}${ENV}ocstate"
-SHARE_NAME="openclaw-state"
+NS="openclaw"
 
 # ── Expected values ────────────────────────────────────────────────────────────
 EXPECTED_EMBEDDING_DEPLOYMENT="text-embedding-3-large"
@@ -86,7 +84,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo " OpenClaw health validation — env=${ENV}  started=${TIMESTAMP}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  App: ${APP_NAME}   RG: ${RG_NAME}   KV: ${KV_NAME}"
+echo "  NS: ${NS}   RG: ${RG_NAME}   KV: ${KV_NAME}"
 
 # ── Prerequisites ──────────────────────────────────────────────────────────────
 section "Prerequisites"
@@ -123,19 +121,11 @@ GATEWAY_TOKEN=$(az keyvault secret show \
   --name "openclaw-gateway-token" \
   --query "value" -o tsv 2>/dev/null || echo "")
 
-FQDN=$(az containerapp show \
-  --name "${APP_NAME}" \
-  --resource-group "${RG_NAME}" \
-  --query "properties.configuration.ingress.fqdn" \
-  -o tsv 2>/dev/null || echo "")
+APP_FQDN=$(kubectl exec -n "${NS}" deployment/openclaw \
+  -- printenv APP_FQDN 2>/dev/null | tr -d '[:space:]' || echo "")
 
-GATEWAY_HTTPS_URL="${FQDN:+https://${FQDN}}"
-GATEWAY_WS_URL="${FQDN:+wss://${FQDN}}"
-
-STORAGE_KEY=$(az storage account keys list \
-  --resource-group "${RG_NAME}" \
-  --account-name "${STORAGE_ACCOUNT}" \
-  --query "[0].value" -o tsv 2>/dev/null || echo "")
+GATEWAY_HTTPS_URL="${APP_FQDN}"
+GATEWAY_WS_URL="${APP_FQDN/https:\/\//wss://}"
 
 # ── Local config backup + cleanup trap ────────────────────────────────────────
 LOCAL_CONFIG="${HOME}/.openclaw/openclaw.json"
@@ -174,7 +164,7 @@ section "Device pairing"
 
 if [[ "${OPENCLAW_UNAVAILABLE}" == "true" ]]; then
   echo "  SKIP  No openclaw CLI"
-elif [[ -z "${GATEWAY_TOKEN}" || -z "${FQDN}" ]]; then
+elif [[ -z "${GATEWAY_TOKEN}" || -z "${GATEWAY_HTTPS_URL}" ]]; then
   warn "Cannot resolve gateway credentials or FQDN — live connection sections skipped"
 else
   ONBOARD_OUT=$(openclaw onboard \
@@ -248,34 +238,31 @@ else
 
 fi
 
-ENV_JSON=$(az containerapp show \
-  --name "${APP_NAME}" --resource-group "${RG_NAME}" \
-  --query "properties.template.containers[0].env" \
-  -o json 2>/dev/null || echo "null")
+POD_ENVS=$(kubectl exec -n "${NS}" deployment/openclaw \
+  -- env 2>/dev/null || echo "")
 
-if [[ "${ENV_JSON}" == "null" || -z "${ENV_JSON}" ]]; then
-  fail "Cannot retrieve Container App env vars"
+if [[ -z "${POD_ENVS}" ]]; then
+  fail "Cannot retrieve pod env vars"
 else
   SENSITIVE_VARS=("OPENCLAW_GATEWAY_TOKEN" "AZURE_AI_API_KEY")
   for expected_var in "${EXPECTED_ENV_VARS[@]}"; do
-    VAR_PRESENT=$(echo "${ENV_JSON}" | jq -r --arg k "${expected_var}" '.[] | select(.name==$k) | .name // ""')
-    if [[ -z "${VAR_PRESENT}" ]]; then
-      fail "Env var missing: ${expected_var}"
-    else
+    if echo "${POD_ENVS}" | grep -q "^${expected_var}="; then
       is_sensitive=false
       for sv in "${SENSITIVE_VARS[@]}"; do [[ "${expected_var}" == "${sv}" ]] && is_sensitive=true; done
       if [[ "${is_sensitive}" == "true" ]]; then
         pass "Env var (secret ref): ${expected_var}"
       else
-        VAL=$(echo "${ENV_JSON}" | jq -r --arg k "${expected_var}" '.[] | select(.name==$k) | .value // "(secret ref)"')
+        VAL=$(echo "${POD_ENVS}" | grep "^${expected_var}=" | cut -d= -f2-)
         pass "Env var: ${expected_var} = ${VAL}"
       fi
+    else
+      fail "Env var missing: ${expected_var}"
     fi
   done
 
   check_env_value() {
     local varname="$1" expected="$2" actual
-    actual=$(echo "${ENV_JSON}" | jq -r --arg k "${varname}" '.[] | select(.name==$k) | .value // ""')
+    actual=$(echo "${POD_ENVS}" | grep "^${varname}=" | cut -d= -f2- || echo "")
     [[ "${actual}" == "${expected}" ]] \
       && pass "Env var value: ${varname} = ${actual}" \
       || fail "Env var value mismatch: ${varname} — expected '${expected}', got '${actual}'"
@@ -284,63 +271,33 @@ else
   check_env_value "AZURE_OPENAI_DEPLOYMENT_CHAT"      "${EXPECTED_CHAT_DEPLOYMENT}"
 fi
 
-# ── Container App provisioning + revision state ───────────────────────────────
-APP_JSON=$(az containerapp show \
-  --name "${APP_NAME}" \
-  --resource-group "${RG_NAME}" \
-  -o json 2>/dev/null || echo "{}")
+# ── Deployment readiness + image check ───────────────────────────────────────
+DEPLOY_JSON=$(kubectl get deployment openclaw -n "${NS}" -o json 2>/dev/null || echo "{}")
 
-PROV_STATE=$(echo "${APP_JSON}" | jq -r '.properties.provisioningState // "unknown"')
-if [[ "${PROV_STATE}" == "Succeeded" ]]; then
-  pass "Container App provisioning state: Succeeded"
+if [[ "${DEPLOY_JSON}" == "{}" ]]; then
+  fail "Cannot retrieve deployment openclaw in namespace ${NS}"
 else
-  fail "Container App provisioning state: ${PROV_STATE} (expected Succeeded)"
-fi
+  READY_REPLICAS=$(echo "${DEPLOY_JSON}" | jq -r '.status.readyReplicas // 0')
+  DESIRED_REPLICAS=$(echo "${DEPLOY_JSON}" | jq -r '.spec.replicas // 1')
+  if [[ "${READY_REPLICAS}" -ge 1 ]]; then
+    pass "Deployment ready: ${READY_REPLICAS}/${DESIRED_REPLICAS} replicas ready"
+  else
+    fail "Deployment not ready: ${READY_REPLICAS}/${DESIRED_REPLICAS} replicas ready"
+  fi
 
-LATEST_REV=$(echo "${APP_JSON}" | jq -r '.properties.latestRevisionName // ""')
-LATEST_READY=$(echo "${APP_JSON}" | jq -r '.properties.latestReadyRevisionName // ""')
-if [[ -n "${LATEST_REV}" && "${LATEST_REV}" == "${LATEST_READY}" ]]; then
-  pass "Active revision is ready: ${LATEST_REV}"
-else
-  fail "Revision mismatch: latest=${LATEST_REV} ready=${LATEST_READY}"
-fi
-
-ACTUAL_IMAGE=$(echo "${APP_JSON}" | jq -r '.properties.template.containers[0].image // ""')
-EXPECTED_IMAGE_PREFIX="ghcr.io/openclaw/openclaw:"
-if echo "${ACTUAL_IMAGE}" | grep -q "^${EXPECTED_IMAGE_PREFIX}"; then
-  pass "Container image: ${ACTUAL_IMAGE}"
-else
-  fail "Unexpected container image: '${ACTUAL_IMAGE}' (expected prefix: ${EXPECTED_IMAGE_PREFIX})"
-fi
-
-# ── Revision running state ─────────────────────────────────────────────────────
-REV_JSON=$(az containerapp revision show \
-  --name "${APP_NAME}" \
-  --resource-group "${RG_NAME}" \
-  --revision "${LATEST_REV}" \
-  -o json 2>/dev/null || echo "{}")
-
-REV_RUNNING=$(echo "${REV_JSON}" | jq -r '.properties.runningState // "unknown"')
-REV_REPLICAS=$(echo "${REV_JSON}" | jq -r '.properties.replicas // 0')
-if [[ "${REV_RUNNING}" == "Running" ]]; then
-  pass "Revision running state: Running (replicas: ${REV_REPLICAS})"
-elif [[ "${REV_RUNNING}" == "Stopped" && "${REV_REPLICAS}" == "0" ]]; then
-  warn "Revision stopped (replicas=0) — scale-to-zero; /healthz probe will wake it"
-else
-  fail "Revision running state: ${REV_RUNNING} (replicas: ${REV_REPLICAS})"
+  ACTUAL_IMAGE=$(echo "${DEPLOY_JSON}" | jq -r '.spec.template.spec.containers[0].image // ""')
+  EXPECTED_IMAGE_PREFIX="ghcr.io/openclaw/openclaw:"
+  if echo "${ACTUAL_IMAGE}" | grep -q "^${EXPECTED_IMAGE_PREFIX}"; then
+    pass "Container image: ${ACTUAL_IMAGE}"
+  else
+    fail "Unexpected container image: '${ACTUAL_IMAGE}' (expected prefix: ${EXPECTED_IMAGE_PREFIX})"
+  fi
 fi
 
 # ── Console log health scan ────────────────────────────────────────────────────
 # Scan the last 50 log lines for crash/fatal indicators.
 # Pairing-required and closed-before-connect lines are normal operation.
-LOG_LINES=$(az containerapp logs show \
-  --name "${APP_NAME}" \
-  --resource-group "${RG_NAME}" \
-  --type console \
-  --tail 50 \
-  --follow false \
-  -o json 2>/dev/null \
-  | jq -r '.[].Log' 2>/dev/null || echo "")
+LOG_LINES=$(kubectl logs -n "${NS}" deployment/openclaw --tail=50 2>/dev/null || echo "")
 
 if [[ -z "${LOG_LINES}" ]]; then
   warn "Container log scan: no log lines returned (container may be scaled to zero)"
@@ -364,7 +321,7 @@ fi
 
 # ── Health probes ─────────────────────────────────────────────────────────────
 if [[ -n "${GATEWAY_HTTPS_URL}" ]]; then
-  pass "Gateway FQDN: ${FQDN}"
+  pass "Gateway URL: ${GATEWAY_HTTPS_URL}"
   for probe in healthz readyz; do
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
       "${GATEWAY_HTTPS_URL}/${probe}" 2>/dev/null || echo "000")
@@ -373,7 +330,7 @@ if [[ -n "${GATEWAY_HTTPS_URL}" ]]; then
       || fail "Probe /${probe}: HTTP ${HTTP_CODE} (expected 200)"
   done
 else
-  fail "Cannot resolve Container App FQDN — skipping health probes"
+  fail "Cannot resolve gateway URL — skipping health probes"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -443,34 +400,26 @@ else
 
 # Export env vars so openclaw can resolve ${VAR} refs in the share config.
 export OPENCLAW_GATEWAY_TOKEN="${GATEWAY_TOKEN}"
-export APP_FQDN="${FQDN}"
-if [[ -n "${ENV_JSON:-}" && "${ENV_JSON}" != "null" ]]; then
-  _OAI_ENDPOINT=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_OPENAI_ENDPOINT") | .value // ""' 2>/dev/null || echo "")
+if [[ -n "${POD_ENVS:-}" ]]; then
+  _OAI_ENDPOINT=$(echo "${POD_ENVS}" | grep "^AZURE_OPENAI_ENDPOINT=" | cut -d= -f2- || echo "")
   [[ -n "${_OAI_ENDPOINT}" ]] && export AZURE_OPENAI_ENDPOINT="${_OAI_ENDPOINT}"
-  _CHAT_DEPLOY=$(echo "${ENV_JSON}" | jq -r '.[] | select(.name=="AZURE_OPENAI_DEPLOYMENT_CHAT") | .value // ""' 2>/dev/null || echo "")
+  _CHAT_DEPLOY=$(echo "${POD_ENVS}" | grep "^AZURE_OPENAI_DEPLOYMENT_CHAT=" | cut -d= -f2- || echo "")
   [[ -n "${_CHAT_DEPLOY}" ]] && export AZURE_OPENAI_DEPLOYMENT_CHAT="${_CHAT_DEPLOY}"
 fi
 # AZURE_AI_API_KEY: pre-exported by CI workflow env step (or caller); no-op if already set.
 
 section "Remote config validation"
 
-if [[ -z "${STORAGE_KEY}" ]]; then
-  fail "Cannot read storage key for ${STORAGE_ACCOUNT} — skipping config checks"
-else
-  DOWNLOAD_OK=false
-  az storage file download \
-    --account-name "${STORAGE_ACCOUNT}" \
-    --account-key "${STORAGE_KEY}" \
-    --share-name "${SHARE_NAME}" \
-    --path "openclaw.json" \
-    --dest "${TMP_SHARE_CONFIG}" \
-    --output none 2>/dev/null && DOWNLOAD_OK=true || true
+DOWNLOAD_OK=false
+kubectl exec -n "${NS}" deployment/openclaw -- \
+  cat /home/node/.openclaw/openclaw.json \
+  > "${TMP_SHARE_CONFIG}" 2>/dev/null && DOWNLOAD_OK=true || true
 
-  if [[ "${DOWNLOAD_OK}" != "true" || ! -f "${TMP_SHARE_CONFIG}" ]]; then
-    fail "openclaw.json not found on share (config not seeded yet)"
-  else
-    pass "openclaw.json downloaded from Azure Files share"
-      # Endpoint domain guard: verify AZURE_OPENAI_ENDPOINT env var is the openai.azure.com domain.
+if [[ "${DOWNLOAD_OK}" != "true" || ! -f "${TMP_SHARE_CONFIG}" ]]; then
+  fail "openclaw.json not found in pod (pod not running or config not seeded yet)"
+else
+  pass "openclaw.json retrieved from pod"
+    # Endpoint domain guard: verify AZURE_OPENAI_ENDPOINT env var is the openai.azure.com domain.
       _OAI_ENV="${AZURE_OPENAI_ENDPOINT:-}"
       if [[ "${_OAI_ENV}" == *openai.azure.com* ]]; then
         pass "AZURE_OPENAI_ENDPOINT domain: openai.azure.com (${_OAI_ENV})"
@@ -549,7 +498,6 @@ else
       fail "Schema validation failed:"
       echo "${ERRORS}" | sed 's/^/    /'
     fi
-  fi
 fi
 
 section "Model availability"
@@ -657,18 +605,18 @@ fi
 fi  # end channel/agent/memory/doctor sections
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Section J — Live inference (exec into container)
-# Runs from INSIDE the container via az containerapp exec, using the
+# Section J — Live inference (exec into pod)
+# Runs from INSIDE the container via kubectl exec, using the
 # AZURE_AI_API_KEY env var (injected from Key Vault at runtime) to
 # authenticate directly to the Azure OpenAI endpoint.
-# This validates the complete auth chain: Key Vault → Container App env →
+# This validates the complete auth chain: Key Vault → CSI secret → pod env →
 # azure-openai model, using the api-key auth strategy.
 # Uses node for JSON (jq is not in the OpenClaw container image).
-# Rate-limited by Azure (~HTTP 429 after frequent calls; wait 10 min if hit).
 # ══════════════════════════════════════════════════════════════════════════════
 section "Live inference"
 
-INNER_SCRIPT=$(cat <<'INNEREOF'
+INNER_SCRIPT_FILE="/tmp/oc-inner-$$.sh"
+cat > "${INNER_SCRIPT_FILE}" << 'INNEREOF'
 set -euo pipefail
 API_KEY="${AZURE_AI_API_KEY:-}"
 if [[ -z "${API_KEY}" ]]; then
@@ -695,51 +643,27 @@ test_model() {
 }
 test_model "${DEPLOYMENT}" "azure-openai/${DEPLOYMENT}"
 INNEREOF
-)
 
-INNER_SCRIPT_FILE="test-multi-model-inner-$$.sh"
-if [[ -z "${STORAGE_KEY}" ]]; then
-  fail "Cannot upload inner script — storage key unavailable"
+echo "  INFO  Exec-ing into pod in namespace ${NS} (15–45s per model)..."
+EXEC_OUT=$(kubectl exec -n "${NS}" deployment/openclaw -i -- bash -s \
+  < "${INNER_SCRIPT_FILE}" 2>&1 || echo "EXEC_ERROR:$?")
+rm -f "${INNER_SCRIPT_FILE}"
+
+if echo "${EXEC_OUT}" | grep -qE "EXEC_ERROR"; then
+  fail "kubectl exec failed — pod may not be running in namespace ${NS}"
+  echo "${EXEC_OUT}" | head -5 | sed 's/^/    /'
 else
-  echo "${INNER_SCRIPT}" > "/tmp/${INNER_SCRIPT_FILE}"
-  az storage file upload \
-    --account-name "${STORAGE_ACCOUNT}" \
-    --account-key "${STORAGE_KEY}" \
-    --share-name "${SHARE_NAME}" \
-    --source "/tmp/${INNER_SCRIPT_FILE}" \
-    --path "${INNER_SCRIPT_FILE}" \
-    --output none 2>/dev/null
-  rm -f "/tmp/${INNER_SCRIPT_FILE}"
+  while IFS= read -r line; do
+    case "${line}" in
+      PASS:*) pass "$(echo "${line}" | cut -d: -f2-)" ;;
+      FAIL:*) fail "$(echo "${line}" | cut -d: -f2-)" ;;
+      APIKEY_FAIL:*) fail "API key: ${line}" ;;
+    esac
+  done <<< "${EXEC_OUT}"
 
-  echo "  INFO  Exec-ing into ${APP_NAME} (15–45s per model)..."
-  EXEC_OUT=$(az containerapp exec \
-    --name "${APP_NAME}" \
-    --resource-group "${RG_NAME}" \
-    --command "bash /home/node/.openclaw/${INNER_SCRIPT_FILE}" \
-    2>&1 || echo "EXEC_ERROR:$?")
-
-  az storage file delete \
-    --account-name "${STORAGE_ACCOUNT}" \
-    --account-key "${STORAGE_KEY}" \
-    --share-name "${SHARE_NAME}" \
-    --path "${INNER_SCRIPT_FILE}" \
-    --output none 2>/dev/null || true
-
-  if echo "${EXEC_OUT}" | grep -qE "429|Too Many|rate.limit|EXEC_ERROR"; then
-    warn "az containerapp exec rate-limited — re-run after 10 min or from a paired device"
-  else
-    while IFS= read -r line; do
-      case "${line}" in
-        PASS:*) pass "$(echo "${line}" | cut -d: -f2-)" ;;
-        FAIL:*) fail "$(echo "${line}" | cut -d: -f2-)" ;;
-        APIKEY_FAIL:*) fail "API key: ${line}" ;;
-      esac
-    done <<< "${EXEC_OUT}"
-
-    if ! echo "${EXEC_OUT}" | grep -qE "^(PASS|FAIL|APIKEY_FAIL):"; then
-      warn "No PASS/FAIL output from exec — raw output (first 500 chars):"
-      echo "${EXEC_OUT}" | head -c 500 | sed 's/^/    /'
-    fi
+  if ! echo "${EXEC_OUT}" | grep -qE "^(PASS|FAIL|APIKEY_FAIL):"; then
+    warn "No PASS/FAIL output from exec — raw output (first 500 chars):"
+    echo "${EXEC_OUT}" | head -c 500 | sed 's/^/    /'
   fi
 fi
 

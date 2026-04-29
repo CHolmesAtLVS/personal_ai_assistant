@@ -8,10 +8,10 @@ status: In Progress
 tags: [openclaw, ch, prod, setup, health, channels, model, memory]
 ---
 
-# openclaw-ch Prod — Setup Issues
+# All Instances — Setup Issues
 
-Discovered during initial CLI health check on 2026-04-28.
-Gateway: `https://ch-paa.acmeadventure.ca` · Pod: `openclaw-78f44cd67b-2bc8f` · App: `2026.4.8`
+Originally discovered on openclaw-ch prod during initial CLI health check on 2026-04-28; confirmed to apply to all instances (ch, jh, kjm, main) on 2026-04-29.
+Reference gateway: `<instance gateway url>` · Pod: `<pod name>` · App: `2026.4.8`
 
 ---
 
@@ -45,12 +45,20 @@ Use `${VAR}` substitution in `openclaw.json`; do not embed keys directly.
 
 ## ISSUE-3: Memory search / embeddings not configured
 
-**Status:** Open  
-**Symptom:** `doctor` reports no embedding provider ready. Checked openai, google, voyage, mistral — all missing API keys.  
-**Impact:** Semantic memory recall disabled for agent `main`.  
-**Fix (pick one):**
-- Set `OPENAI_API_KEY` / `GEMINI_API_KEY` etc. via Key Vault + SecretProviderClass and reference via `${VAR}` in config
-- Or disable: `openclaw config set agents.defaults.memorySearch.enabled false`
+**Status:** In Progress  
+**Symptom:** `doctor` reports no embedding provider ready / `Unknown memory embedding provider` error in running pods.  
+**Impact:** Semantic memory recall disabled for agent `main` on all instances.  
+**Scope (confirmed 2026-04-29):** Affects all instances — ch, jh, kjm, and main (openclaw).
+
+| Instance | Dev fixed | Prod fixed |
+|---|---|---|
+| openclaw | 2026-04-29 | 2026-04-29 |
+| openclaw-ch | 2026-04-29 | 2026-04-29 |
+| openclaw-jh | 2026-04-29 | 2026-04-29 |
+| openclaw-kjm | N/A | 2026-04-29 |
+
+**Fix applied:** Added `azure-openai-embeddings` provider to `models.providers` (`api: "openai"`, `baseUrl: "${AZURE_OPENAI_ENDPOINT}/openai/v1/"`, `apiKey: "${AZURE_AI_API_KEY}"`) and set `memorySearch.provider: "azure-openai-embeddings"`, `model: "text-embedding-3-large"` in all instance `values.yaml` files. The main `openclaw` instances (dev + prod) had no `memorySearch` block at all — full block added. See `plan/openclaw-ch-setup/standalone-openclaw-ch-embeddings-feature-1.md` for original ch embeddings plan.  
+**Pending:** ArgoCD sync for all instances + `openclaw doctor` verification per instance.
 
 ---
 

@@ -18,7 +18,7 @@ OpenClaw is an autonomous AI agent that connects to your messaging platforms, ta
 - **Secrets:** Azure Key Vault; injected at runtime via Secrets Store CSI Driver — nothing in source control
 - **Access control:** HTTPS ingress restricted to the user's home public IP; gateway token authentication
 - **Identity:** Workload Identity (OIDC federation) — no static credentials in pods
-- **Persistent state:** Azure Files NFS share mounted at `/home/node/.openclaw`
+- **Persistent state:** Azure Disk volume (Premium SSD PVC, `managed-csi-premium`, 10 Gi, ReadWriteOnce) mounted at `/home/node/.openclaw`
 
 ## Architecture Diagram
 
@@ -44,7 +44,7 @@ flowchart LR
         end
 
         subgraph STORAGE[State]
-            NFS[Azure Files NFS Share\n/home/node/.openclaw]
+            DISK[Azure Disk PVC\nmanaged-csi-premium\n/home/node/.openclaw]
         end
 
         subgraph AI[Azure AI Foundry]
@@ -71,7 +71,7 @@ flowchart LR
     OC --> MI
     MI --> KV
     MI --> LLM
-    OC --> NFS
+    OC --> DISK
     OC --> LOG
     LLM --> OC
 ```
@@ -82,7 +82,7 @@ flowchart LR
 2. CI applies Terraform to provision or update Azure resources, then runs the platform bootstrap script to install/upgrade cluster tools (Secrets Store CSI Driver, NGINX Gateway Fabric, cert-manager, ArgoCD).
 3. ArgoCD detects the updated chart in Git and syncs the OpenClaw Helm release.
 4. The Secrets Store CSI Driver syncs Key Vault secrets into the pod at startup.
-5. The NFS Azure Files share is mounted, restoring all persistent state.
+5. The dynamically provisioned Azure Disk PVC (`managed-csi-premium`) is mounted at `/home/node/.openclaw`, restoring all persistent state.
 6. OpenClaw starts and is immediately functional — AI Foundry connected, gateway auth enforced.
 7. The user accesses the assistant over HTTPS from their approved IP.
 
@@ -220,4 +220,4 @@ This is a one-time manual step. If the VM is reimaged, the task must be reconfig
 - [PRODUCT.md](PRODUCT.md) — what the assistant does and how to use it
 - [ARCHITECTURE.md](ARCHITECTURE.md) — full technical reference: infrastructure, security model, resource inventory, end-to-end flow
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to make changes safely
-- [docs/openclaw-containerapp-operations.md](docs/openclaw-containerapp-operations.md) — operational runbook
+- [docs/openclaw-operations.md](docs/openclaw-operations.md) — operational runbook

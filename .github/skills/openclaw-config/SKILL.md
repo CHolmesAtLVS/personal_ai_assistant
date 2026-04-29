@@ -111,7 +111,7 @@ Enable `/debug` in chat for runtime-only config overrides (requires `commands.de
 
 ## Deployment Notes (AKS)
 
-Process env is injected from Azure Key Vault via the Secrets Store CSI Driver: `SecretProviderClass` syncs Key Vault secrets to Kubernetes Secret `openclaw-env-secret`; the pod uses `envFrom` to consume this Secret. Use `${VAR}` in config for references. Config file: `/home/node/.openclaw/openclaw.json` (on Azure Files NFS share mounted as a PVC). Do not use `env.shellEnv` (no login shell in container).
+Process env is injected from Azure Key Vault via the Secrets Store CSI Driver: `SecretProviderClass` syncs Key Vault secrets to Kubernetes Secret `openclaw-env-secret`; the pod uses `envFrom` to consume this Secret. Use `${VAR}` in config for references. Config file: `/home/node/.openclaw/openclaw.json` (on an Azure Disk PVC, `managed-csi-premium`, mounted at `/home/node/.openclaw`). Do not use `env.shellEnv` (no login shell in container).
 
 → Full AKS patterns: `workloads/` directory and `plan/feature-aks-application-1.md`
 

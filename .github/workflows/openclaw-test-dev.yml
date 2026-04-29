@@ -63,6 +63,21 @@ jobs:
             --output none
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
+      - name: Ensure AKS cluster is running
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLUSTER="${TF_VAR_project}-${TF_VAR_environment}-aks"
+          RG="${TF_VAR_project}-${TF_VAR_environment}-rg"
+          STATE="$(az aks show --resource-group "$RG" --name "$CLUSTER" \
+            --query "powerState.code" -o tsv)"
+          echo "Cluster power state: $STATE"
+          if [[ "$STATE" == "Stopped" ]]; then
+            echo "Starting cluster $CLUSTER..."
+            az aks start --resource-group "$RG" --name "$CLUSTER" --no-wait false
+            echo "Cluster started."
+          fi
+
       - name: Configure kubectl
         shell: bash
         run: |

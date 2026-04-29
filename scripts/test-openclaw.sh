@@ -70,10 +70,19 @@ declare -A SKIP_NS
 
 for APP in "${ARGOCD_APPS[@]}"; do
   ELAPSED=0
-  # Force ArgoCD to re-fetch from Git so it detects any recent commits
-  # (e.g. post-merge smoke test running before ArgoCD's polling interval fires).
-  kubectl annotate application "${APP}" -n argocd \
-    argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
+  # Only force a refresh if the app is not already Synced+Healthy.
+  # Unconditional refresh triggers a re-sync/rollout on every test run
+  # even when nothing changed, causing endpoint churn on Recreate deployments.
+  CURR_SYNC="$(kubectl get application "${APP}" -n argocd \
+    -o jsonpath='{.status.sync.status}' 2>/dev/null || true)"
+  CURR_HEALTH="$(kubectl get application "${APP}" -n argocd \
+    -o jsonpath='{.status.health.status}' 2>/dev/null || true)"
+  if [[ "${CURR_SYNC}" != "Synced" || "${CURR_HEALTH}" != "Healthy" ]]; then
+    # Force ArgoCD to re-fetch from Git so it detects any recent commits
+    # (e.g. post-merge smoke test running before ArgoCD's polling interval fires).
+    kubectl annotate application "${APP}" -n argocd \
+      argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
+  fi
   echo "  Waiting for ArgoCD to sync ${APP}..."
   until [[ "$(kubectl get application "${APP}" -n argocd \
         -o jsonpath='{.status.sync.status}' 2>/dev/null || true)" == "Synced" ]]; do

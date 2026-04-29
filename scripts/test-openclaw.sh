@@ -110,7 +110,15 @@ for APP in "${ARGOCD_APPS[@]}"; do
 
   if [[ "${POD_READY}" -ge 1 ]]; then
     pass "Pod ready: ${TARGET_NS}"
-    # Wait for service endpoint to reflect the new pod (avoids stale port-forward targets)
+    # Wait for ArgoCD to report Healthy — ensures any sync triggered by the refresh
+    # annotation above has fully settled before we probe endpoints/ports.
+    AH_WAIT=0
+    until [[ "$(kubectl get application "${APP}" -n argocd \
+          -o jsonpath='{.status.health.status}' 2>/dev/null || true)" == "Healthy" ]]; do
+      [[ ${AH_WAIT} -ge 120 ]] && break
+      sleep 5; AH_WAIT=$((AH_WAIT + 5))
+    done
+    # Also wait briefly for the service endpoint to reflect the pod IP.
     EP_WAIT=0
     until kubectl get endpoints openclaw -n "${TARGET_NS}" \
         -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null | grep -q .; do

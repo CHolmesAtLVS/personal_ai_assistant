@@ -100,7 +100,7 @@ for APP in "${ARGOCD_APPS[@]}"; do
   POD_WAIT=0; POD_READY=0
   until [[ "${POD_READY}" -eq 1 ]]; do
     if kubectl get pods -n "${TARGET_NS}" \
-        -o jsonpath='{range .items[*]}{.status.containerStatuses[*].ready}{"\n"}{end}' \
+        -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.ready}{"\n"}{end}{end}' \
         2>/dev/null | grep -q "^true$"; then
       POD_READY=1; break
     fi

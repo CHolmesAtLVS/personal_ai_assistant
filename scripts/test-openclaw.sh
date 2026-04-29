@@ -141,7 +141,7 @@ for NS in "${TEST_NAMESPACES[@]}"; do
     PROBE_OK=0
     for _ in $(seq 1 15); do
       # Restart port-forward on each attempt so stale endpoints don't block retries
-      kill "${PF_PID}" 2>/dev/null || true
+      [[ "${PF_PID}" -gt 0 ]] && kill "${PF_PID}" 2>/dev/null || true
       kubectl port-forward "svc/openclaw" -n "${NS}" "18080:${PORT}" \
         >/tmp/pf-"${NS}".log 2>&1 &
       PF_PID=$!
@@ -221,7 +221,7 @@ for NS in "${TEST_NAMESPACES[@]}"; do
   CHAT_RESPONSE='CURL_FAIL'
   PF_PID=0
   for _ in $(seq 1 3); do
-    kill "${PF_PID}" 2>/dev/null || true
+    [[ "${PF_PID}" -gt 0 ]] && kill "${PF_PID}" 2>/dev/null || true
     kubectl port-forward "svc/openclaw" -n "${NS}" "18082:18789" \
       >/tmp/pf-chat-"${NS}".log 2>&1 &
     PF_PID=$!
